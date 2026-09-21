@@ -1,0 +1,209 @@
+/* ============================================================================
+   COSITI — Feuille d'entrée de l'application
+   ----------------------------------------------------------------------------
+   Rôle : importer Tailwind, importer les jetons, et exposer ces jetons à
+   Tailwind sous forme d'utilitaires (`bg-primaire`, `text-titre`,
+   `border-succes-trait`, …).
+
+   Ce fichier ne contient AUCUNE valeur brute : il ne fait que relier
+   `tokens.css` au moteur Tailwind. Toute couleur, taille ou rayon nouveau se
+   déclare d'abord dans `tokens.css`.
+
+   Activation : ce fichier ne compile qu'une fois Tailwind v4 installé.
+   Voir docs/02_DESIGN_SYSTEM.md §11 « Activation ». Tant que ce n'est pas fait,
+   `src/main.tsx` importe `./styles/tokens.css` seul.
+   ========================================================================== */
+
+@import "tailwindcss";
+@import "./tokens.css";
+
+@theme inline {
+  /* ==========================================================================
+     Couleurs COSITI — noms sémantiques, utilisables comme utilitaires
+     ====================================================================== */
+
+  --color-fond: var(--fond);
+  --color-surface: var(--surface);
+  --color-surface-douce: var(--surface-douce);
+  --color-surface-survol: var(--surface-survol);
+  --color-bordure: var(--bordure);
+  --color-bordure-forte: var(--bordure-forte);
+
+  --color-texte: var(--texte);
+  --color-texte-doux: var(--texte-doux);
+  --color-texte-doux-fort: var(--texte-doux-fort);
+  --color-texte-inactif: var(--texte-inactif);
+  --color-titre: var(--titre);
+
+  --color-primaire: var(--primaire);
+  --color-primaire-survol: var(--primaire-survol);
+  --color-primaire-contenu: var(--primaire-contenu);
+  --color-primaire-doux: var(--primaire-doux);
+
+  --color-marque: var(--marque);
+  --color-marque-survol: var(--marque-survol);
+  --color-marque-contenu: var(--marque-contenu);
+  --color-marque-trait: var(--marque-trait);
+
+  --color-nav-fond: var(--nav-fond);
+  --color-nav-contenu: var(--nav-contenu);
+  --color-nav-contenu-doux: var(--nav-contenu-doux);
+  --color-nav-actif-fond: var(--nav-actif-fond);
+  --color-nav-actif-trait: var(--nav-actif-trait);
+
+  /* Teintes d'état — voir src/lib/statuts.ts, seul endroit qui décide
+     quelle teinte porte quel statut métier. */
+  --color-neutre-doux: var(--neutre-doux);
+  --color-neutre-fort: var(--neutre-fort);
+  --color-neutre-trait: var(--neutre-trait);
+
+  --color-info-doux: var(--info-doux);
+  --color-info-fort: var(--info-fort);
+  --color-info-trait: var(--info-trait);
+
+  --color-succes-doux: var(--succes-doux);
+  --color-succes-fort: var(--succes-fort);
+  --color-succes-trait: var(--succes-trait);
+
+  --color-attention-doux: var(--attention-doux);
+  --color-attention-fort: var(--attention-fort);
+  --color-attention-trait: var(--attention-trait);
+
+  --color-danger-doux: var(--danger-doux);
+  --color-danger-fort: var(--danger-fort);
+  --color-danger-trait: var(--danger-trait);
+
+  /* ==========================================================================
+     Pont shadcn/ui — les primitives générées par la CLI utilisent ces noms.
+     ATTENTION : dans shadcn, `accent` désigne la surface de survol neutre,
+     PAS l'accent de marque. L'orange COSITI est exposé sous `marque`, jamais
+     sous `accent`, sinon tous les survols de menu deviennent orange.
+     ====================================================================== */
+
+  --color-background: var(--surface);
+  --color-foreground: var(--texte);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--texte);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--texte);
+  --color-primary: var(--primaire);
+  --color-primary-foreground: var(--primaire-contenu);
+  --color-secondary: var(--surface-douce);
+  --color-secondary-foreground: var(--texte);
+  --color-muted: var(--surface-douce);
+  --color-muted-foreground: var(--texte-doux-fort);
+  --color-accent: var(--surface-survol);
+  --color-accent-foreground: var(--texte);
+  --color-destructive: var(--danger-fort);
+  --color-destructive-foreground: var(--surface);
+  --color-border: var(--bordure);
+  --color-input: var(--bordure-forte);
+  --color-ring: var(--anneau);
+
+  /* ==========================================================================
+     Typographie, rayons, ombres, ruptures
+     ====================================================================== */
+
+  --font-sans: var(--police-base);
+  --font-mono: var(--police-mono);
+
+  --text-2xs: var(--taille-2xs);
+  --text-xs: var(--taille-xs);
+  --text-sm: var(--taille-sm);
+  --text-base: var(--taille-base);
+  --text-lg: var(--taille-lg);
+  --text-xl: var(--taille-xl);
+  --text-2xl: var(--taille-2xl);
+  --text-3xl: var(--taille-3xl);
+
+  --radius-sm: var(--rayon-sm);
+  --radius-md: var(--rayon-md);
+  --radius-lg: var(--rayon-lg);
+  --radius-full: var(--rayon-plein);
+
+  --shadow-carte: var(--ombre-carte);
+  --shadow-flottante: var(--ombre-flottante);
+  --shadow-modale: var(--ombre-modale);
+
+  --breakpoint-2xl: 1440px;
+}
+
+@layer base {
+  html {
+    font-size: 16px; /* charte : texte courant 16 px, ne pas réduire */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--fond);
+    color: var(--texte);
+    font-family: var(--police-base);
+    font-size: var(--taille-base);
+    line-height: var(--interligne-base);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Titres — charte §3. Le niveau sémantique porte le style : un agent n'a
+     jamais à réappliquer taille et couleur à la main. */
+  h1 {
+    color: var(--titre);
+    font-size: var(--taille-3xl);
+    font-weight: var(--graisse-forte);
+    line-height: var(--interligne-serre);
+    letter-spacing: var(--interlettre-titre);
+  }
+
+  h2 {
+    color: var(--primaire);
+    font-size: var(--taille-xl);
+    font-weight: var(--graisse-forte);
+    line-height: var(--interligne-serre);
+  }
+
+  h3 {
+    color: var(--texte);
+    font-size: var(--taille-lg);
+    font-weight: var(--graisse-demi);
+    line-height: var(--interligne-serre);
+  }
+
+  /* Un seul anneau de focus dans toute l'application. Jamais `outline: none`
+     sans remplacement visible : plusieurs utilisateurs naviguent au clavier. */
+  :focus-visible {
+    outline: 2px solid var(--anneau);
+    outline-offset: 2px;
+    border-radius: var(--rayon-sm);
+  }
+
+  ::selection {
+    background-color: var(--primaire-doux);
+    color: var(--titre);
+  }
+
+  /* Matricules, références de transaction, identifiants : chasse fixe et
+     chiffres tabulaires pour que les colonnes s'alignent. */
+  code,
+  kbd,
+  samp,
+  .ref {
+    font-family: var(--police-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Montants et colonnes chiffrées. */
+  .chiffre {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
