@@ -425,12 +425,18 @@ GET  /agents/{id}/charge?periode=YYYY-MM
 POST /portefeuilles/affecter
 POST /portefeuilles/transferer
 GET  /portefeuilles/sans-agent?zoneId=...
+
+POST /agents/{id}/designer-chef       [A]
+POST /agents/{id}/remplacer-chef      [A]
+GET  /agents/chef                     [A]
+GET  /agents/{id}/historique-chef     [A]
 ```
 
 ## Contrats à valider
 
-Les documents ne donnent pas de contrat REST définitif pour : - désigner
-un Chef ; - attribuer un objectif.
+Proposition de contrat dans `COSITI_API_docs/docs/03_SPECIFICATIONS_API.md §6`
+pour : - désigner/remplacer un Chef ; - attribuer un objectif (aucune
+proposition, besoin non confirmé).
 
 Avant codage : 1. cas d'utilisation ; 2. request ; 3. response ; 4.
 permission ; 5. audit ; 6. validation.
@@ -443,12 +449,14 @@ Responsabilités :
 creerZone
 modifierZone
 creerAgent
+creerAgentParDga (DGA-F01, audité AGENT_CREATION_PAR_DGA)
 modifierAgent
 affecterPortefeuille
 transfererPortefeuille
 consulterCharge
 listerSansAgent
-designerChefTerrain [à valider]
+designerChefTerrain [à valider] (DGA-F03, audité AGENT_DESIGNATION_CHEF)
+remplacerChefTerrain [à valider] (DGA-F04, audité AGENT_REMPLACEMENT_CHEF)
 attribuerObjectif [à valider]
 ```
 
@@ -759,7 +767,7 @@ accès ; - statut.
 
 ------------------------------------------------------------------------
 
-# 13. S08 --- Relances + Notifications
+# 13. S08 --- Relances + Notifications + Comptes rendus
 
 ## API
 
@@ -773,6 +781,16 @@ POST /campagnes-relance
 
 GET  /notifications
 POST /notifications/{id}/lue
+```
+
+## API — comptes rendus `[A]` (contrat à valider avant codage, voir `COSITI_API_docs/docs/03_SPECIFICATIONS_API.md §9`)
+
+``` text
+POST /comptes-rendus
+GET  /comptes-rendus
+POST /comptes-rendus/{id}/controler
+POST /comptes-rendus/consolider
+POST /comptes-rendus/{id}/transmettre
 ```
 
 ## Backend
@@ -789,11 +807,21 @@ listerRetardataires
 Le résultat doit être structuré : - résultat ; - date ; - commentaire
 éventuel ; - prochaine action éventuelle.
 
+Chaîne hiérarchique terrain (`Roles des acteurs.md §12.1`) : Agent de
+terrain produit un compte rendu → Gestionnaire des comptes contrôle et
+consolide → transmission à la DGA. Chaque étape est auditée
+(`COMPTE_RENDU_CREATION`, `COMPTE_RENDU_CONSOLIDATION`,
+`COMPTE_RENDU_TRANSMISSION`).
+
 ## Frontend
 
 `/relances`
 
 Vues : - à faire ; - résultats ; - campagnes ; - historique.
+
+`/comptes-rendus` (E18) : vue Agent (produire), vue Chef (examiner son
+équipe), vue Gestionnaire (recevoir/contrôler/consolider/transmettre),
+vue DGA (consulter les comptes rendus consolidés reçus).
 
 ## Tests
 
@@ -802,22 +830,28 @@ Vues : - à faire ; - résultats ; - campagnes ; - historique.
 -   campagne ;
 -   périmètre ;
 -   notifications ;
--   exploitation dans dashboard.
+-   exploitation dans dashboard ;
+-   compte rendu : production, contrôle, consolidation, transmission,
+    périmètre par rôle.
 
 ------------------------------------------------------------------------
 
 # 14. S09 --- Dashboards par rôle
 
+**Six dashboards exclusivement** (`Roles des acteurs.md §2` et `§11`) : PCA, DG, DGA, DAF, Gestionnaire des comptes, Super Administrateur. **Le Chef des agents de terrain et l'Agent de terrain n'ont pas de dashboard dédié** (`Roles des acteurs.md §16`, hors périmètre) : ils travaillent via les écrans métier (organisation, portefeuille, relances), jamais via une route `/tableaux-de-bord/*`.
+
 ## Sources API
 
 ``` text
-GET /tableaux-de-bord/direction
+GET /tableaux-de-bord/pca
+GET /tableaux-de-bord/dg
+GET /tableaux-de-bord/dga
 GET /tableaux-de-bord/daf
-GET /tableaux-de-bord/cnps
-GET /tableaux-de-bord/terrain
+GET /tableaux-de-bord/gestionnaire
+GET /tableaux-de-bord/super-admin
 ```
 
-Ne pas multiplier les endpoints sans besoin.
+Ne pas multiplier les endpoints sans besoin. Le contenu qui figurait plus bas sous « Chef Terrain » et « Agent Terrain » est couvert par les écrans métier (E12, portefeuille, relances), pas par un dashboard.
 
 ## PCA
 
@@ -866,24 +900,6 @@ Ne pas multiplier les endpoints sans besoin.
 -   dossiers incomplets ;
 -   déclarations ;
 -   retards.
-
-## Chef Terrain
-
--   équipe ;
--   zones ;
--   portefeuille ;
--   retards ;
--   collectes ;
--   relances ;
--   objectifs validés.
-
-## Agent Terrain
-
--   portefeuille personnel ;
--   adhérents ;
--   retards ;
--   relances ;
--   collecte.
 
 ## Super Admin
 
@@ -1180,9 +1196,13 @@ GET          /agents/{id}/charge
 POST         /portefeuilles/affecter
 POST         /portefeuilles/transferer
 GET          /portefeuilles/sans-agent
+POST         /agents/{id}/designer-chef
+POST         /agents/{id}/remplacer-chef
+GET          /agents/chef
+GET          /agents/{id}/historique-chef
 ```
 
-À valider : - Chef ; - objectifs ; - confirmation hiérarchique.
+À valider avant codage (S03) : - contrat désignation/remplacement du Chef ; - objectifs ; - confirmation hiérarchique. Voir `COSITI_API_docs/docs/03_SPECIFICATIONS_API.md §6`.
 
 ## Paiements
 
@@ -1246,11 +1266,15 @@ POST /notifications/{id}/lue
 ## Dashboards
 
 ``` text
-GET /tableaux-de-bord/direction
+GET /tableaux-de-bord/pca
+GET /tableaux-de-bord/dg
+GET /tableaux-de-bord/dga
 GET /tableaux-de-bord/daf
-GET /tableaux-de-bord/cnps
-GET /tableaux-de-bord/terrain
+GET /tableaux-de-bord/gestionnaire
+GET /tableaux-de-bord/super-admin
 ```
+
+Six dashboards exclusivement — aucun pour le Chef ni l'Agent de terrain.
 
 ## Reporting / Audit
 
