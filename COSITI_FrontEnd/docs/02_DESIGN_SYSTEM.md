@@ -420,16 +420,12 @@ Ce ne sont pas des intentions : chacune se contrôle.
 
 ## 15. Activation
 
-Le design system est écrit ; la couche Tailwind reste à installer. Les
-dépendances ci-dessous sont marquées **[A]** : elles passent par la procédure de
-`docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md` et sont consignées dans
-`docs/journal-dependances.md` avant installation.
-
-> Ces deux documents ont été supprimés avec l'ancienne codebase et sont à
-> reconstituer (voir `AGENTS.md` §7). Tant qu'ils n'existent pas, aucune
-> installation ne se fait sans validation explicite du chef de projet. Il en va
-> de même pour `docs/03_SPECIFICATIONS_ECRANS.md`, cité plus haut comme seule
-> justification recevable pour ajouter une variante de composant.
+Fait au reliquat de J0 (22/09/2026) : la couche Tailwind est installée et
+branchée sur ce fichier de jetons via `src/styles/globals.css`
+(`@theme inline`). Procédure suivie et dépendances consignées dans
+`docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md` et `docs/journal-dependances.md`,
+tous deux désormais présents (`AGENTS.md §7`). Les commandes ci-dessous sont
+conservées pour mémoire (état de référence, déjà exécuté) :
 
 **1. Dépendances**
 
@@ -458,8 +454,9 @@ export default defineConfig({
 ```
 
 ```jsonc
-// tsconfig.app.json — compilerOptions
-"baseUrl": ".",
+// tsconfig.app.json et tsconfig.json — compilerOptions
+// `baseUrl` volontairement omis : TS >= 5 résout `paths` relativement à ce
+// fichier sans lui, et `baseUrl` est dépréciée (TS6.0, TS5101).
 "paths": { "@/*": ["./src/*"], "@marque/*": ["./COSITI_branding_pack/assets/*"] }
 ```
 

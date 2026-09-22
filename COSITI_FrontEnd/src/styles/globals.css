@@ -17,6 +17,14 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
+/* COSITI : aucun mode sombre en V1 (docs/02_DESIGN_SYSTEM.md §2 et §17). Par
+   défaut, Tailwind v4 active `dark:` selon `prefers-color-scheme`, ce qui
+   activerait un thème sombre non conçu dès qu'un poste COSITI est réglé en
+   sombre. On bascule la variante sur une classe `.dark` qu'aucun composant
+   ne pose jamais : les utilitaires `dark:` générés par shadcn deviennent
+   inertes tant qu'une décision explicite de thème sombre n'est pas actée. */
+@custom-variant dark (&:is(.dark, .dark *));
+
 @theme inline {
   /* ==========================================================================
      Couleurs COSITI — noms sémantiques, utilisables comme utilitaires

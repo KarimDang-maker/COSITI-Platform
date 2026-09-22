@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Rapports d'outillage (ex. `rtk proxy npx vitest run` écrit un rapport JSON ici)
+.vitest/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

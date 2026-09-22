@@ -57,21 +57,25 @@ passer.
 
 ## 3. État du dépôt
 
-La codebase précédente a été supprimée (commit `c2ee38d`) : le frontend repart
-d'un gabarit Vite vierge, pour une reconstruction écran par écran.
+La codebase précédente a été supprimée (commit `c2ee38d`) : le frontend est
+reconstruit jalon par jalon. Voir `Conception/SUIVI_EXECUTION.md` pour l'état
+réel, jalon par jalon, et le détail des tests.
 
 | Existe aujourd'hui | Reste à faire |
 |---|---|
-| Design system complet : jetons, teintes, statuts, formatage, contrats de composants | Installer la couche Tailwind + shadcn (`docs/02_DESIGN_SYSTEM.md` §15) |
-| `src/components/ui/` et `src/components/cositi/` avec leurs contrats | Écrire les primitives et les composants métier |
-| `components.json` (config shadcn) | Couche d'accès API, authentification, routage, gardes de permission |
-| | Reconstituer les documents `01`, `03`, `04`, `05` du pack (§6) |
+| Design system complet : jetons, teintes, statuts, formatage, contrats de composants | Dashboards (J9), CNPS (J7), relances/comptes rendus (J8) et jalons suivants |
+| Tailwind v4 + shadcn/ui + CVA branchés sur les jetons COSITI | Playwright (parcours E2E critiques) — non installé faute de temps, voir `SUIVI_EXECUTION.md` |
+| `api/client.ts`, `auth/`, `app/` (routage + garde de route) | CSP effective en production (`docs/04_SECURITE.md §5`, J11) |
+| J1 (auth), J2 (adhérents), J3 (organisation terrain), J4 (cotisations) — frontend et backend, voir `SUIVI_EXECUTION.md` | Contrats `[A]` de `03_SPECIFICATIONS_API.md §6` (désignation du Chef) à confirmer formellement par la COSITI ; champ `creePar` manquant sur `PaiementDto` (J4, voir décisions) |
+| `docs/01`, `02`, `03`, `04`, `05` et `journal-dependances.md` — tous présents | |
 
-Convention d'arborescence en vigueur, en attendant la réécriture de
-`docs/01_ARCHITECTURE.md` : `src/components/ui/` pour les primitives shadcn
+Convention d'arborescence en vigueur (voir `docs/01_ARCHITECTURE.md` pour le
+détail complet) : `src/components/ui/` pour les primitives shadcn
 (régénérables par la CLI, noms en anglais) et `src/components/cositi/` pour les
 composants métier (écrits à la main, noms en français). Chaque dossier porte
-son contrat dans son `README.md`.
+son contrat dans son `README.md`. `src/api/`, `src/auth/`, `src/app/`,
+`src/ecrans/<domaine>/`, `src/hooks/` et `src/test/` complètent l'arborescence
+depuis J1.
 
 ## 4. Stack
 
@@ -81,18 +85,19 @@ son contrat dans son `README.md`.
 | Langage | TypeScript 6.x, mode strict | installé |
 | Build | Vite 8 | installé |
 | Qualité | oxlint | installé |
-| Style | Tailwind CSS v4 + jetons maison (`docs/02_DESIGN_SYSTEM.md`) | [A] |
-| Composants de base | shadcn/ui + CVA, adaptés aux jetons COSITI | [A] |
-| Icônes | lucide-react | [A] |
-| Routage | React Router | [A] |
-| Données serveur | TanStack Query | [A] |
-| Formulaires | React Hook Form + Zod | [A] |
-| Tables | TanStack Table | [A] |
-| Graphiques | Recharts | [A] |
-| Tests | Vitest, Testing Library, MSW, Playwright (parcours critiques) | [A] |
+| Style | Tailwind CSS v4 + jetons maison (`docs/02_DESIGN_SYSTEM.md`) | installé (J1) |
+| Composants de base | shadcn/ui + CVA, adaptés aux jetons COSITI | installé (J1) |
+| Icônes | lucide-react | installé (J1) |
+| Routage | React Router | installé (J1) |
+| Données serveur | TanStack Query | installé (J1) |
+| Formulaires | React Hook Form + Zod | installé (J1) |
+| Tables | TanStack Table | installé (J1) |
+| Graphiques | Recharts | installé (J1), aucun graphique livré avant J9 |
+| Tests | Vitest, Testing Library, MSW | installés (J1) |
+| Tests E2E | Playwright (parcours critiques) | **non installé** — voir `Conception/SUIVI_EXECUTION.md` |
 
-Tout ce qui est marqué **[A]** passe la procédure de vérification des paquets
-et est consigné dans `docs/journal-dependances.md` **avant** installation.
+Toute dépendance passe la procédure de `docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md`
+et est consignée dans `docs/journal-dependances.md` **avant** installation.
 
 ## 5. Organisation du travail
 
@@ -123,20 +128,22 @@ isolée et réutilisable.
 | Fichier | Contenu | Statut |
 |---|---|---|
 | `docs/02_DESIGN_SYSTEM.md` | Jetons, couleurs, typographie, composants, accessibilité | **présent** |
-| `docs/01_ARCHITECTURE.md` | Arborescence, couches, état, conventions de composants | à reconstituer |
-| `docs/03_SPECIFICATIONS_ECRANS.md` | Écran par écran : contenu, actions, états, permissions | à reconstituer |
-| `docs/04_SECURITE.md` | Jetons, XSS, CSP, permissions, données sensibles | à reconstituer |
-| `docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md` | Procédure de vérification des paquets npm | à reconstituer |
-| `docs/journal-dependances.md` | Journal des dépendances vérifiées | à reconstituer |
+| `docs/01_ARCHITECTURE.md` | Arborescence, couches, état, conventions de composants | **présent** (reconstitué J1, tenu à jour à chaque jalon) |
+| `docs/03_SPECIFICATIONS_ECRANS.md` | Écran par écran : contenu, actions, états, permissions | **présent** (reconstitué à partir de J1, un jalon à la fois) |
+| `docs/04_SECURITE.md` | Jetons, XSS, CSP, permissions, données sensibles | **présent** (reconstitué J1) |
+| `docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md` | Procédure de vérification des paquets npm | **présent** (reconstitué J1) |
+| `docs/journal-dependances.md` | Journal des dépendances vérifiées | **présent** (reconstitué J1) |
 | `COSITI_branding_pack/COSITI_charte_graphique.md` | **Charte graphique — fait foi sur la marque** | présent |
 | `../Conception/Roles des acteurs.md` | **Référentiel fonctionnel des 8 acteurs V1 — fait foi en cas d'écart avec ce pack** | présent |
 | `../Conception/JALONS_PROJET_COSITI.md` | Détail des jalons et critère de passage | présent |
 | `../Conception/SUIVI_EXECUTION.md` | Avancement réel, à mettre à jour à chaque livraison | présent |
 | `../COSITI_Backend/docs/03_SPECIFICATIONS_API.md` | Endpoints, formats, erreurs, pagination | présent |
 
-Les documents marqués « à reconstituer » ont été supprimés avec l'ancienne
-codebase. Tant qu'ils n'existent pas, ne pas inventer leur contenu : appliquer
-la règle 10.
+Tous les documents sont désormais présents. `docs/03_SPECIFICATIONS_ECRANS.md`
+reste étendu écran par écran, dans le même lot de travail que l'écran livré —
+ne jamais y décrire un écran non encore construit. Pour tout contenu qui
+manquerait encore à un document, appliquer la règle 10 (`TODO [V]`, signaler,
+ne pas inventer).
 
 Le contrat d'API fait foi : `GET /api/v1/openapi` (springdoc). En cas d'écart
 entre ce pack et l'API réelle, signaler — ne pas contourner côté client.

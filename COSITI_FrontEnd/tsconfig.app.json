@@ -16,6 +16,14 @@
     "noEmit": true,
     "jsx": "react-jsx",
 
+    /* Alias — voir vite.config.ts et docs/02_DESIGN_SYSTEM.md §15.
+       `baseUrl` est délibérément omis : TS >= 5 résout `paths` relativement à
+       ce fichier sans lui, et `baseUrl` est dépréciée (TS6.0, TS5101). */
+    "paths": {
+      "@/*": ["./src/*"],
+      "@marque/*": ["./COSITI_branding_pack/assets/*"]
+    },
+
     /* Linting */
     "strict": true,
     "noUncheckedIndexedAccess": true,

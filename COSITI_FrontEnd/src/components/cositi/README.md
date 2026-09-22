@@ -36,6 +36,7 @@ français, et composent les primitives de `../ui/`.
 | `avertissement-regle.tsx` | Bandeau spécifique aux règles `[V]` non validées par la COSITI |
 | `dialogue-confirmation.tsx` | Confirmation d'action sensible, avec motif obligatoire quand la règle l'impose |
 | `champ-*.tsx` | Champs composés : montant, téléphone, date, matricule, sélecteur d'adhérent avec recherche |
+| `select-recherche.tsx` | Sélecteur avec recherche obligatoire au-delà de 10 options (zones, agents, adhérents) — ajouté en J2 |
 | `coquille-application.tsx` | Gabarit : navigation latérale + en-tête + zone de contenu |
 | `navigation-laterale.tsx` | Navigation filtrée par permissions, logo inversé sur fond vert foncé |
 | `entete-application.tsx` | Fil d'Ariane, recherche globale, notifications, menu utilisateur avec rôle |

@@ -71,6 +71,12 @@ const PAIEMENT = {
   VALIDE: { libelle: "Validé", teinte: "succes" },
   RAPPROCHE: { libelle: "Rapproché", teinte: "succes" },
   ANNULE: { libelle: "Annulé", teinte: "danger", aide: "Annulation motivée et auditée." },
+  /**
+   * Ajouté au jalon J4 : code réel de `cm.cositi.api.cotisation.entite.StatutPaiement`
+   * (backend), absent de la version précédente de cette table. Complète le
+   * registre plutôt que de le redéfinir (`docs/02_DESIGN_SYSTEM.md §17`).
+   */
+  INCOHERENCE: { libelle: "Incohérence signalée", teinte: "danger", aide: "Une incohérence a été signalée par le DAF." },
 } satisfies TableStatuts;
 
 const MODE_PAIEMENT = {
