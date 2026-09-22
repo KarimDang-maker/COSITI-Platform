@@ -1,10 +1,24 @@
 # JALONS_PROJET_COSITI — Découpage en jalons V1
 
-**Version : 1.0 — 21 septembre 2026**
+**Version : 1.1 — 21 septembre 2026**
 
-Référentiel unique des jalons du projet COSITI V1, pointé par `COSITI_API_docs/AGENTS.md` et `COSITI_WEB_docs/AGENTS.md`. Détail technique complet (contrats API, modèle de données, écrans) dans `COSITI_PLAN_SPRINT_V1_FRONT_BACK.md`, dont les jalons `J0`…`J12` reprennent 1:1 les sprints `S00`…`S12`.
+Référentiel unique des jalons du projet COSITI V1. Les deux `AGENTS.md` pointent vers ce fichier et constituent les points d'entrée pour le développement.
 
-La source de vérité fonctionnelle reste **`Roles des acteurs.md`**. En cas d'écart entre ce fichier et un pack technique, `Roles des acteurs.md` fait foi.
+## Navigation
+
+| Fichier | Rôle |
+|---|---|
+| [`Roles des acteurs.md`](Roles%20des%20acteurs.md) | **Source de vérité fonctionnelle** — fait foi en cas d'écart |
+| [`SUIVI_EXECUTION.md`](SUIVI_EXECUTION.md) | Avancement réel, mis à jour à chaque livraison |
+| [`../COSITI_Backend/AGENTS.md`](../COSITI_Backend/AGENTS.md) | Point d'entrée agent backend |
+| [`../COSITI_Backend/ARCHITECTURE_BACKEND_COSITI_V1.md`](../COSITI_Backend/ARCHITECTURE_BACKEND_COSITI_V1.md) | Prompt d'architecture backend |
+| [`../COSITI_Backend/docs/`](../COSITI_Backend/docs/) | Détails techniques backend (BDD, API, sécurité, dépendances) |
+| [`../COSITI_FrontEnd/AGENTS.md`](../COSITI_FrontEnd/AGENTS.md) | Point d'entrée agent frontend |
+| [`../COSITI_FrontEnd/PROMPT_ARCHITECTURE_FRONTEND_COSITI_V1.md`](../COSITI_FrontEnd/PROMPT_ARCHITECTURE_FRONTEND_COSITI_V1.md) | Prompt d'architecture frontend |
+| [`../COSITI_FrontEnd/docs/`](../COSITI_FrontEnd/docs/) | Détails techniques frontend (Design System) |
+| [`../COSITI_FrontEnd/COSITI_branding_pack/COSITI_charte_graphique.md`](../COSITI_FrontEnd/COSITI_branding_pack/COSITI_charte_graphique.md) | Charte graphique — fait foi sur la marque |
+
+La source de vérité fonctionnelle reste **[`Roles des acteurs.md`](Roles%20des%20acteurs.md)**. En cas d'écart entre ce fichier et un pack technique, `Roles des acteurs.md` fait foi.
 
 ## Méthode
 
@@ -13,7 +27,7 @@ La source de vérité fonctionnelle reste **`Roles des acteurs.md`**. En cas d'�
 - `SUIVI_EXECUTION.md` (même dossier) est mis à jour à chaque avancée réelle dans le code — pas en avance, pas en intention.
 - Un jalon n'ouvre pas le suivant tant que son critère de passage n'est pas rempli.
 
-## Critère de passage d'un jalon (repris de `COSITI_PLAN_SPRINT_V1_FRONT_BACK.md §24`)
+## Critère de passage d'un jalon
 
 Un jalon n'est considéré terminé que si :
 - les fonctionnalités prévues sont terminées ;
