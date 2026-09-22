@@ -59,6 +59,13 @@ const REGULARITE = {
 const PERIODE_DROITS = {
   COUVERTE: { libelle: "Couverte", teinte: "succes" },
   PARTIELLE: { libelle: "Partielle", teinte: "attention" },
+  /**
+   * Ajouté au jalon J6 : code réel de
+   * `cm.cositi.api.droits.entite.StatutPeriode` (backend), absent de la
+   * version précédente de cette table — complété, pas redéfini (même
+   * traitement que `PAIEMENT.INCOHERENCE` en J4).
+   */
+  ANNULEE: { libelle: "Annulée", teinte: "danger", aide: "Période invalidée par une annulation de paiement." },
 } satisfies TableStatuts;
 
 /* ==========================================================================

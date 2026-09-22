@@ -3,7 +3,6 @@ import {
   creerAdherent,
   listerAdherents,
   obtenirAdherent,
-  obtenirSituationAdherent,
   verifierDoublon,
   type CorpsCreationAdherent,
   type CorpsVerificationDoublon,
@@ -24,14 +23,6 @@ export function useAdherent(id: string | undefined) {
   return useQuery({
     queryKey: [CLE_ADHERENTS, "detail", id],
     queryFn: () => obtenirAdherent(id!),
-    enabled: !!id,
-  });
-}
-
-export function useSituationAdherent(id: string | undefined) {
-  return useQuery({
-    queryKey: [CLE_ADHERENTS, "situation", id],
-    queryFn: () => obtenirSituationAdherent(id!),
     enabled: !!id,
   });
 }

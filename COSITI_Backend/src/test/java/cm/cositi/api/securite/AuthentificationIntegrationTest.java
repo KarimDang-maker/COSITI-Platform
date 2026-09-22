@@ -19,6 +19,8 @@ import java.util.Map;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -64,7 +66,7 @@ class AuthentificationIntegrationTest extends ConfigurationTestsIntegration {
     }
 
     @Test
-    void connexionAvecIdentifiantsValidesRenvoieUnePaireDeJetons() {
+    void connexionAvecIdentifiantsValidesRenvoieUnJetonDAccesEtUnCookieDeRafraichissement() {
         creerUtilisateur("agent.test1", "AGENT_TERRAIN");
 
         given().contentType(ContentType.JSON)
@@ -72,7 +74,13 @@ class AuthentificationIntegrationTest extends ConfigurationTestsIntegration {
                 .when().post("/auth/connexion")
                 .then().statusCode(200)
                 .body("jetonAcces", notNullValue())
-                .body("jetonRafraichissement", notNullValue());
+                // Jamais dans le corps JSON (docs/04_SECURITE.md §2) : uniquement en cookie HttpOnly.
+                .body("$", not(hasKey("jetonRafraichissement")))
+                .cookie("jetonRafraichissement", notNullValue())
+                .header("Set-Cookie", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("HttpOnly"),
+                        org.hamcrest.Matchers.containsString("Secure"),
+                        org.hamcrest.Matchers.containsString("SameSite=Strict")));
     }
 
     @Test
@@ -106,34 +114,40 @@ class AuthentificationIntegrationTest extends ConfigurationTestsIntegration {
     }
 
     @Test
-    void rafraichissementFaitTournerLeJetonEtLAncienDevientInutilisable() {
+    void rafraichissementFaitTournerLeCookieEtLAncienDevientInutilisable() {
         creerUtilisateur("agent.test4", "AGENT_TERRAIN");
 
+        // Le jeton de rafraîchissement ne transite jamais dans le corps JSON : on le récupère depuis le
+        // cookie Set-Cookie de la réponse, exactement comme le fait le navigateur (`credentials: "include"`).
         String jetonRafraichissementInitial = given().contentType(ContentType.JSON)
                 .body(Map.of("identifiant", "agent.test4", "motDePasse", MOT_DE_PASSE))
                 .when().post("/auth/connexion")
                 .then().statusCode(200)
-                .extract().path("jetonRafraichissement");
+                .extract().cookie("jetonRafraichissement");
 
-        String nouveauJetonRafraichissement = given().contentType(ContentType.JSON)
-                .body(Map.of("jetonRafraichissement", jetonRafraichissementInitial))
+        String nouveauJetonRafraichissement = given()
+                .cookie("jetonRafraichissement", jetonRafraichissementInitial)
                 .when().post("/auth/rafraichir")
                 .then().statusCode(200)
-                .extract().path("jetonRafraichissement");
+                .extract().cookie("jetonRafraichissement");
 
         assertThat(nouveauJetonRafraichissement).isNotEqualTo(jetonRafraichissementInitial);
 
         // Réutilisation de l'ancien jeton (déjà consommé) : refusé, toute la famille est révoquée.
-        given().contentType(ContentType.JSON)
-                .body(Map.of("jetonRafraichissement", jetonRafraichissementInitial))
+        given().cookie("jetonRafraichissement", jetonRafraichissementInitial)
                 .when().post("/auth/rafraichir")
                 .then().statusCode(403);
 
         // La famille entière est révoquée : le jeton pourtant valide émis juste avant est lui aussi coupé.
-        given().contentType(ContentType.JSON)
-                .body(Map.of("jetonRafraichissement", nouveauJetonRafraichissement))
+        given().cookie("jetonRafraichissement", nouveauJetonRafraichissement)
                 .when().post("/auth/rafraichir")
                 .then().statusCode(403);
+    }
+
+    @Test
+    void rafraichirSansCookieRenvoie401() {
+        given().when().post("/auth/rafraichir").then().statusCode(401)
+                .body("code", equalTo("JETON_RAFRAICHISSEMENT_ABSENT"));
     }
 
     @Test

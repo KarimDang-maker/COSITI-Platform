@@ -17,8 +17,8 @@ USER cositi:cositi
 COPY --from=build /app/target/cositi-server-1.0.0-SNAPSHOT.jar app.jar
 
 ENV SPRING_PROFILES_ACTIVE=prod
-ENV SERVER_PORT=8080
+ENV SERVER_PORT=8082
 
-EXPOSE 8080
+EXPOSE 8082
 
 ENTRYPOINT ["java", "-XX:+UseG1GC", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

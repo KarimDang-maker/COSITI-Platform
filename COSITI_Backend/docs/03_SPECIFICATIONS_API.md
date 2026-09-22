@@ -75,7 +75,11 @@ Le téléphone est partiellement masqué : l'agent doit pouvoir reconnaître un 
 | GET | `/paiements/{id}/recu` | `PAIEMENT:LIRE` |
 | GET | `/paiements/{id}/affectations` | `PAIEMENT:LIRE` |
 | POST | `/paiements/{id}/affectations` | `PAIEMENT:AFFECTER` |
+| POST | `/paiements/{id}/confirmer-chef?motif=` | `PAIEMENT:CONFIRMER_CHEF` `[A]` — réservé `CHEF_AGENT_TERRAIN`, dans le périmètre de l'agent encaisseur, motif facultatif en paramètre de requête (jamais en corps JSON, pour ne pas imposer de `Content-Type` quand il n'y a rien à transmettre), audité (`PAIEMENT_CONFIRMATION_CHEF`, UC-CHEF-10) |
+| POST | `/paiements/{id}/signaler-incoherence` | `PAIEMENT:SIGNALER_INCOHERENCE` `[A]` — réservé `DAF`, motif obligatoire, transition vers `INCOHERENCE`, audité (`PAIEMENT_SIGNALEMENT_INCOHERENCE`, UC-DAF-05) |
 | POST | `/paiements/rapprochement` | `PAIEMENT:RAPPROCHER` (P1) |
+
+`[A]` (jalon J5, `Roles des acteurs.md §14`) : contrat non confirmé, à valider avant codage — même convention que `designer-chef` en J3. `GET /paiements?statut=A_CONTROLER` (filtre générique déjà documenté) sert d'écran de triage DAF, aucun endpoint dédié n'est ajouté. Le rapprochement mobile money (`POST /paiements/rapprochement`) reste explicitement hors périmètre de J5 (P1, non implémenté).
 
 Corps de `POST /paiements` :
 ```json
@@ -94,7 +98,14 @@ Erreurs métier spécifiques :
 | `PAIEMENT_ADHERENT_ARCHIVE` | 409 | Adhérent archivé |
 | `PAIEMENT_AUTO_VALIDATION_INTERDITE` | 403 | Le validateur est le créateur |
 | `PAIEMENT_DEJA_VALIDE` | 409 | Transition interdite |
-| `PAIEMENT_MOTIF_REQUIS` | 400 | Annulation ou correction sans motif |
+| `PAIEMENT_MOTIF_REQUIS` | 400 | Annulation, correction ou signalement d'incohérence sans motif |
+| `PAIEMENT_TRANSITION_INTERDITE` | 409 | Validation d'un paiement `INCOHERENCE` ou `ANNULE` ; signalement/confirmation sur un paiement déjà `ANNULE`/`VALIDE`/`RAPPROCHE` |
+| `PAIEMENT_CONFIRMATION_RESERVEE_CHEF` | 403 | Confirmation hiérarchique par un utilisateur sans rôle `CHEF_AGENT_TERRAIN` |
+| `PAIEMENT_HORS_PERIMETRE_CHEF` | 403 | L'agent encaisseur n'appartient pas à l'équipe du Chef |
+| `PAIEMENT_AGENT_ENCAISSEUR_MANQUANT` | 400 | Confirmation hiérarchique impossible sans agent encaisseur renseigné |
+| `PAIEMENT_DEJA_CONFIRME_CHEF` | 409 | Deuxième confirmation hiérarchique sur le même paiement |
+| `PAIEMENT_SIGNALEMENT_RESERVE_DAF` | 403 | Signalement d'incohérence par un utilisateur sans rôle `DAF` |
+| `PAIEMENT_DEJA_INCOHERENT` | 409 | Paiement déjà signalé incohérent |
 
 `POST /paiements/{id}/annuler` ne supprime rien : le paiement passe en `ANNULE`, les périodes de droits issues de ses affectations sont invalidées et recalculées dans la même transaction.
 

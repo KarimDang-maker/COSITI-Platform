@@ -1,6 +1,10 @@
 import { http, HttpResponse } from "msw";
 import type { Adherent, CorpsCreationAdherent, CorpsVerificationDoublon } from "@/api/adherents";
 
+// `GET /adherents/:id/situation` (J2) a été retiré au jalon J6 : consolidé
+// sur `GET /droits/adherents/:id`, voir `test/msw/handlers.droits.ts` et
+// `src/api/droits.ts`.
+
 export const ADHERENTS_TEST: readonly Adherent[] = [
   {
     id: "adh-1",
@@ -87,28 +91,6 @@ export const handlersAdherents = [
       );
     }
     return HttpResponse.json(adherent);
-  }),
-
-  http.get("/api/v1/adherents/:id/situation", ({ params }) => {
-    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
-    if (!adherent) {
-      return HttpResponse.json(
-        { code: "ADHERENT_INTROUVABLE", message: "Adhérent introuvable.", traceId: "t-sit-404", avertissements: [] },
-        { status: 404 },
-      );
-    }
-    return HttpResponse.json({
-      matricule: adherent.matricule,
-      pack: "PACK_700",
-      couvertJusquAu: "2026-08-01",
-      joursCouvertsTotal: 90,
-      joursRetard: adherent.statut === "EN_RETARD" ? 14 : 0,
-      cumulCotise: 63000,
-      soldeAvantSeuil: 0,
-      statut: adherent.statut,
-      eligibleCnps: true,
-      avertissements: ["Reliquat de 400 F non imputé — règle de traitement non validée."],
-    });
   }),
 
   http.post("/api/v1/adherents/verifier-doublon", async ({ request }) => {

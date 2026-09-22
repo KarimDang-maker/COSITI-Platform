@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { JETON_AGENT, UTILISATEURS } from "@/test/msw/donnees";
+import { JETON_AGENT, JETON_CHEF, UTILISATEURS } from "@/test/msw/donnees";
 
 interface CorpsConnexion {
   identifiant: string;
@@ -11,6 +11,7 @@ const COMPTES: Readonly<Record<string, { motDePasse: string; jeton: string; doit
   "gestionnaire.test": { motDePasse: "MotDePasse#1", jeton: "jeton-gestionnaire-comptes" },
   "dga.test": { motDePasse: "MotDePasse#1", jeton: "jeton-dga" },
   "daf.test": { motDePasse: "MotDePasse#1", jeton: "jeton-daf" },
+  "chef.test": { motDePasse: "MotDePasse#1", jeton: JETON_CHEF },
   "primo.test": { motDePasse: "MotDePasse#1", jeton: JETON_AGENT, doitChangerMotDePasse: true },
 };
 

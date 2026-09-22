@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   annulerPaiement,
+  confirmerParChefPaiement,
   corrigerPaiement,
   enregistrerPaiement,
   listerPaiements,
   obtenirPaiement,
+  signalerIncoherencePaiement,
   validerPaiement,
   type CorpsCorrectionPaiement,
   type CorpsEnregistrementPaiement,
@@ -63,6 +65,24 @@ export function useAnnulerPaiement() {
   const clientRequetes = useQueryClient();
   return useMutation({
     mutationFn: ({ id, motif }: { id: string; motif: string }) => annulerPaiement(id, motif),
+    onSuccess: (_donnees, { id }) => invalider(clientRequetes, id),
+  });
+}
+
+/** Contrôle DAF (J5) — signalement d'incohérence, voir `api/paiements.ts`. */
+export function useSignalerIncoherencePaiement() {
+  const clientRequetes = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, motif }: { id: string; motif: string }) => signalerIncoherencePaiement(id, motif),
+    onSuccess: (_donnees, { id }) => invalider(clientRequetes, id),
+  });
+}
+
+/** Confirmation hiérarchique du Chef (UC-CHEF-10, J5) — voir `api/paiements.ts`. */
+export function useConfirmerParChefPaiement() {
+  const clientRequetes = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, motif }: { id: string; motif?: string }) => confirmerParChefPaiement(id, motif),
     onSuccess: (_donnees, { id }) => invalider(clientRequetes, id),
   });
 }

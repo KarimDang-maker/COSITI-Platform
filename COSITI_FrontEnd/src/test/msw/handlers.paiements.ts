@@ -14,8 +14,11 @@ export let PAIEMENTS_TEST: Paiement[] = [
     agentEncaisseurId: "agent-1",
     statut: "A_CONTROLER",
     validePar: null,
-    version: 0,
     creePar: "agent.test",
+    confirmeParChefId: null,
+    confirmeLe: null,
+    motifIncoherence: null,
+    version: 0,
   },
   {
     id: "pai-2",
@@ -29,8 +32,11 @@ export let PAIEMENTS_TEST: Paiement[] = [
     agentEncaisseurId: "agent-1",
     statut: "A_CONTROLER",
     validePar: null,
-    version: 0,
     creePar: "daf.test",
+    confirmeParChefId: null,
+    confirmeLe: null,
+    motifIncoherence: null,
+    version: 0,
   },
 ];
 
@@ -107,8 +113,11 @@ export const handlersPaiements = [
       agentEncaisseurId: corps.agentEncaisseurId ?? null,
       statut: "A_CONTROLER",
       validePar: null,
-      version: 0,
       creePar: "agent.test",
+      confirmeParChefId: null,
+      confirmeLe: null,
+      motifIncoherence: null,
+      version: 0,
     };
     PAIEMENTS_TEST = [...PAIEMENTS_TEST, nouveau];
     CLES_IDEMPOTENCE_VUES.set(cleIdempotence, nouveau);
@@ -161,5 +170,43 @@ export const handlersPaiements = [
       PAIEMENTS_TEST = PAIEMENTS_TEST.map((p) => (p.id === misAJour.id ? misAJour : p));
     }
     return new HttpResponse(null, { status: 204 });
+  }),
+
+  // Chemin et permission confirmés à l'identique par le code backend réel
+  // livré en parallèle de ce lot (`ControleurPaiement.signalerIncoherence`,
+  // `V8__permissions_j5_j6.sql`) — voir `api/paiements.ts`.
+  http.post("/api/v1/paiements/:id/signaler-incoherence", async ({ params, request }) => {
+    const corps = (await request.json()) as { motif: string };
+    if (!corps.motif) {
+      return HttpResponse.json(
+        { code: "PAIEMENT_MOTIF_REQUIS", message: "Le motif de l'incohérence est obligatoire.", traceId: "t", avertissements: [] },
+        { status: 400 },
+      );
+    }
+    const paiement = PAIEMENTS_TEST.find((p) => p.id === params.id);
+    if (!paiement) {
+      return HttpResponse.json({ code: "PAIEMENT_INTROUVABLE", message: "Paiement introuvable.", traceId: "t", avertissements: [] }, { status: 404 });
+    }
+    const misAJour: Paiement = { ...paiement, statut: "INCOHERENCE", motifIncoherence: corps.motif };
+    PAIEMENTS_TEST = PAIEMENTS_TEST.map((p) => (p.id === misAJour.id ? misAJour : p));
+    return HttpResponse.json(misAJour);
+  }),
+
+  // UC-CHEF-10 (`ControleurPaiement.confirmerChef`) : motif facultatif, ne
+  // change jamais `statut`.
+  http.post("/api/v1/paiements/:id/confirmer-chef", async ({ params }) => {
+    const paiement = PAIEMENTS_TEST.find((p) => p.id === params.id);
+    if (!paiement) {
+      return HttpResponse.json({ code: "PAIEMENT_INTROUVABLE", message: "Paiement introuvable.", traceId: "t", avertissements: [] }, { status: 404 });
+    }
+    if (paiement.confirmeParChefId) {
+      return HttpResponse.json(
+        { code: "PAIEMENT_DEJA_CONFIRME_CHEF", message: "Ce paiement a déjà été confirmé par un Chef.", traceId: "t", avertissements: [] },
+        { status: 409 },
+      );
+    }
+    const misAJour: Paiement = { ...paiement, confirmeParChefId: "u-chef-1", confirmeLe: new Date().toISOString() };
+    PAIEMENTS_TEST = PAIEMENTS_TEST.map((p) => (p.id === misAJour.id ? misAJour : p));
+    return HttpResponse.json(misAJour);
   }),
 ];

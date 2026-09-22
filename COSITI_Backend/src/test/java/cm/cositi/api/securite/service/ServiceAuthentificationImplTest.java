@@ -4,7 +4,6 @@ import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.commun.exception.ExceptionMetier;
 import cm.cositi.api.commun.transaction.ExecuteurTransactionIndependante;
 import cm.cositi.api.securite.dto.ChangerMotDePasseDto;
-import cm.cositi.api.securite.dto.JetonReponseDto;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.repository.UtilisateurRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -127,9 +126,10 @@ class ServiceAuthentificationImplTest {
         when(serviceJeton.emettre(any(), any(), any()))
                 .thenReturn(new PaireJetons("acces.jwt", "refresh-brut", 900));
 
-        JetonReponseDto reponse = service.connecter("jdupont", "MotDePasseValide123!", "127.0.0.1", "test");
+        ResultatAuthentification reponse = service.connecter("jdupont", "MotDePasseValide123!", "127.0.0.1", "test");
 
         assertThat(reponse.jetonAcces()).isEqualTo("acces.jwt");
+        assertThat(reponse.jetonRafraichissement()).isEqualTo("refresh-brut");
         assertThat(u.getTentativesEchouees()).isEqualTo((short) 0);
         assertThat(u.getVerrouilleJusquA()).isNull();
     }

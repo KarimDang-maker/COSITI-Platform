@@ -5,7 +5,6 @@ import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionMetier;
 import cm.cositi.api.commun.transaction.ExecuteurTransactionIndependante;
 import cm.cositi.api.securite.dto.ChangerMotDePasseDto;
-import cm.cositi.api.securite.dto.JetonReponseDto;
 import cm.cositi.api.securite.dto.ProfilDto;
 import cm.cositi.api.securite.entite.Role;
 import cm.cositi.api.securite.entite.Utilisateur;
@@ -45,7 +44,7 @@ public class ServiceAuthentificationImpl implements ServiceAuthentification {
 
     @Override
     @Transactional
-    public JetonReponseDto connecter(String identifiant, String motDePasse, String adresseIp, String userAgent) {
+    public ResultatAuthentification connecter(String identifiant, String motDePasse, String adresseIp, String userAgent) {
         Utilisateur utilisateur = utilisateurRepository.findByIdentifiant(identifiant).orElse(null);
 
         if (utilisateur == null) {
@@ -87,7 +86,7 @@ public class ServiceAuthentificationImpl implements ServiceAuthentification {
         PaireJetons paire = serviceJeton.emettre(utilisateur, adresseIp, userAgent);
         serviceAudit.tracer(TypeOperation.CONNEXION_SUCCES, "utilisateur", utilisateur.getId(), null, null, null);
 
-        return new JetonReponseDto(paire.jetonAcces(), paire.jetonRafraichissement(),
+        return new ResultatAuthentification(paire.jetonAcces(), paire.jetonRafraichissement(),
                 paire.expirationAccesSecondes(), utilisateur.isDoitChangerMotDePasse());
     }
 
@@ -111,10 +110,10 @@ public class ServiceAuthentificationImpl implements ServiceAuthentification {
 
     @Override
     @Transactional
-    public JetonReponseDto rafraichir(String jetonRafraichissement, String adresseIp, String userAgent) {
+    public ResultatAuthentification rafraichir(String jetonRafraichissement, String adresseIp, String userAgent) {
         PaireJetons paire = serviceJeton.rafraichir(jetonRafraichissement, adresseIp, userAgent);
         serviceAudit.tracer(TypeOperation.RAFRAICHISSEMENT_JETON, "jeton_rafraichissement", null, null, null, null);
-        return new JetonReponseDto(paire.jetonAcces(), paire.jetonRafraichissement(), paire.expirationAccesSecondes(), false);
+        return new ResultatAuthentification(paire.jetonAcces(), paire.jetonRafraichissement(), paire.expirationAccesSecondes(), false);
     }
 
     @Override

@@ -73,7 +73,7 @@ class ServiceAffectationPaiementImplTest {
 
         ComposanteAffectation composante = composanteAvecId("COOPERATIVE");
         when(composanteRepository.findByCode("COOPERATIVE")).thenReturn(Optional.of(composante));
-        when(affectationRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(affectationRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var resultat = service.affecter(paiement.getId(), auteur);
 

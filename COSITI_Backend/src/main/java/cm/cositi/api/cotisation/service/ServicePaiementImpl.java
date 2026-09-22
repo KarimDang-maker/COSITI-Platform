@@ -4,11 +4,13 @@ import cm.cositi.api.adherent.entite.Adherent;
 import cm.cositi.api.adherent.repository.AdherentRepository;
 import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.audit.TypeOperation;
+import cm.cositi.api.commun.exception.ExceptionAutorisation;
 import cm.cositi.api.commun.exception.ExceptionConflit;
 import cm.cositi.api.commun.exception.ExceptionMetier;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.commun.reponse.ReponsePaginee;
+import cm.cositi.api.cotisation.dto.AffectationDto;
 import cm.cositi.api.cotisation.dto.AnnulerPaiementDto;
 import cm.cositi.api.cotisation.dto.CorrectionPaiementDto;
 import cm.cositi.api.cotisation.dto.CritereJournalPaiement;
@@ -18,6 +20,7 @@ import cm.cositi.api.cotisation.dto.RecuDto;
 import cm.cositi.api.cotisation.entite.Paiement;
 import cm.cositi.api.cotisation.entite.StatutPaiement;
 import cm.cositi.api.cotisation.repository.PaiementRepository;
+import cm.cositi.api.droits.service.ServiceCalculDroits;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
 import org.springframework.data.domain.Page;
@@ -31,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -44,16 +48,19 @@ public class ServicePaiementImpl implements ServicePaiement {
     private final JdbcTemplate jdbcTemplate;
     private final ServicePerimetreDonnees perimetre;
     private final ServiceAffectationPaiement serviceAffectationPaiement;
+    private final ServiceCalculDroits serviceCalculDroits;
     private final ServiceAudit serviceAudit;
 
     public ServicePaiementImpl(PaiementRepository paiementRepository, AdherentRepository adherentRepository,
                                 JdbcTemplate jdbcTemplate, ServicePerimetreDonnees perimetre,
-                                ServiceAffectationPaiement serviceAffectationPaiement, ServiceAudit serviceAudit) {
+                                ServiceAffectationPaiement serviceAffectationPaiement,
+                                ServiceCalculDroits serviceCalculDroits, ServiceAudit serviceAudit) {
         this.paiementRepository = paiementRepository;
         this.adherentRepository = adherentRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.perimetre = perimetre;
         this.serviceAffectationPaiement = serviceAffectationPaiement;
+        this.serviceCalculDroits = serviceCalculDroits;
         this.serviceAudit = serviceAudit;
     }
 
@@ -124,15 +131,103 @@ public class ServicePaiementImpl implements ServicePaiement {
         if (paiement.getStatut() == StatutPaiement.ANNULE) {
             throw new ExceptionConflit("PAIEMENT_TRANSITION_INTERDITE", "Un paiement annulé ne peut pas être validé.");
         }
+        if (paiement.getStatut() == StatutPaiement.INCOHERENCE) {
+            throw new ExceptionConflit("PAIEMENT_TRANSITION_INTERDITE",
+                    "Un paiement signalé incohérent doit d'abord être corrigé (POST /paiements/{id}/corriger) avant validation.");
+        }
 
         paiement.valider(validateur.getId());
         paiement = paiementRepository.save(paiement);
 
-        serviceAffectationPaiement.affecter(paiement.getId(), validateur);
+        List<AffectationDto> affectations = serviceAffectationPaiement.affecter(paiement.getId(), validateur);
+        // Jalon J6 : imputation des droits dans la même transaction que la validation (AGENTS.md règle absolue n°6).
+        for (AffectationDto affectation : affectations) {
+            serviceCalculDroits.imputer(affectation.id());
+        }
 
         serviceAudit.tracer(TypeOperation.PAIEMENT_VALIDATION, "paiement", paiement.getId(), null,
                 PaiementDto.depuis(paiement), null);
         return PaiementDto.depuis(paiement);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('PAIEMENT:CONFIRMER_CHEF')")
+    @Transactional
+    public PaiementDto confirmerParChef(UUID paiementId, String motif, Utilisateur chefUtilisateur) {
+        if (!chefUtilisateur.possedeRole("CHEF_AGENT_TERRAIN")) {
+            throw new ExceptionAutorisation("PAIEMENT_CONFIRMATION_RESERVEE_CHEF",
+                    "Seul le Chef des agents de terrain peut confirmer une collecte.");
+        }
+        Paiement paiement = charger(paiementId);
+        if (paiement.getAgentEncaisseurId() == null) {
+            throw new ExceptionValidation("PAIEMENT_AGENT_ENCAISSEUR_MANQUANT",
+                    "Ce paiement n'a pas d'agent encaisseur renseigné, la confirmation hiérarchique est impossible.");
+        }
+        verifierPerimetreChefSurEncaisseur(chefUtilisateur, paiement.getAgentEncaisseurId());
+        if (paiement.getStatut() == StatutPaiement.ANNULE || paiement.getStatut() == StatutPaiement.INCOHERENCE) {
+            throw new ExceptionConflit("PAIEMENT_TRANSITION_INTERDITE",
+                    "Un paiement annulé ou incohérent ne peut pas être confirmé par le Chef.");
+        }
+        if (paiement.getConfirmeParChefId() != null) {
+            throw new ExceptionConflit("PAIEMENT_DEJA_CONFIRME_CHEF", "Ce paiement a déjà été confirmé par un Chef.");
+        }
+
+        paiement.confirmerParChef(chefUtilisateur.getId());
+        paiement = paiementRepository.save(paiement);
+
+        serviceAudit.tracer(TypeOperation.PAIEMENT_CONFIRMATION_CHEF, "paiement", paiement.getId(), null,
+                PaiementDto.depuis(paiement), motif);
+        return PaiementDto.depuis(paiement);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('PAIEMENT:SIGNALER_INCOHERENCE')")
+    @Transactional
+    public PaiementDto signalerIncoherence(UUID paiementId, String motif, Utilisateur dafUtilisateur) {
+        if (!dafUtilisateur.possedeRole("DAF")) {
+            throw new ExceptionAutorisation("PAIEMENT_SIGNALEMENT_RESERVE_DAF",
+                    "Seul le DAF peut signaler une incohérence sur un paiement.");
+        }
+        if (motif == null || motif.isBlank()) {
+            throw new ExceptionValidation("PAIEMENT_MOTIF_REQUIS", "Le motif de l'incohérence est obligatoire.");
+        }
+        Paiement paiement = charger(paiementId);
+        perimetre.verifierAccesPaiement(dafUtilisateur, paiementId);
+        if (paiement.getStatut() == StatutPaiement.ANNULE || paiement.getStatut() == StatutPaiement.VALIDE
+                || paiement.getStatut() == StatutPaiement.RAPPROCHE) {
+            throw new ExceptionConflit("PAIEMENT_TRANSITION_INTERDITE",
+                    "Seul un paiement à contrôler peut être signalé incohérent.");
+        }
+        if (paiement.getStatut() == StatutPaiement.INCOHERENCE) {
+            throw new ExceptionConflit("PAIEMENT_DEJA_INCOHERENT", "Ce paiement est déjà signalé incohérent.");
+        }
+
+        PaiementDto avant = PaiementDto.depuis(paiement);
+        paiement.signalerIncoherence(motif);
+        paiement = paiementRepository.save(paiement);
+
+        serviceAudit.tracer(TypeOperation.PAIEMENT_SIGNALEMENT_INCOHERENCE, "paiement", paiement.getId(), avant,
+                PaiementDto.depuis(paiement), motif);
+        return PaiementDto.depuis(paiement);
+    }
+
+    /**
+     * Périmètre du Chef pour la confirmation hiérarchique (UC-CHEF-10) : l'agent encaisseur doit être le Chef
+     * lui-même ou l'un de ses agents supervisés ({@code agent.chef_agent_id}), même mécanisme que
+     * {@code ServicePerimetreDonneesImpl.adherentsDuPerimetreAgent}.
+     */
+    private void verifierPerimetreChefSurEncaisseur(Utilisateur chef, UUID agentEncaisseurId) {
+        if (chef.getAgentId() == null) {
+            throw new ExceptionAutorisation("PAIEMENT_HORS_PERIMETRE_CHEF",
+                    "Ce compte Chef n'est rattaché à aucun agent, aucune confirmation n'est possible.");
+        }
+        Boolean dansPerimetre = jdbcTemplate.queryForObject(
+                "SELECT (? = ? OR EXISTS (SELECT 1 FROM agent WHERE id = ? AND chef_agent_id = ?))",
+                Boolean.class, agentEncaisseurId, chef.getAgentId(), agentEncaisseurId, chef.getAgentId());
+        if (dansPerimetre == null || !dansPerimetre) {
+            throw new ExceptionAutorisation("PAIEMENT_HORS_PERIMETRE_CHEF",
+                    "Cet agent encaisseur n'appartient pas à votre périmètre de supervision.");
+        }
     }
 
     @Override
@@ -171,9 +266,17 @@ public class ServicePaiementImpl implements ServicePaiement {
                     "referenceTransaction");
         }
 
+        boolean resolutionIncoherence = paiement.getStatut() == StatutPaiement.INCOHERENCE;
+        if (resolutionIncoherence) {
+            // Jalon J5 : une correction résout l'incohérence signalée par le DAF et rouvre le paiement au
+            // contrôle — sans cela, PAIEMENT_TRANSITION_INTERDITE bloquerait indéfiniment toute validation.
+            paiement.resoudreIncoherence();
+        }
+
         paiement = paiementRepository.save(paiement);
         serviceAudit.tracer(TypeOperation.PAIEMENT_CORRECTION, "paiement", paiement.getId(), avant,
-                PaiementDto.depuis(paiement), dto.motif());
+                PaiementDto.depuis(paiement),
+                resolutionIncoherence ? dto.motif() + " (incohérence résolue, paiement rouvert au contrôle)" : dto.motif());
         return PaiementDto.depuis(paiement);
     }
 

@@ -9,6 +9,8 @@ import { EcranOrganisation } from "@/ecrans/organisation/EcranOrganisation";
 import { JournalCotisations } from "@/ecrans/cotisations/JournalCotisations";
 import { NouveauPaiement } from "@/ecrans/cotisations/NouveauPaiement";
 import { DetailPaiement } from "@/ecrans/cotisations/DetailPaiement";
+import { EcranDaf } from "@/ecrans/daf/EcranDaf";
+import { EcranDroits } from "@/ecrans/droits/EcranDroits";
 
 /**
  * Déclaration des routes de l'application. Une route protégée est toujours
@@ -16,7 +18,8 @@ import { DetailPaiement } from "@/ecrans/cotisations/DetailPaiement";
  * (`COSITI_Backend/docs/03_SPECIFICATIONS_API.md`) quand elle est documentée.
  *
  * Étendu jalon après jalon : J1 (connexion), J2 (adhérents), J3
- * (organisation terrain), J4 (cotisations).
+ * (organisation terrain), J4 (cotisations), J5 (contrôle DAF), J6 (droits et
+ * régularité).
  */
 export function RoutesApplication() {
   return (
@@ -94,6 +97,24 @@ export function RoutesApplication() {
         element={
           <GardeRoute permission="PAIEMENT:LIRE">
             <DetailPaiement />
+          </GardeRoute>
+        }
+      />
+
+      <Route
+        path="/daf"
+        element={
+          <GardeRoute permission="PAIEMENT:LIRE">
+            <EcranDaf />
+          </GardeRoute>
+        }
+      />
+
+      <Route
+        path="/droits"
+        element={
+          <GardeRoute permission="DROITS:LIRE">
+            <EcranDroits />
           </GardeRoute>
         }
       />

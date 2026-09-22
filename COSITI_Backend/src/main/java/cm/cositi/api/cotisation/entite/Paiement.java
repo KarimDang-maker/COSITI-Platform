@@ -168,6 +168,28 @@ public class Paiement extends EntiteAuditable {
         return motifIncoherence;
     }
 
+    public Instant getConfirmeLe() {
+        return confirmeLe;
+    }
+
+    /** Confirmation hiérarchique du Chef des agents de terrain (UC-CHEF-10) — ne change pas le statut. */
+    public void confirmerParChef(UUID chefUtilisateurId) {
+        this.confirmeParChefId = chefUtilisateurId;
+        this.confirmeLe = Instant.now();
+    }
+
+    /** Signalement DAF d'une incohérence (jalon J5) — bloque toute validation tant que non résolu. */
+    public void signalerIncoherence(String motif) {
+        this.statut = StatutPaiement.INCOHERENCE;
+        this.motifIncoherence = motif;
+    }
+
+    /** Résolution d'une incohérence par correction (jalon J5) — rouvre le paiement au contrôle. */
+    public void resoudreIncoherence() {
+        this.statut = StatutPaiement.A_CONTROLER;
+        this.motifIncoherence = null;
+    }
+
     public UUID getRemiseCaisseId() {
         return remiseCaisseId;
     }

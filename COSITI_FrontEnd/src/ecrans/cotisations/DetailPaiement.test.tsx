@@ -4,11 +4,15 @@ import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
 import { rendreAvecProviders, screen, waitFor, within } from "@/test/rendu";
 import { serveur } from "@/test/msw/serveur";
-import { JETON_DAF } from "@/test/msw/donnees";
+import { JETON_CHEF, JETON_DAF } from "@/test/msw/donnees";
 import { DetailPaiement } from "@/ecrans/cotisations/DetailPaiement";
 
 function simulerSessionDaf() {
   serveur.use(http.post("/api/v1/auth/rafraichir", () => HttpResponse.json({ jetonAcces: JETON_DAF })));
+}
+
+function simulerSessionChef() {
+  serveur.use(http.post("/api/v1/auth/rafraichir", () => HttpResponse.json({ jetonAcces: JETON_CHEF })));
 }
 
 function arbre() {
@@ -63,5 +67,23 @@ describe("DetailPaiement", () => {
     await utilisateur.click(confirmer);
 
     await waitFor(() => expect(screen.getByText("Annulé")).toBeInTheDocument());
+  });
+
+  it("permet au Chef de confirmer hiérarchiquement une collecte (UC-CHEF-10), distinct de Valider", async () => {
+    simulerSessionChef();
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/pai-2" });
+
+    // Le Chef n'a pas `PAIEMENT:VALIDER` : le bouton « Valider » (DAF) est
+    // absent, seul « Confirmer la collecte » lui est proposé.
+    await screen.findByText("Paiement REC-000002");
+    expect(screen.queryByRole("button", { name: "Valider" })).not.toBeInTheDocument();
+
+    const bouton = screen.getByRole("button", { name: "Confirmer la collecte" });
+    expect(bouton).toBeEnabled();
+    await utilisateur.click(bouton);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Confirmer la collecte" })).toBeDisabled());
+    expect(screen.getByText(/Confirmée le/)).toBeInTheDocument();
   });
 });

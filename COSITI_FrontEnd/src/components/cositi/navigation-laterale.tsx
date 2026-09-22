@@ -1,5 +1,5 @@
 import { NavLink } from "react-router";
-import { Users, MapPinned, Wallet } from "lucide-react";
+import { Users, MapPinned, Wallet, ShieldCheck, ScrollText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/ContexteAuth";
 import type { CodePermission } from "@/auth/types";
@@ -30,6 +30,26 @@ const ENTREES: readonly EntreeNavigation[] = [
     permission: "ORGANISATION:LIRE",
   },
   { chemin: "/cotisations", libelle: "Cotisations", icone: Wallet, permission: "PAIEMENT:LIRE" },
+  {
+    chemin: "/daf",
+    libelle: "DAF",
+    icone: ShieldCheck,
+    // La file de contrôle DAF (J5) réutilise le même contrat que Cotisations
+    // (`GET /paiements`, filtré sur `statut=A_CONTROLER`) — même permission
+    // de lecture, pas de code dédié inventé pour la seule visibilité du menu.
+    // Le masquage des actions « Confirmer »/« Signaler une incohérence »,
+    // lui, reste sur leurs permissions propres (`PAIEMENT:VALIDER`,
+    // `PAIEMENT:SIGNALER_INCOHERENCE` — ce dernier `TODO [A]`, non confirmé).
+    permission: "PAIEMENT:LIRE",
+  },
+  {
+    chemin: "/droits",
+    libelle: "Droits",
+    icone: ScrollText,
+    // `TODO [A]` : `DROITS:LIRE` n'existe dans aucune migration backend
+    // réelle au moment de ce jalon — voir `Conception/SUIVI_EXECUTION.md`.
+    permission: "DROITS:LIRE",
+  },
 ];
 
 /**

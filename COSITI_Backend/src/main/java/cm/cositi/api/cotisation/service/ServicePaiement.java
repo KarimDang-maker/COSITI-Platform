@@ -29,6 +29,19 @@ public interface ServicePaiement {
 
     void annuler(UUID paiementId, AnnulerPaiementDto dto, Utilisateur auteur);
 
+    /**
+     * Confirmation hiérarchique du Chef des agents de terrain (UC-CHEF-10, jalon J5). Réservée à un utilisateur
+     * portant {@code CHEF_AGENT_TERRAIN}, dans le périmètre de l'agent encaisseur du paiement. Ne change pas
+     * le statut du paiement — seul {@code confirme_par_chef_id}/{@code confirme_le} sont renseignés.
+     */
+    PaiementDto confirmerParChef(UUID paiementId, String motif, Utilisateur chefUtilisateur);
+
+    /**
+     * Signalement d'une incohérence par le DAF (jalon J5). Motif obligatoire, transition vers {@code INCOHERENCE},
+     * bloque toute validation ultérieure tant que l'incohérence n'est pas résolue par {@link #corriger}.
+     */
+    PaiementDto signalerIncoherence(UUID paiementId, String motif, Utilisateur dafUtilisateur);
+
     ReponsePaginee<PaiementDto> journal(CritereJournalPaiement critere, Pageable pageable, Utilisateur demandeur);
 
     RecuDto genererRecu(UUID paiementId);

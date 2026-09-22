@@ -3,6 +3,7 @@ import { handlersAuth } from "@/test/msw/handlers.auth";
 import { handlersAdherents } from "@/test/msw/handlers.adherents";
 import { handlersOrganisation } from "@/test/msw/handlers.organisation";
 import { handlersPaiements } from "@/test/msw/handlers.paiements";
+import { handlersDroits } from "@/test/msw/handlers.droits";
 
 /**
  * Serveur MSW partagé par tous les tests. Chaque domaine ajoute son propre
@@ -10,4 +11,10 @@ import { handlersPaiements } from "@/test/msw/handlers.paiements";
  * qu'un backend réel écoute pendant les tests (`AGENTS.md §5` et consignes de
  * session : « ne suppose jamais que le backend tourne »).
  */
-export const serveur = setupServer(...handlersAuth, ...handlersAdherents, ...handlersOrganisation, ...handlersPaiements);
+export const serveur = setupServer(
+  ...handlersAuth,
+  ...handlersAdherents,
+  ...handlersOrganisation,
+  ...handlersPaiements,
+  ...handlersDroits,
+);

@@ -11,6 +11,7 @@ import cm.cositi.api.cotisation.dto.EnregistrementPaiementDto;
 import cm.cositi.api.cotisation.entite.Paiement;
 import cm.cositi.api.cotisation.entite.StatutPaiement;
 import cm.cositi.api.cotisation.repository.PaiementRepository;
+import cm.cositi.api.droits.service.ServiceCalculDroits;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,8 @@ class ServicePaiementImplTest {
     @Mock
     private ServiceAffectationPaiement serviceAffectationPaiement;
     @Mock
+    private ServiceCalculDroits serviceCalculDroits;
+    @Mock
     private ServiceAudit serviceAudit;
 
     private ServicePaiementImpl service;
@@ -54,7 +57,7 @@ class ServicePaiementImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServicePaiementImpl(paiementRepository, adherentRepository, jdbcTemplate, perimetre,
-                serviceAffectationPaiement, serviceAudit);
+                serviceAffectationPaiement, serviceCalculDroits, serviceAudit);
 
         agentCreateur = new Utilisateur("agent.saisie", "hash", "Agent Saisie");
         setId(agentCreateur, UUID.randomUUID());

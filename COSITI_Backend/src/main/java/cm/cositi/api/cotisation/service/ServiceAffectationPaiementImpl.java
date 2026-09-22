@@ -83,7 +83,11 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
 
         AffectationPaiement affectation = new AffectationPaiement(paiementId, composanteDefaut.getId(),
                 paiement.getMontant(), REGLE_DEFAUT, auteur.getIdentifiant());
-        affectation = affectationRepository.save(affectation);
+        // saveAndFlush (pas seulement save) : ServiceCalculDroitsImpl.imputer, appelé juste après par
+        // ServicePaiementImpl.valider dans la même transaction, lit cette ligne via une requête JDBC directe
+        // (jointure affectation_paiement/paiement) plutôt que via le contexte de persistance Hibernate — sans
+        // flush immédiat, l'INSERT ne serait pas encore visible et l'imputation échouerait (AFFECTATION_INTROUVABLE).
+        affectation = affectationRepository.saveAndFlush(affectation);
 
         serviceAudit.tracer(TypeOperation.AFFECTATION_CREATION, "affectation_paiement", affectation.getId(),
                 null, AffectationDto.depuis(affectation), avertissement);

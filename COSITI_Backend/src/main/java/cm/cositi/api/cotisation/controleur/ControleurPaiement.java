@@ -9,6 +9,7 @@ import cm.cositi.api.cotisation.dto.CritereJournalPaiement;
 import cm.cositi.api.cotisation.dto.EnregistrementPaiementDto;
 import cm.cositi.api.cotisation.dto.PaiementDto;
 import cm.cositi.api.cotisation.dto.RecuDto;
+import cm.cositi.api.cotisation.dto.SignalerIncoherenceDto;
 import cm.cositi.api.cotisation.entite.StatutPaiement;
 import cm.cositi.api.cotisation.service.ResultatEnregistrementPaiement;
 import cm.cositi.api.cotisation.service.ServiceAffectationPaiement;
@@ -101,6 +102,24 @@ public class ControleurPaiement {
                                          @AuthenticationPrincipal Utilisateur auteur) {
         servicePaiement.annuler(id, dto, auteur);
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Motif facultatif passé en paramètre de requête (jamais en corps JSON) : contrairement à
+     * {@code corriger}/{@code annuler}/{@code signaler-incoherence}, ce motif n'est jamais obligatoire, et un
+     * corps de requête optionnel obligerait le client à fournir un {@code Content-Type} JSON même lorsqu'il n'a
+     * rien à transmettre.
+     */
+    @PostMapping("/{id}/confirmer-chef")
+    public PaiementDto confirmerChef(@PathVariable UUID id, @RequestParam(required = false) String motif,
+                                      @AuthenticationPrincipal Utilisateur chef) {
+        return servicePaiement.confirmerParChef(id, motif, chef);
+    }
+
+    @PostMapping("/{id}/signaler-incoherence")
+    public PaiementDto signalerIncoherence(@PathVariable UUID id, @Valid @RequestBody SignalerIncoherenceDto dto,
+                                            @AuthenticationPrincipal Utilisateur daf) {
+        return servicePaiement.signalerIncoherence(id, dto.motif(), daf);
     }
 
     @GetMapping("/{id}/recu")

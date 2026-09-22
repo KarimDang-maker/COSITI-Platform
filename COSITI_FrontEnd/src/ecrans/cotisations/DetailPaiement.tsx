@@ -10,10 +10,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth, usePermission } from "@/auth/ContexteAuth";
-import { usePaiement, useValiderPaiement, useAnnulerPaiement } from "@/hooks/usePaiements";
+import {
+  usePaiement,
+  useValiderPaiement,
+  useAnnulerPaiement,
+  useSignalerIncoherencePaiement,
+  useConfirmerParChefPaiement,
+} from "@/hooks/usePaiements";
 import { useAdherent } from "@/hooks/useAdherents";
 import { estErreurApi } from "@/api/erreurs";
-import { formaterDate, formaterMontant, formaterNomComplet, formaterTelephone } from "@/lib/format";
+import { formaterDateHeure, formaterDate, formaterMontant, formaterNomComplet, formaterTelephone } from "@/lib/format";
 import { DialogueCorrigerPaiement } from "@/ecrans/cotisations/DialogueCorrigerPaiement";
 
 function LigneChamp({ libelle, valeur }: { libelle: string; valeur: string }) {
@@ -31,14 +37,21 @@ export function DetailPaiement() {
   const peutValider = usePermission("PAIEMENT:VALIDER");
   const peutCorriger = usePermission("PAIEMENT:CORRIGER");
   const peutAnnuler = usePermission("PAIEMENT:ANNULER");
+  const peutSignalerIncoherence = usePermission("PAIEMENT:SIGNALER_INCOHERENCE");
+  // UC-CHEF-10 : confirmation hiérarchique du Chef, distincte de « Valider »
+  // (permission, rôle et endpoint différents — voir `api/paiements.ts`).
+  const peutConfirmerChef = usePermission("PAIEMENT:CONFIRMER_CHEF");
 
   const { data: paiement, isLoading, isError, error } = usePaiement(id);
   const { data: adherent } = useAdherent(paiement?.adherentId);
   const valider = useValiderPaiement();
   const annuler = useAnnulerPaiement();
+  const signaler = useSignalerIncoherencePaiement();
+  const confirmerChef = useConfirmerParChefPaiement();
 
   const [dialogueCorrectionOuvert, setDialogueCorrectionOuvert] = useState(false);
   const [dialogueAnnulationOuvert, setDialogueAnnulationOuvert] = useState(false);
+  const [dialogueIncoherenceOuvert, setDialogueIncoherenceOuvert] = useState(false);
 
   if (isLoading) {
     return (
@@ -82,6 +95,12 @@ export function DetailPaiement() {
           <BadgeStatut domaine="paiement" code={paiement.statut} />
         </div>
 
+        {paiement.statut === "INCOHERENCE" && paiement.motifIncoherence && (
+          <Alerte teinte="danger" titre="Incohérence signalée par le DAF">
+            <p>{paiement.motifIncoherence}</p>
+          </Alerte>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Informations</CardTitle>
@@ -99,6 +118,10 @@ export function DetailPaiement() {
               <LigneChamp libelle="Référence" valeur={paiement.referenceTransaction ?? "—"} />
               <LigneChamp libelle="Adhérent" valeur={nomAdherent} />
               <LigneChamp libelle="Téléphone" valeur={adherent ? formaterTelephone(adherent.telephonePrincipal) : "—"} />
+              <LigneChamp
+                libelle="Confirmation hiérarchique (Chef)"
+                valeur={paiement.confirmeLe ? `Confirmée le ${formaterDateHeure(paiement.confirmeLe)}` : "Non confirmée"}
+              />
             </dl>
           </CardContent>
         </Card>
@@ -139,6 +162,46 @@ export function DetailPaiement() {
               Annuler
             </Button>
           )}
+
+          {peutSignalerIncoherence && (
+            <Button variant="destructive" onClick={() => setDialogueIncoherenceOuvert(true)}>
+              Signaler une incohérence
+            </Button>
+          )}
+
+          {peutConfirmerChef &&
+            (paiement.confirmeParChefId || paiement.statut === "ANNULE" || paiement.statut === "INCOHERENCE" ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button variant="outline" disabled>
+                      Confirmer la collecte
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {paiement.confirmeParChefId
+                    ? "Ce paiement a déjà été confirmé par un Chef."
+                    : "Un paiement annulé ou incohérent ne peut pas être confirmé par le Chef."}
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Button
+                variant="outline"
+                disabled={confirmerChef.isPending}
+                onClick={() => {
+                  confirmerChef.mutate(
+                    { id: paiement.id },
+                    {
+                      onSuccess: () => toast.success("Collecte confirmée."),
+                      onError: (e) => toast.error(estErreurApi(e) ? e.message : "La confirmation a échoué."),
+                    },
+                  );
+                }}
+              >
+                {confirmerChef.isPending ? "Confirmation en cours…" : "Confirmer la collecte"}
+              </Button>
+            ))}
         </div>
       </div>
 
@@ -166,6 +229,27 @@ export function DetailPaiement() {
             setDialogueAnnulationOuvert(false);
           } catch (e) {
             toast.error(estErreurApi(e) ? e.message : "L'annulation a échoué.");
+          }
+        }}
+      />
+
+      <DialogueConfirmation
+        ouvert={dialogueIncoherenceOuvert}
+        onOuvertChange={setDialogueIncoherenceOuvert}
+        titre="Signaler une incohérence"
+        description={rappelValeurs}
+        motifRequis
+        libelleMotif="Motif de l'incohérence"
+        libelleConfirmation="Signaler l'incohérence"
+        varianteDestructive
+        enCours={signaler.isPending}
+        onConfirmer={async (motif) => {
+          try {
+            await signaler.mutateAsync({ id: paiement.id, motif: motif! });
+            toast.success("Incohérence signalée.");
+            setDialogueIncoherenceOuvert(false);
+          } catch (e) {
+            toast.error(estErreurApi(e) ? e.message : "Le signalement a échoué.");
           }
         }}
       />

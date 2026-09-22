@@ -124,19 +124,12 @@ export function modifierAdherent(id: string, corps: Partial<CorpsCreationAdheren
   return client.put<Adherent>(`/adherents/${id}`, corps);
 }
 
-export interface SituationAdherent {
-  readonly matricule: string;
-  readonly pack: string;
-  readonly couvertJusquAu: string | null;
-  readonly joursCouvertsTotal: number;
-  readonly joursRetard: number;
-  readonly cumulCotise: number;
-  readonly soldeAvantSeuil: number;
-  readonly statut: string;
-  readonly eligibleCnps: boolean;
-  readonly avertissements: readonly string[];
-}
-
-export function obtenirSituationAdherent(id: string, au?: string) {
-  return client.get<SituationAdherent>(`/adherents/${id}/situation${au ? `?au=${au}` : ""}`);
-}
+/**
+ * La situation de droits d'un adhérent (couvert jusqu'au, jours de retard,
+ * cumul cotisé, éligibilité CNPS…) vivait ici depuis J2
+ * (`GET /adherents/{id}/situation`, documenté par
+ * `03_SPECIFICATIONS_API.md §3`). J6 introduit le domaine `droits` dédié
+ * (`§5`, `GET /droits/adherents/{id}`), à la forme de réponse identique :
+ * consolidé là-bas plutôt que maintenu en double ici — voir
+ * `src/api/droits.ts` et `Conception/SUIVI_EXECUTION.md`.
+ */

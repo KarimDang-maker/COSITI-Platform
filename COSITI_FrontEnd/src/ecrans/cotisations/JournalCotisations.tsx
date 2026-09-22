@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { AlertTriangle, Plus } from "lucide-react";
-import type { ColumnDef, SortingState } from "@tanstack/react-table";
+import { Plus } from "lucide-react";
+import type { SortingState } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
@@ -9,16 +9,14 @@ import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
 import { AvertissementRegle } from "@/components/cositi/avertissement-regle";
-import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { usePermission } from "@/auth/ContexteAuth";
 import { usePaiements } from "@/hooks/usePaiements";
-import { estModeMobileMoney, type ModePaiement, type Paiement, type StatutPaiement } from "@/api/paiements";
+import type { ModePaiement, StatutPaiement } from "@/api/paiements";
 import { estErreurApi } from "@/api/erreurs";
-import { abregerIdentifiant, formaterDate, formaterMontant } from "@/lib/format";
+import { colonnesPaiementBase } from "@/ecrans/cotisations/colonnesPaiement";
 
 const OPTIONS_STATUT: readonly { valeur: StatutPaiement; libelle: string }[] = [
   { valeur: "A_CONTROLER", libelle: "À contrôler" },
@@ -69,48 +67,7 @@ export function JournalCotisations() {
     definirParametres(suivants, { replace: true });
   }
 
-  const colonnes = useMemo<ColumnDef<Paiement>[]>(
-    () => [
-      { id: "numeroRecu", header: "Reçu", cell: ({ row }) => <span className="ref">{row.original.numeroRecu}</span> },
-      {
-        id: "adherentId",
-        header: "Adhérent",
-        cell: ({ row }) => <span className="ref">{abregerIdentifiant(row.original.adherentId)}</span>,
-      },
-      { id: "datePaiement", header: "Date", enableSorting: true, cell: ({ row }) => formaterDate(row.original.datePaiement) },
-      {
-        id: "montant",
-        header: "Montant",
-        enableSorting: true,
-        cell: ({ row }) => <span className="chiffre">{formaterMontant(row.original.montant)}</span>,
-      },
-      { id: "modePaiement", header: "Mode", cell: ({ row }) => <BadgeStatut domaine="modePaiement" code={row.original.modePaiement} /> },
-      {
-        id: "referenceTransaction",
-        header: "Référence",
-        cell: ({ row }) => {
-          const paiement = row.original;
-          const sansReference = estModeMobileMoney(paiement.modePaiement) && !paiement.referenceTransaction;
-          if (!sansReference) return <span className="ref">{paiement.referenceTransaction ?? "—"}</span>;
-          return (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1 font-semibold text-danger-fort">
-                  <AlertTriangle className="size-4" aria-hidden="true" />
-                  Manquante
-                </span>
-              </TooltipTrigger>
-              <TooltipContent>
-                Un paiement Orange Money ou MTN MoMo sans référence de transaction doit être corrigé.
-              </TooltipContent>
-            </Tooltip>
-          );
-        },
-      },
-      { id: "statut", header: "Statut", cell: ({ row }) => <BadgeStatut domaine="paiement" code={row.original.statut} /> },
-    ],
-    [],
-  );
+  const colonnes = useMemo(() => colonnesPaiementBase(), []);
 
   return (
     <CoquilleApplication titre="Cotisations">

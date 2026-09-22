@@ -67,6 +67,7 @@ réel, jalon par jalon, et le détail des tests.
 | Tailwind v4 + shadcn/ui + CVA branchés sur les jetons COSITI | Playwright (parcours E2E critiques) — non installé faute de temps, voir `SUIVI_EXECUTION.md` |
 | `api/client.ts`, `auth/`, `app/` (routage + garde de route) | CSP effective en production (`docs/04_SECURITE.md §5`, J11) |
 | J1 (auth), J2 (adhérents), J3 (organisation terrain), J4 (cotisations) — frontend et backend, voir `SUIVI_EXECUTION.md` | Contrats `[A]` de `03_SPECIFICATIONS_API.md §6` (désignation du Chef) à confirmer formellement par la COSITI ; champ `creePar` manquant sur `PaiementDto` (J4, voir décisions) |
+| J5 (contrôle DAF), J6 (droits et régularité) — frontend, backend livré par une session parallèle **pendant** ce lot et vérifié une fois disponible (`ControleurPaiement.confirmerChef`/`.signalerIncoherence`, `ControleurDroits`, `V8__permissions_j5_j6.sql`) ; voir `SUIVI_EXECUTION.md` pour le détail des écarts trouvés (ex. `AdherentEnRetardDto` sans pack/cumul/agent/zone/statut) | Tests backend J5/J6 non ré-exécutés par la session frontend (`mvn test` non lancé) ; recalcul manuel des droits ; production/transmission du rapport DAF au PCA |
 | `docs/01`, `02`, `03`, `04`, `05` et `journal-dependances.md` — tous présents | |
 
 Convention d'arborescence en vigueur (voir `docs/01_ARCHITECTURE.md` pour le

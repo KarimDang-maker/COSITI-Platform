@@ -113,7 +113,12 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(origines);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key", "X-Trace-Id"));
-        configuration.setAllowCredentials(false);
+        // Le frontend appelle toujours `fetch(..., { credentials: "include" })` pour transporter le cookie
+        // HttpOnly de rafraîchissement (`auth/jeton.ts`, `api/client.ts`). Sans `allowCredentials=true`, le
+        // navigateur bloque la lecture de toute réponse cross-origin (y compris `/auth/connexion`), même si la
+        // requête aboutit côté serveur — c'est sûr uniquement parce que `originesAutorisees` reste une liste
+        // blanche explicite, jamais `*` (docs/04_SECURITE.md §6).
+        configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
