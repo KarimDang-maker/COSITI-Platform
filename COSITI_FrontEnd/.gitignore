@@ -1,0 +1,33 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+
+# Rapports d'outillage (ex. `rtk proxy npx vitest run` écrit un rapport JSON ici)
+.vitest/
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Playwright (jalon J12) — artefacts de recette, jamais versionnés
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
