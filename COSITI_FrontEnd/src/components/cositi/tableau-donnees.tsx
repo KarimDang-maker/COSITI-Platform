@@ -83,11 +83,20 @@ export function TableauDonnees<T>({
               key={cleLigne(ligne.original, ligne.index)}
               tabIndex={onActiverLigne ? 0 : undefined}
               aria-label={onActiverLigne && libelleLigne ? libelleLigne(ligne.original) : undefined}
-              onClick={onActiverLigne ? () => onActiverLigne(ligne.original) : undefined}
+              onClick={
+                onActiverLigne
+                  ? (evenement) => {
+                      if (cibleInteractive(evenement.target)) return;
+                      onActiverLigne(ligne.original);
+                    }
+                  : undefined
+              }
               onKeyDown={
                 onActiverLigne
                   ? (evenement) => {
-                      if (evenement.key === "Enter") onActiverLigne(ligne.original);
+                      if (evenement.key !== "Enter") return;
+                      if (cibleInteractive(evenement.target)) return;
+                      onActiverLigne(ligne.original);
                     }
                   : undefined
               }
@@ -104,4 +113,18 @@ export function TableauDonnees<T>({
       </Table>
     </div>
   );
+}
+
+/**
+ * `true` si l'évènement vient d'un élément interactif situé **dans** la ligne : bouton, lien, champ de
+ * saisie, case à cocher…
+ *
+ * <p>Sans ce garde-fou, un clic sur une action de ligne (« Ouvrir un dossier », « Marquer transmise »)
+ * déclenchait aussi l'activation de la ligne entière par propagation, et la navigation écrasait
+ * silencieusement l'action demandée. Bug réel trouvé au jalon J7, invisible jusque-là parce qu'aucun
+ * tableau livré n'avait encore de bouton dans ses cellules.</p>
+ */
+function cibleInteractive(cible: EventTarget | null): boolean {
+  if (!(cible instanceof Element)) return false;
+  return cible.closest("button, a, input, select, textarea, [role='button'], [role='checkbox']") !== null;
 }

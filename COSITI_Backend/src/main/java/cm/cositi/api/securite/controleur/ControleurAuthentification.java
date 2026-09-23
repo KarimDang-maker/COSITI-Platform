@@ -28,6 +28,11 @@ import org.springframework.web.bind.annotation.RestController;
  * posé/lu exclusivement via un cookie {@code HttpOnly}, {@code Secure}, {@code SameSite=Strict}, comme l'exige
  * `docs/04_SECURITE.md §2` et comme le suppose le frontend (`api/client.ts`, `credentials: "include"`, aucune
  * lecture de jeton de rafraîchissement en JavaScript).
+ *
+ * <p>{@code Secure} est inconditionnel, y compris en recette locale : les navigateurs traitent
+ * {@code localhost} comme une origine de confiance et acceptent un cookie {@code Secure} sur HTTP
+ * clair. Vérifié au jalon J12 — aucun interrupteur n'est donc nécessaire, et aucun ne doit être
+ * introduit : un drapeau abaissant cette protection finirait par être activé ailleurs qu'en local.</p>
  */
 @RestController
 @RequestMapping("/api/v1/auth")

@@ -90,6 +90,14 @@ public class Parametre {
         return !"V".equalsIgnoreCase(statutValidation);
     }
 
+    public Instant getModifieLe() {
+        return modifieLe;
+    }
+
+    public String getModifiePar() {
+        return modifiePar;
+    }
+
     public void setModifieLe(Instant modifieLe) {
         this.modifieLe = modifieLe;
     }

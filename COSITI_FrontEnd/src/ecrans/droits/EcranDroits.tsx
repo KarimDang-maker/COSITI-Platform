@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
@@ -12,8 +12,9 @@ import { SelectRecherche } from "@/components/cositi/select-recherche";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRetardataires } from "@/hooks/useDroits";
+import { useAuth } from "@/auth/ContexteAuth";
+import { DialogueCreerCampagne } from "@/ecrans/droits/DialogueCreerCampagne";
 import { useAgents, useZones } from "@/hooks/useOrganisation";
 import type { Retardataire } from "@/api/droits";
 import { estErreurApi } from "@/api/erreurs";
@@ -34,6 +35,11 @@ const TAILLE_PAGE = 25;
  * Le tri par retard décroissant est fixe côté serveur
  * (`ServiceRegulariteImpl.retardataires`, non paramétrable) : pas de bascule
  * de tri proposée ici, contrairement à `ListeAdherents` (J2).
+ *
+ * Jalon J8 : la création d'une campagne de relance, laissée désactivée en J6
+ * faute d'endpoint (`TODO [A]`), est désormais branchée sur
+ * `POST /campagnes-relance`. Les filtres actifs deviennent les critères
+ * enregistrés de la campagne — une trace, jamais un ciblage rejoué.
  */
 export function EcranDroits() {
   const [parametres, definirParametres] = useSearchParams();
@@ -59,6 +65,9 @@ export function EcranDroits() {
   );
 
   const { data, isLoading, isError, error } = useRetardataires(filtres);
+  const { aLaPermission } = useAuth();
+  const [campagneOuverte, setCampagneOuverte] = useState(false);
+  const peutCreerCampagne = aLaPermission("RELANCE:GERER_CAMPAGNE");
 
   const optionsZones = useMemo(() => (zones ?? []).map((z) => ({ valeur: z.id, libelle: z.libelle })), [zones]);
   const optionsAgents = useMemo(() => (agents ?? []).map((a) => ({ valeur: a.id, libelle: a.nomComplet })), [agents]);
@@ -100,19 +109,9 @@ export function EcranDroits() {
             <p className="text-texte-doux">Retardataires, triés par retard décroissant (tri serveur fixe).</p>
           </div>
 
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span>
-                <Button disabled>Créer une campagne de relance</Button>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>
-              TODO [A] : « créer une campagne de relance à partir de la sélection » n'est pas
-              construit — aucun endpoint de campagne de relance n'existe encore côté backend
-              (`/relances`, `/campagnes-relance` ne sont pas implémentés, jalon J8 — voir
-              `Conception/SUIVI_EXECUTION.md`). Bouton désactivé plutôt qu'une action inventée.
-            </TooltipContent>
-          </Tooltip>
+          {peutCreerCampagne && (
+            <Button onClick={() => setCampagneOuverte(true)}>Créer une campagne de relance</Button>
+          )}
         </div>
 
         <BarreFiltres>
@@ -195,6 +194,17 @@ export function EcranDroits() {
           </>
         )}
       </div>
+
+      <DialogueCreerCampagne
+        ouvert={campagneOuverte}
+        onOuvertChange={setCampagneOuverte}
+        criteres={{
+          joursRetardMin: joursRetardMinTexte || undefined,
+          zoneId,
+          agentId,
+        }}
+        nbRetardataires={data?.totalElements ?? 0}
+      />
     </CoquilleApplication>
   );
 }

@@ -13,6 +13,7 @@ import cm.cositi.api.organisation.entite.Agent;
 import cm.cositi.api.organisation.repository.AffectationPortefeuilleRepository;
 import cm.cositi.api.organisation.repository.AgentRepository;
 import cm.cositi.api.securite.entite.Utilisateur;
+import cm.cositi.api.organisation.repository.ZoneRepository;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -23,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -35,17 +37,19 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
     private final JdbcTemplate jdbcTemplate;
     private final ServiceAudit serviceAudit;
     private final ServicePerimetreDonnees perimetre;
+    private final ZoneRepository zoneRepository;
 
     public ServicePortefeuilleImpl(AffectationPortefeuilleRepository affectationRepository,
                                     AdherentRepository adherentRepository, AgentRepository agentRepository,
                                     JdbcTemplate jdbcTemplate, ServiceAudit serviceAudit,
-                                    ServicePerimetreDonnees perimetre) {
+                                    ServicePerimetreDonnees perimetre, ZoneRepository zoneRepository) {
         this.affectationRepository = affectationRepository;
         this.adherentRepository = adherentRepository;
         this.agentRepository = agentRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.serviceAudit = serviceAudit;
         this.perimetre = perimetre;
+        this.zoneRepository = zoneRepository;
     }
 
     @Override
@@ -107,9 +111,7 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         if (adherentIds.isEmpty()) {
             return List.of();
         }
-        return adherentRepository.findAllById(adherentIds).stream()
-                .map(AdherentResumeDto::depuis)
-                .collect(Collectors.toList());
+        return enResumes(adherentRepository.findAllById(adherentIds));
     }
 
     @Override
@@ -123,7 +125,7 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         if (ids.isEmpty()) {
             return List.of();
         }
-        return adherentRepository.findAllById(ids).stream().map(AdherentResumeDto::depuis).collect(Collectors.toList());
+        return enResumes(adherentRepository.findAllById(ids));
     }
 
     @Override
@@ -149,4 +151,19 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         return agentRepository.findById(id)
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable(code, "Agent introuvable."));
     }
+
+    /**
+     * Convertit une liste d'adhérents en résumés, libellé de zone compris.
+     *
+     * <p>Les zones sont chargées une fois pour toute la liste : le référentiel est petit et
+     * stable, là où un accès par adhérent ferait une requête par ligne.</p>
+     */
+    private List<AdherentResumeDto> enResumes(List<cm.cositi.api.adherent.entite.Adherent> adherents) {
+        Map<UUID, String> libellesZone = zoneRepository.findAll().stream()
+                .collect(Collectors.toMap(z -> z.getId(), z -> z.getLibelle()));
+        return adherents.stream()
+                .map(a -> AdherentResumeDto.depuis(a, libellesZone.get(a.getZoneId())))
+                .collect(Collectors.toList());
+    }
+
 }

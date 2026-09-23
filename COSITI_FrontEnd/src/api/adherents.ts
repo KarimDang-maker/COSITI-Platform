@@ -25,7 +25,7 @@ export interface Adherent {
   readonly activiteId: string;
   readonly activiteNom?: string;
   readonly zoneId: string;
-  readonly zoneLibelle?: string;
+  readonly zoneLibelle: string | null;
   readonly associationId: string | null;
   readonly localisation: string;
   readonly quartier: string | null;
@@ -35,6 +35,25 @@ export interface Adherent {
   readonly inscriptionPayee: boolean;
   /** Champ de cache toléré pour l'affichage — l'agent référent réel vit dans `affectation_portefeuille` (`01_SCHEMA_BDD.md`). */
   readonly agentReferentNom?: string | null;
+}
+
+/**
+ * Ligne de la liste des adhérents — forme renvoyée par `GET /adherents` (`AdherentResumeDto`).
+ *
+ * Distincte d'{@link Adherent}, qui décrit la fiche complète. Les confondre était un défaut réel :
+ * l'écran lisait `nom`, `prenoms` et `dateAdhesion`, qui n'existent pas dans la réponse de liste,
+ * et affichait donc un tiret dans les colonnes « Adhérent », « Zone » et « Adhésion » pour
+ * chaque ligne. Constaté en recette E2E au jalon J12.
+ */
+export interface AdherentResume {
+  readonly id: string;
+  readonly matricule: string;
+  readonly nomComplet: string;
+  readonly telephonePrincipal: string;
+  readonly zoneId: string;
+  readonly zoneLibelle: string | null;
+  readonly dateAdhesion: string;
+  readonly statut: StatutAdherent;
 }
 
 export interface FiltresAdherents {
@@ -64,7 +83,7 @@ function construireParametres(filtres: FiltresAdherents): string {
 
 export function listerAdherents(filtres: FiltresAdherents) {
   const requete = construireParametres(filtres);
-  return client.get<EnveloppeListe<Adherent>>(`/adherents${requete ? `?${requete}` : ""}`);
+  return client.get<EnveloppeListe<AdherentResume>>(`/adherents${requete ? `?${requete}` : ""}`);
 }
 
 export function obtenirAdherent(id: string) {
@@ -85,11 +104,19 @@ export interface ReponseVerificationDoublon {
   readonly candidats: readonly CandidatDoublon[];
 }
 
+/**
+ * Contrat réel de `POST /adherents/verifier-doublon` (`VerifierDoublonDto` côté serveur).
+ *
+ * Corrigé au jalon J12 : le client envoyait `nom` et `prenoms` et **omettait `zoneId`**, qui est
+ * obligatoire. L'appel répondait donc `400` à chaque fois et le bandeau informatif de doublon de
+ * l'étape 3 ne s'affichait jamais. La détection restait assurée à la création (409), mais
+ * l'avertissement préalable — celui qui évite la saisie inutile — était perdu.
+ */
 export interface CorpsVerificationDoublon {
-  nom: string;
-  prenoms?: string;
-  telephonePrincipal: string;
+  nomComplet: string;
+  telephonePrincipal?: string;
   numeroCni?: string;
+  zoneId: string;
 }
 
 export function verifierDoublon(corps: CorpsVerificationDoublon) {
@@ -112,6 +139,7 @@ export interface CorpsCreationAdherent {
   quartier?: string;
   ville?: string;
   dateAdhesion: string;
+  packId: string;
   /** Envoyé uniquement après confirmation explicite d'un doublon signalé en 409 (`03_SPECIFICATIONS_API.md §3`). */
   confirmationDoublonIgnore?: boolean;
 }
@@ -133,3 +161,41 @@ export function modifierAdherent(id: string, corps: Partial<CorpsCreationAdheren
  * consolidé là-bas plutôt que maintenu en double ici — voir
  * `src/api/droits.ts` et `Conception/SUIVI_EXECUTION.md`.
  */
+
+/** Une activité du référentiel COSITI (table `activite`, sept lignes livrées par la migration V2). */
+export interface Activite {
+  readonly id: string;
+  readonly code: string;
+  readonly libelle: string;
+  readonly categorie: string;
+}
+
+/**
+ * Référentiel des activités.
+ *
+ * `activiteId` est un UUID obligatoire côté API : sans cette liste, l'écran de création ne
+ * pouvait proposer qu'une saisie libre que le serveur refusait systématiquement.
+ */
+export function listerActivites() {
+  return client.get<Activite[]>("/activites");
+}
+
+/** Un pack de cotisation du référentiel COSITI (table `pack`, deux lignes livrées par la migration V2). */
+export interface Pack {
+  readonly id: string;
+  readonly code: string;
+  readonly libelle: string;
+  readonly montantJournalier: number;
+  readonly montantMensuelEquivalent: number;
+  readonly seuilEligibiliteCnps: number;
+  readonly actif: boolean;
+}
+
+/**
+ * Référentiel des packs. Renvoie aussi les packs inactifs (avec leur drapeau) : un adhérent
+ * rattaché à un pack retiré du catalogue doit rester affichable. C'est à l'écran de création
+ * de n'en proposer que les actifs.
+ */
+export function listerPacks() {
+  return client.get<Pack[]>("/packs");
+}

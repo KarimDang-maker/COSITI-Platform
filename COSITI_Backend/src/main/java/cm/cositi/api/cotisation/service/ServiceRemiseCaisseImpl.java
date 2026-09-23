@@ -10,6 +10,7 @@ import cm.cositi.api.cotisation.entite.Paiement;
 import cm.cositi.api.cotisation.entite.RemiseCaisse;
 import cm.cositi.api.cotisation.repository.PaiementRepository;
 import cm.cositi.api.cotisation.repository.RemiseCaisseRepository;
+import cm.cositi.api.notification.ServiceNotification;
 import cm.cositi.api.organisation.repository.AgentRepository;
 import cm.cositi.api.securite.entite.Utilisateur;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,14 +31,17 @@ public class ServiceRemiseCaisseImpl implements ServiceRemiseCaisse {
     private final AgentRepository agentRepository;
     private final JdbcTemplate jdbcTemplate;
     private final ServiceAudit serviceAudit;
+    private final ServiceNotification serviceNotification;
 
     public ServiceRemiseCaisseImpl(RemiseCaisseRepository remiseCaisseRepository, PaiementRepository paiementRepository,
-                                    AgentRepository agentRepository, JdbcTemplate jdbcTemplate, ServiceAudit serviceAudit) {
+                                    AgentRepository agentRepository, JdbcTemplate jdbcTemplate, ServiceAudit serviceAudit,
+                                    ServiceNotification serviceNotification) {
         this.remiseCaisseRepository = remiseCaisseRepository;
         this.paiementRepository = paiementRepository;
         this.agentRepository = agentRepository;
         this.jdbcTemplate = jdbcTemplate;
         this.serviceAudit = serviceAudit;
+        this.serviceNotification = serviceNotification;
     }
 
     @Override
@@ -94,6 +98,15 @@ public class ServiceRemiseCaisseImpl implements ServiceRemiseCaisse {
         if ("EN_ECART".equals(remise.getStatut())) {
             serviceAudit.tracer(TypeOperation.REMISE_CAISSE_ECART, "remise_caisse", remise.getId(), null,
                     ecartReel, "Écart détecté à la réception de la remise de caisse.");
+
+            // Exigence de docs/02_CLASSES_ET_METHODES.md §4 : « un écart non nul bascule la remise en
+            // EN_ECART et crée une notification pour le DAF ». La seconde moitié n'était pas implémentable
+            // avant le jalon J8 (aucun service de notification) — un TODO le signalait sur l'interface.
+            serviceNotification.notifierRoles(List.of("DAF"), "REMISE_CAISSE_ECART",
+                    "Écart sur une remise de caisse",
+                    "La remise de caisse " + remise.getId() + " présente un écart de " + ecartReel
+                            + " FCFA entre le montant déclaré et le montant reçu.",
+                    "remise_caisse", remise.getId());
         }
         return dto;
     }

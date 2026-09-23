@@ -112,12 +112,15 @@ async function executer<T>(
   dejaTenteApresRafraichissement = false,
 ): Promise<T> {
   const traceId = options.enTetes?.["X-Trace-Id"] ?? genererTraceId();
+  const estFormulaire = corps instanceof FormData;
   const enTetes: Record<string, string> = {
     Accept: "application/json",
     "X-Trace-Id": traceId,
     ...options.enTetes,
   };
-  if (corps !== undefined) enTetes["Content-Type"] = "application/json";
+  // Un `FormData` ne porte jamais de `Content-Type` fixé à la main : le navigateur doit générer
+  // lui-même `multipart/form-data; boundary=…`. Le forcer casse l'analyse du corps côté serveur.
+  if (corps !== undefined && !estFormulaire) enTetes["Content-Type"] = "application/json";
   if (options.authentifie !== false) {
     const jeton = obtenirJetonAcces();
     if (jeton) enTetes.Authorization = `Bearer ${jeton}`;
@@ -126,7 +129,7 @@ async function executer<T>(
   const reponse = await fetch(`${BASE_URL}${chemin}`, {
     method: methode,
     headers: enTetes,
-    body: corps !== undefined ? JSON.stringify(corps) : undefined,
+    body: corps === undefined ? undefined : estFormulaire ? corps : JSON.stringify(corps),
     credentials: "include",
     signal: options.signal,
   });
@@ -146,6 +149,81 @@ async function executer<T>(
   return (texte ? (JSON.parse(texte) as T) : (undefined as T));
 }
 
+interface OptionsTelechargement extends OptionsRequete {
+  /** `GET` par défaut. `POST` pour un export, qui est une production journalisée et non une lecture. */
+  methode?: "GET" | "POST";
+}
+
+/**
+ * Fichier reçu du serveur. Le contenu reste un `Blob` en mémoire : rien n'est écrit sur disque tant que
+ * l'utilisateur n'a pas cliqué (`04_SECURITE.md §4` côté API : aucun fichier laissé en clair après
+ * téléchargement).
+ */
+export interface FichierRecu {
+  readonly nomFichier: string;
+  readonly typeMime: string;
+  readonly contenu: Blob;
+}
+
+/**
+ * Nom de fichier proposé par le serveur (`Content-Disposition: attachment; filename*=UTF-8''…`).
+ * Une valeur absente ou illisible retombe sur un nom neutre — jamais sur une valeur inventée.
+ */
+function nomFichierDepuisEnTete(entete: string | null, defaut: string): string {
+  if (!entete) return defaut;
+  const encode = /filename\*=UTF-8''([^;]+)/i.exec(entete);
+  if (encode?.[1]) {
+    try {
+      return decodeURIComponent(encode[1]);
+    } catch {
+      return defaut;
+    }
+  }
+  const simple = /filename="?([^";]+)"?/i.exec(entete);
+  return simple?.[1] ?? defaut;
+}
+
+/**
+ * Téléchargement binaire (documents, exports). Passe par la même chaîne que les autres appels —
+ * `Authorization`, `X-Trace-Id`, rotation du jeton sur 401, normalisation des erreurs — parce que
+ * `AGENTS.md` interdit tout `fetch` direct hors de ce module.
+ */
+async function telechargerFichier(
+  chemin: string,
+  options: OptionsTelechargement = {},
+  dejaTenteApresRafraichissement = false,
+): Promise<FichierRecu> {
+  const traceId = options.enTetes?.["X-Trace-Id"] ?? genererTraceId();
+  const enTetes: Record<string, string> = { "X-Trace-Id": traceId, ...options.enTetes };
+  const jeton = obtenirJetonAcces();
+  if (jeton) enTetes.Authorization = `Bearer ${jeton}`;
+
+  const reponse = await fetch(`${BASE_URL}${chemin}`, {
+    // Les exports sont en `POST` (ils déclenchent une production journalisée), les documents en `GET`.
+    method: options.methode ?? "GET",
+    headers: enTetes,
+    credentials: "include",
+    signal: options.signal,
+  });
+
+  if (reponse.status === 401 && !dejaTenteApresRafraichissement) {
+    const succes = await rafraichir();
+    if (succes) return telechargerFichier(chemin, options, true);
+    effacerJetonAcces();
+    emettreSessionExpiree();
+    throw await construireErreur(reponse, traceId);
+  }
+
+  if (!reponse.ok) throw await construireErreur(reponse, traceId);
+
+  const contenu = await reponse.blob();
+  return {
+    nomFichier: nomFichierDepuisEnTete(reponse.headers.get("Content-Disposition"), "document"),
+    typeMime: reponse.headers.get("Content-Type") ?? "application/octet-stream",
+    contenu,
+  };
+}
+
 export const client = {
   get: <T>(chemin: string, options: OptionsRequete = {}) =>
     executer<T>(chemin, "GET", undefined, options),
@@ -155,6 +233,22 @@ export const client = {
     executer<T>(chemin, "PUT", corps, options),
   del: <T>(chemin: string, options: OptionsRequete = {}) =>
     executer<T>(chemin, "DELETE", undefined, options),
+  /** Envoi `multipart/form-data` (téléversement de document, jalon J7). */
+  postFormulaire: <T>(chemin: string, formulaire: FormData, options: OptionsRequete = {}) =>
+    executer<T>(chemin, "POST", formulaire, options),
+  telechargerFichier,
+  /**
+   * Reprise de session au démarrage, via le cookie `HttpOnly` de rafraîchissement.
+   *
+   * Passe par le même verrou « un seul appel en vol » que la rotation déclenchée par un 401.
+   * C'est indispensable et non cosmétique : le serveur fait tourner le jeton à chaque usage et
+   * traite la réutilisation d'un jeton déjà consommé comme un vol probable — il révoque alors
+   * **toute la famille**, y compris le jeton fraîchement émis. Deux rafraîchissements légitimes
+   * lancés en parallèle (deux onglets restaurés ensemble, ou le double montage de `StrictMode`
+   * en développement) déconnectaient donc l'utilisateur et inscrivaient une alerte de sécurité
+   * infondée. Ne jamais appeler `POST /auth/rafraichir` directement.
+   */
+  rafraichirSession: rafraichir,
 };
 
-export type { OptionsRequete };
+export type { OptionsRequete, OptionsTelechargement };

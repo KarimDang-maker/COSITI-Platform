@@ -22,6 +22,7 @@ export const JETON_GESTIONNAIRE = "jeton-gestionnaire-comptes";
 export const JETON_DGA = "jeton-dga";
 export const JETON_DAF = "jeton-daf";
 export const JETON_CHEF = "jeton-chef-agents-terrain";
+export const JETON_SUPER_ADMIN = "jeton-super-admin";
 
 export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
   [JETON_AGENT]: {
@@ -39,6 +40,16 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       // V8__permissions_j5_j6.sql : DROITS:LIRE suit ADHERENT:LIRE pour tous
       // les rôles métier.
       "DROITS:LIRE",
+      // V9 : l'Agent joint un justificatif (UC-AG-06) et relit les siens, mais
+      // n'a aucune permission CNPS:* — le domaine est celui du Gestionnaire.
+      "DOCUMENT:LIRE",
+      "DOCUMENT:TELEVERSER",
+      // V10__comptes_rendus_j8.sql : l'Agent produit ses comptes rendus et
+      // enregistre ses relances ; il ne contrôle ni ne consolide rien.
+      "COMPTE_RENDU:LIRE",
+      "COMPTE_RENDU:PRODUIRE",
+      "RELANCE:LIRE",
+      "RELANCE:ENREGISTRER",
     ],
     doitChangerMotDePasse: false,
   },
@@ -57,6 +68,28 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "ORGANISATION:LIRE",
       "AUDIT:CONSULTER",
       "DROITS:LIRE",
+      // V9__permissions_j7_cnps_documents.sql : le Gestionnaire des comptes est
+      // le rôle opérationnel du domaine CNPS (Roles des acteurs.md §7).
+      "CNPS:LIRE",
+      "CNPS:GERER",
+      "CNPS:CHANGER_STATUT",
+      "CNPS:DECLARER",
+      "DOCUMENT:LIRE",
+      "DOCUMENT:TELEVERSER",
+      "DOCUMENT:VERIFIER",
+      // V10 : le Gestionnaire des comptes reçoit, contrôle et consolide.
+      "COMPTE_RENDU:LIRE",
+      "COMPTE_RENDU:CONTROLER",
+      "COMPTE_RENDU:CONSOLIDER",
+      "RELANCE:LIRE",
+      "RELANCE:ENREGISTRER",
+      "RELANCE:GERER_CAMPAGNE",
+      // V11__tableaux_de_bord_j9.sql : une permission par dashboard, accordée au
+      // seul rôle concerné.
+      "TABLEAU_BORD:GESTIONNAIRE",
+      // V12 : exports de son domaine. Aucune permission RAPPORT_DAF:* — REC-H12.
+      "EXPORT:ADHERENTS",
+      "EXPORT:CNPS",
     ],
     doitChangerMotDePasse: false,
   },
@@ -74,6 +107,15 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "ORGANISATION:DESIGNER_CHEF",
       "AUDIT:CONSULTER",
       "DROITS:LIRE",
+      // V9 : consultation seule du domaine CNPS (Roles des acteurs.md §11).
+      "CNPS:LIRE",
+      "DOCUMENT:LIRE",
+      // V10 : la DGA reçoit les comptes rendus consolidés.
+      "COMPTE_RENDU:LIRE",
+      "RELANCE:LIRE",
+      "TABLEAU_BORD:DGA",
+      "RAPPORT_DAF:LIRE",
+      "EXPORT:ADHERENTS",
     ],
     doitChangerMotDePasse: false,
   },
@@ -95,6 +137,14 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "AUDIT:CONSULTER",
       "DROITS:LIRE",
       "DROITS:RECALCULER",
+      "CNPS:LIRE",
+      "DOCUMENT:LIRE",
+      "TABLEAU_BORD:DAF",
+      // V12__rapports_daf_exports_j10.sql
+      "RAPPORT_DAF:LIRE",
+      "RAPPORT_DAF:PRODUIRE",
+      "RAPPORT_DAF:TRANSMETTRE",
+      "EXPORT:PAIEMENTS",
     ],
     doitChangerMotDePasse: false,
   },
@@ -113,6 +163,28 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "DROITS:LIRE",
       // V8__permissions_j5_j6.sql : réservée CHEF_AGENT_TERRAIN.
       "PAIEMENT:CONFIRMER_CHEF",
+      "COMPTE_RENDU:LIRE",
+      "COMPTE_RENDU:PRODUIRE",
+      "RELANCE:LIRE",
+      "RELANCE:ENREGISTRER",
+      "RELANCE:GERER_CAMPAGNE",
+    ],
+    doitChangerMotDePasse: false,
+  },
+  [JETON_SUPER_ADMIN]: {
+    id: "u-admin-1",
+    identifiant: "super.admin",
+    nomComplet: "Admin Systeme",
+    roles: ["SUPER_ADMIN"],
+    // Roles des acteurs.md §10 : le Super Administrateur administre le système et
+    // n'a AUCUN accès métier courant — ni adhérent, ni paiement, ni CNPS.
+    permissions: [
+      "ADMINISTRATION:LIRE",
+      "ADMINISTRATION:GERER",
+      "PARAMETRE:MODIFIER",
+      "AUDIT:CONSULTER",
+      "TABLEAU_BORD:SUPER_ADMIN",
+      "DROITS:RECALCULER",
     ],
     doitChangerMotDePasse: false,
   },

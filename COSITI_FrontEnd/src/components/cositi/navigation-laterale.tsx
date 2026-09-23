@@ -1,7 +1,8 @@
 import { NavLink } from "react-router";
-import { Users, MapPinned, Wallet, ShieldCheck, ScrollText } from "lucide-react";
+import { Users, MapPinned, Wallet, ShieldCheck, ScrollText, FileHeart, ClipboardList, PhoneCall, LayoutDashboard, FileText, History, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/ContexteAuth";
+import { cheminTableauBord } from "@/api/tableauxDeBord";
 import type { CodePermission } from "@/auth/types";
 import { LogoCositi } from "@/components/cositi/logo-cositi";
 
@@ -19,6 +20,9 @@ interface EntreeNavigation {
 
 const ENTREES: readonly EntreeNavigation[] = [
   { chemin: "/adherents", libelle: "Adhérents", icone: Users, permission: "ADHERENT:LIRE" },
+  // Placeholder remplacé à l'affichage par le chemin du dashboard de l'utilisateur
+  // (voir `NavigationLaterale`) : six dashboards existent, chacun n'en voit qu'un.
+  { chemin: "__TABLEAU_DE_BORD__", libelle: "Tableau de bord", icone: LayoutDashboard },
   {
     chemin: "/organisation",
     libelle: "Organisation terrain",
@@ -46,9 +50,46 @@ const ENTREES: readonly EntreeNavigation[] = [
     chemin: "/droits",
     libelle: "Droits",
     icone: ScrollText,
-    // `TODO [A]` : `DROITS:LIRE` n'existe dans aucune migration backend
-    // réelle au moment de ce jalon — voir `Conception/SUIVI_EXECUTION.md`.
+    // Confirmé réel depuis `V8__permissions_j5_j6.sql` (le `TODO [A]` posé au
+    // jalon J6 est levé) — voir `Conception/SUIVI_EXECUTION.md`.
     permission: "DROITS:LIRE",
+  },
+  {
+    chemin: "/cnps",
+    libelle: "CNPS",
+    icone: FileHeart,
+    // `V9__permissions_j7_cnps_documents.sql` : lecture ouverte à PCA, DG, DGA,
+    // DAF et Gestionnaire des comptes ; l'Agent et le Chef n'ont pas ce domaine.
+    permission: "CNPS:LIRE",
+  },
+  {
+    chemin: "/comptes-rendus",
+    libelle: "Comptes rendus",
+    icone: ClipboardList,
+    // `V10__comptes_rendus_j8.sql` : lecture ouverte à toute la chaîne
+    // hiérarchique (Agent, Chef, Gestionnaire, DGA) plus PCA et DG.
+    permission: "COMPTE_RENDU:LIRE",
+  },
+  {
+    chemin: "/relances",
+    libelle: "Relances",
+    icone: PhoneCall,
+    permission: "RELANCE:LIRE",
+  },
+  {
+    chemin: "/rapports",
+    libelle: "Rapports",
+    icone: FileText,
+    // `V12__rapports_daf_exports_j10.sql` : PCA, DAF, DG et DGA uniquement.
+    permission: "RAPPORT_DAF:LIRE",
+  },
+  { chemin: "/audit", libelle: "Audit", icone: History, permission: "AUDIT:CONSULTER" },
+  {
+    chemin: "/administration",
+    libelle: "Administration",
+    icone: Settings,
+    // `V13__administration_securite_j11.sql` : Super Administrateur uniquement.
+    permission: "ADMINISTRATION:LIRE",
   },
 ];
 
@@ -58,8 +99,17 @@ const ENTREES: readonly EntreeNavigation[] = [
  * (`docs/02_DESIGN_SYSTEM.md §8`).
  */
 export function NavigationLaterale() {
-  const { aLaPermission } = useAuth();
-  const entrees = ENTREES.filter((entree) => !entree.permission || aLaPermission(entree.permission));
+  const { utilisateur, aLaPermission } = useAuth();
+
+  // Le lien « Tableau de bord » pointe vers celui de l'utilisateur, déduit de ses
+  // permissions. Absent pour l'Agent de terrain et le Chef, qui n'en ont pas.
+  const cheminDashboard = cheminTableauBord(utilisateur?.permissions ?? []);
+
+  const entrees = ENTREES.filter((entree) => !entree.permission || aLaPermission(entree.permission))
+    .filter((entree) => entree.chemin !== "__TABLEAU_DE_BORD__" || cheminDashboard !== null)
+    .map((entree) =>
+      entree.chemin === "__TABLEAU_DE_BORD__" ? { ...entree, chemin: cheminDashboard! } : entree,
+    );
 
   return (
     <nav

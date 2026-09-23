@@ -132,7 +132,8 @@ formulaire, validation par étape via `trigger()`) :
 1. **Identité et contact** : nom, prénoms, date de naissance, sexe, CNI,
    CNPS, téléphone principal (obligatoire), téléphone secondaire.
 2. **Rattachement** : zone (`SelectRecherche`, alimenté par `GET /zones`),
-   code d'activité, localisation, quartier, ville, date d'adhésion.
+   activité (`SelectRecherche`, alimenté par `GET /activites`), localisation,
+   quartier, ville, date d'adhésion.
 3. **Vérification et confirmation** : récapitulatif (téléphone masqué),
    résultat de `POST /adherents/verifier-doublon` (déclenché au passage de
    l'étape 2 à l'étape 3) affiché en bandeau `attention`
@@ -144,10 +145,12 @@ Doublon en soumission : si l'API renvoie `409 ADHERENT_DOUBLON_POTENTIEL`
 explicite ; à la confirmation, le formulaire renvoie
 `confirmationDoublonIgnore: true`.
 
-`TODO [V]` : le champ « Code d'activité » est un champ texte libre, faute
-d'un endpoint de référentiel des activités documenté dans
-`03_SPECIFICATIONS_API.md` (seule la table `activite` existe côté schéma
-backend). À remplacer par un `SelectRecherche` dès que l'endpoint existe.
+**Résolu au jalon J12** — le champ « Code d'activité » était un texte libre,
+faute d'endpoint de référentiel. Or `activiteId` est un **UUID obligatoire**
+côté API : la saisie était refusée à chaque tentative et **aucun adhérent ne
+pouvait être enregistré par l'interface**. Le défaut échappait aux tests
+d'écran, qui simulent l'API ; la recette E2E l'a révélé. `GET /activites`
+(lecture seule) est livré et le champ est désormais un `SelectRecherche`.
 
 ### `/adherents/:id` — `FicheAdherent`
 
@@ -518,6 +521,14 @@ motif obligatoire — endpoint disponible côté contrat mais aucune action
 d'écran ne le déclenche à ce jour).
 
 ---
+
+## Suite
+
+Les écrans des jalons **J7 à J11** (CNPS et documents, relances et comptes
+rendus, les six tableaux de bord, rapports/exports/audit, administration) sont
+documentés dans [`03_SPECIFICATIONS_ECRANS_J7_J11.md`](03_SPECIFICATIONS_ECRANS_J7_J11.md).
+Ce fichier a été scindé pour rester lisible : il couvrait déjà 526 lignes à la
+fin de J6.
 
 ## Entretien de ce document
 

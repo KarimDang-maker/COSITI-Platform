@@ -25,3 +25,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Playwright (jalon J12) — artefacts de recette, jamais versionnés
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

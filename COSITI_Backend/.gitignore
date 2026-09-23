@@ -39,3 +39,14 @@ Thumbs.db
 
 ### Secrets locaux ###
 CONNEXION.md
+
+# Stockage documentaire local (jalon J7) : contenus chiffres deposes par l application
+# et par les tests. Jamais versionne — ce sont des pieces d identite reelles en production.
+uploads/
+
+# Outillage de poste local (PostgreSQL portable, suite de tests hors Docker, recette E2E).
+# Volontairement NON versionne : ces scripts portent le mot de passe du cluster local, et la
+# regle absolue n 8 d AGENTS.md interdit tout secret dans Git. Chaque poste garde donc les
+# siens. Ce qu ils font est decrit dans AGENTS.md ; la CI n en depend pas, elle lance l API
+# et les tests directement.
+outils/

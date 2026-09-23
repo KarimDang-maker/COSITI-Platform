@@ -1,7 +1,9 @@
 package cm.cositi.api.config;
 
 import cm.cositi.api.commun.reponse.ReponseErreur;
+import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.securite.filtre.FiltreJwt;
+import cm.cositi.api.securite.filtre.FiltreLimiteDebit;
 import cm.cositi.api.securite.service.ServiceJeton;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,15 +39,27 @@ public class SecurityConfig {
     private final ServiceJeton serviceJeton;
     private final UserDetailsService serviceUtilisateurDetails;
     private final ObjectMapper objectMapper;
+    private final ServiceParametre serviceParametre;
 
     @Value("${cositi.securite.cors.allowed-origins:}")
     private String originesAutorisees;
 
+    /**
+     * Interrupteur de la limitation de débit. Vrai partout sauf dans la suite de tests d'intégration, qui
+     * enchaîne des dizaines de connexions depuis la même adresse en quelques secondes et atteindrait la
+     * limite pour une raison sans rapport avec ce qu'elle vérifie. Il n'est positionné que par
+     * {@code ConfigurationTestsIntegration} ; aucun fichier de configuration d'exécution ne le définit, et
+     * le profil de production ne le mentionne pas.
+     */
+    @Value("${cositi.securite.debit.actif:true}")
+    private boolean limiteDebitActive;
+
     public SecurityConfig(ServiceJeton serviceJeton, UserDetailsService serviceUtilisateurDetails,
-                           ObjectMapper objectMapper) {
+                           ObjectMapper objectMapper, ServiceParametre serviceParametre) {
         this.serviceJeton = serviceJeton;
         this.serviceUtilisateurDetails = serviceUtilisateurDetails;
         this.objectMapper = objectMapper;
+        this.serviceParametre = serviceParametre;
     }
 
     @Bean
@@ -93,9 +107,26 @@ public class SecurityConfig {
                     ).permitAll()
                     .anyRequest().authenticated()
             )
-            .addFilterBefore(new FiltreJwt(serviceJeton, serviceUtilisateurDetails), UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new FiltreJwt(serviceJeton, serviceUtilisateurDetails), UsernamePasswordAuthenticationFilter.class)
+            // Placé APRÈS le filtre JWT : le compteur d'écritures et de lectures doit pouvoir s'appuyer sur
+            // l'utilisateur authentifié. Seule la connexion, non authentifiée par définition, est comptée
+            // par adresse d'appel (jalon J11, docs/03_SPECIFICATIONS_API.md §12).
+            .addFilterAfter(filtreLimiteDebit(), FiltreJwt.class);
 
         return http.build();
+    }
+
+    /**
+     * Seuils lus une fois au démarrage depuis la table {@code parametre} ({@code DEBIT_*}, V13), jamais
+     * figés en constantes : ils s'ajustent sans redéploiement. Les relire à chaque requête ajouterait un
+     * aller-retour en base sur le chemin critique de tous les appels.
+     */
+    private FiltreLimiteDebit filtreLimiteDebit() {
+        return new FiltreLimiteDebit(objectMapper,
+                serviceParametre.entier("DEBIT_CONNEXION_PAR_IP_15MIN"),
+                serviceParametre.entier("DEBIT_ECRITURE_PAR_MINUTE"),
+                serviceParametre.entier("DEBIT_LECTURE_PAR_MINUTE"),
+                limiteDebitActive);
     }
 
     private void ecrireErreur(jakarta.servlet.http.HttpServletResponse reponse, int statut, String code, String message)

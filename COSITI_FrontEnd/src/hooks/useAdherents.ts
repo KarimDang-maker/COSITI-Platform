@@ -7,6 +7,8 @@ import {
   type CorpsCreationAdherent,
   type CorpsVerificationDoublon,
   type FiltresAdherents,
+  listerActivites,
+  listerPacks,
 } from "@/api/adherents";
 
 const CLE_ADHERENTS = "adherents" as const;
@@ -41,5 +43,23 @@ export function useCreerAdherent() {
     onSuccess: () => {
       void clientRequetes.invalidateQueries({ queryKey: [CLE_ADHERENTS, "liste"] });
     },
+  });
+}
+
+/** Référentiel des activités. Stable : mis en cache cinq minutes, comme les zones. */
+export function useActivites() {
+  return useQuery({
+    queryKey: ["adherents", "activites"],
+    queryFn: listerActivites,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Référentiel des packs de cotisation. Stable : même mise en cache que les activités. */
+export function usePacks() {
+  return useQuery({
+    queryKey: ["adherents", "packs"],
+    queryFn: listerPacks,
+    staleTime: 5 * 60 * 1000,
   });
 }

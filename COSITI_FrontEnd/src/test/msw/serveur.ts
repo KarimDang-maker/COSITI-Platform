@@ -4,6 +4,11 @@ import { handlersAdherents } from "@/test/msw/handlers.adherents";
 import { handlersOrganisation } from "@/test/msw/handlers.organisation";
 import { handlersPaiements } from "@/test/msw/handlers.paiements";
 import { handlersDroits } from "@/test/msw/handlers.droits";
+import { handlersCnps } from "@/test/msw/handlers.cnps";
+import { handlersComptesRendus } from "@/test/msw/handlers.comptesRendus";
+import { handlersTableauxDeBord } from "@/test/msw/handlers.tableauxDeBord";
+import { handlersRapports } from "@/test/msw/handlers.rapports";
+import { handlersAdministration } from "@/test/msw/handlers.administration";
 
 /**
  * Serveur MSW partagé par tous les tests. Chaque domaine ajoute son propre
@@ -17,4 +22,9 @@ export const serveur = setupServer(
   ...handlersOrganisation,
   ...handlersPaiements,
   ...handlersDroits,
+  ...handlersCnps,
+  ...handlersComptesRendus,
+  ...handlersTableauxDeBord,
+  ...handlersRapports,
+  ...handlersAdministration,
 );

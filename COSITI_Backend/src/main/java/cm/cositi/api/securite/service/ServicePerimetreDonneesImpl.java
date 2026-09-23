@@ -68,6 +68,14 @@ public class ServicePerimetreDonneesImpl implements ServicePerimetreDonnees {
     }
 
     @Override
+    public boolean peutAccederAdherent(Utilisateur utilisateur, UUID adherentId) {
+        if (perimetreAdherentGlobal(utilisateur)) {
+            return true;
+        }
+        return utilisateur.getAgentId() != null && adherentsDuPerimetreAgent(utilisateur).contains(adherentId);
+    }
+
+    @Override
     public Specification<Paiement> perimetrePaiement(Utilisateur utilisateur) {
         if (perimetreAdherentGlobal(utilisateur)) {
             return Specification.where(null);

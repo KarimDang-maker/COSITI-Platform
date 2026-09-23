@@ -19,6 +19,7 @@ import cm.cositi.api.commun.exception.ExceptionConflit;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.commun.reponse.ReponsePaginee;
+import cm.cositi.api.organisation.repository.ZoneRepository;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
 import org.springframework.data.domain.Page;
@@ -42,11 +43,12 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     private final ServiceDoublonAdherent serviceDoublonAdherent;
     private final ServicePerimetreDonnees perimetre;
     private final ServiceAudit serviceAudit;
+    private final ZoneRepository zoneRepository;
 
     public ServiceAdherentImpl(AdherentRepository adherentRepository, AdhesionRepository adhesionRepository,
                                 PackRepository packRepository, ServiceMatricule serviceMatricule,
                                 ServiceDoublonAdherent serviceDoublonAdherent, ServicePerimetreDonnees perimetre,
-                                ServiceAudit serviceAudit) {
+                                ServiceAudit serviceAudit, ZoneRepository zoneRepository) {
         this.adherentRepository = adherentRepository;
         this.adhesionRepository = adhesionRepository;
         this.packRepository = packRepository;
@@ -54,6 +56,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         this.serviceDoublonAdherent = serviceDoublonAdherent;
         this.perimetre = perimetre;
         this.serviceAudit = serviceAudit;
+        this.zoneRepository = zoneRepository;
     }
 
     @Override
@@ -109,7 +112,11 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     @PreAuthorize("hasAuthority('ADHERENT:LIRE')")
     public AdherentDetailDto consulter(UUID id, Utilisateur demandeur) {
         perimetre.verifierAccesAdherent(demandeur, id);
-        return AdherentDetailDto.depuis(charger(id));
+        Adherent adherent = charger(id);
+        // La fiche affiche le nom de la zone : sans lui, l'écran montrait un tiret.
+        String zoneLibelle = zoneRepository.findById(adherent.getZoneId())
+                .map(z -> z.getLibelle()).orElse(null);
+        return AdherentDetailDto.depuis(adherent, zoneLibelle);
     }
 
     @Override
@@ -150,8 +157,16 @@ public class ServiceAdherentImpl implements ServiceAdherent {
                                                          Utilisateur demandeur) {
         Specification<Adherent> spec = SpecificationsAdherent.depuisCritere(critere)
                 .and(perimetre.perimetreAdherent(demandeur));
-        Page<AdherentResumeDto> page = adherentRepository.findAll(spec, pageable).map(AdherentResumeDto::depuis);
-        return ReponsePaginee.depuis(page);
+        Page<Adherent> adherents = adherentRepository.findAll(spec, pageable);
+
+        // Les libellés de zone sont chargés en une seule requête, et non par ligne : le référentiel
+        // des zones est petit et stable, alors qu'un accès par adhérent ferait une requête par ligne
+        // affichée.
+        java.util.Map<UUID, String> libellesZone = zoneRepository.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(z -> z.getId(), z -> z.getLibelle()));
+
+        return ReponsePaginee.depuis(
+                adherents.map(a -> AdherentResumeDto.depuis(a, libellesZone.get(a.getZoneId()))));
     }
 
     @Override

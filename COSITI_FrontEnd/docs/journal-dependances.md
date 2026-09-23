@@ -70,8 +70,43 @@ tests Vitest, où ce fichier n'est d'aucune utilité. Le script n'a donc **pas**
 été approuvé. À revoir si un usage navigateur de MSW (ex. Storybook) est
 introduit plus tard.
 
-**Playwright** — non installé cette session, faute de temps (voir
-`Conception/SUIVI_EXECUTION.md`, section décisions en attente).
+**Playwright** — non installé à cette date, faute de temps. Installé au
+jalon J12 : voir l'entrée du 23/09/2026 ci-dessous.
+
+## 23/09/2026 — J12 : installation de Playwright (tests E2E)
+
+Procédure de `05_DEPENDANCES_CHAINE_LOGICIELLE.md §1` suivie **avant**
+installation, dans l'ordre :
+
+1. **Nécessité** — oui : `AGENTS.md §4` liste Playwright comme choix E2E du
+   projet (statut « non installé » depuis J0), et le jalon J12 exige les
+   parcours de recette `REC-H01` à `REC-H15` de `Roles des acteurs.md §15`.
+   Ce n'est pas une installation « au cas où » : c'est le critère de passage
+   du jalon.
+2. **Réputation et maintenance** — `@playwright/test@1.63.0`, éditeur
+   Microsoft, licence **Apache-2.0** (compatible), dépôt public
+   `github.com/microsoft/playwright`, publications continues.
+3. **Empreinte** — `npm install --dry-run` : **3 paquets ajoutés**
+   (`@playwright/test`, `playwright`, `playwright-core`), tous du même
+   éditeur. Aucune chaîne transitive tierce — empreinte proportionnée au
+   besoin.
+4. **Vulnérabilités** — `npm audit` après installation réelle : voir la
+   ligne de résultat ci-dessous. `osv-scanner` et `npm audit signatures`
+   restent des contrôles **CI uniquement**, comme le rappelle `§1.4`, et sont
+   désormais exécutés par le workflow ajouté à ce jalon.
+5. **Secrets** — aucun jeton ni URL interne ajouté ; les identifiants des
+   comptes de démonstration utilisés par les tests E2E viennent de variables
+   d'environnement, jamais du dépôt.
+6. **Consignation** — la présente entrée, écrite avant le code des tests.
+7. **`@types/*`** — sans objet : Playwright expose ses propres types.
+
+**Navigateurs** : seul **Chromium** est téléchargé
+(`npx playwright install chromium`). Les trois moteurs auraient représenté
+environ 1 Go pour un poste dont le disque est déjà à 97 % d'occupation, et la
+V1 est un back-office interne dont le parc n'est pas connu : lancer la
+recette sur un moteur unique et documenté vaut mieux que sur trois moteurs
+partiellement vérifiés. Firefox et WebKit restent à ajouter en CI si la
+COSITI confirme un besoin multi-navigateur.
 
 ## 22/09/2026 — J2 : rétrogradation de `@tanstack/react-table`
 

@@ -16,6 +16,10 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Les specs Playwright (`e2e/`) importent `@playwright/test`, pas Vitest : sans cette
+    // exclusion, le motif par défaut `**/*.spec.ts` les ramasserait et `npm run test`
+    // échouerait sur un import incompatible. Elles se lancent par `npm run test:e2e`.
+    exclude: ['**/node_modules/**', '**/dist/**', 'e2e/**'],
     globals: false,
     setupFiles: ['./src/test/setup.ts'],
     css: true,

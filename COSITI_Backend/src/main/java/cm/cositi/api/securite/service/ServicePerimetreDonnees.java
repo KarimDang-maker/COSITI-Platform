@@ -35,6 +35,17 @@ public interface ServicePerimetreDonnees {
     /** Lève {@link cm.cositi.api.commun.exception.ExceptionAutorisation} si l'adhérent est hors périmètre. */
     void verifierAccesAdherent(Utilisateur utilisateur, UUID adherentId);
 
+    /**
+     * Même règle que {@link #verifierAccesAdherent}, en prédicat : {@code true} si l'adhérent est dans le
+     * périmètre, {@code false} sinon, sans lever d'exception (ajouté au jalon J7).
+     *
+     * <p>Réservé au <b>filtrage d'une liste</b>, où une ligne hors périmètre doit disparaître et non faire
+     * échouer la requête entière. Pour un accès unitaire, c'est toujours {@link #verifierAccesAdherent} qui
+     * s'applique : un 403 explicite vaut mieux qu'un 404 trompeur, et masquer la différence reviendrait à
+     * traiter un refus d'accès comme une absence de donnée.</p>
+     */
+    boolean peutAccederAdherent(Utilisateur utilisateur, UUID adherentId);
+
     /** Périmètre paiement = périmètre de l'adhérent auquel le paiement est rattaché (jalon J4). */
     Specification<Paiement> perimetrePaiement(Utilisateur utilisateur);
 

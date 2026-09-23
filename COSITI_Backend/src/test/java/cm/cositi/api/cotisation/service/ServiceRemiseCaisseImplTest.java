@@ -38,6 +38,8 @@ class ServiceRemiseCaisseImplTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private ServiceAudit serviceAudit;
+    @Mock
+    private cm.cositi.api.notification.ServiceNotification serviceNotification;
 
     private ServiceRemiseCaisseImpl service;
     private UUID agentId;
@@ -46,7 +48,7 @@ class ServiceRemiseCaisseImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceRemiseCaisseImpl(remiseCaisseRepository, paiementRepository, agentRepository,
-                jdbcTemplate, serviceAudit);
+                jdbcTemplate, serviceAudit, serviceNotification);
         agentId = UUID.randomUUID();
         agentUtilisateur = new Utilisateur("agent1", "hash", "Agent Un");
         agentUtilisateur.setAgentId(agentId);

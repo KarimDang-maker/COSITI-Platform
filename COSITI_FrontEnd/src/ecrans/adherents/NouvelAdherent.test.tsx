@@ -26,13 +26,25 @@ async function remplirIdentite(utilisateur: ReturnType<typeof userEvent.setup>, 
   await utilisateur.click(screen.getByRole("button", { name: "Suivant" }));
 }
 
-async function remplirRattachement(utilisateur: ReturnType<typeof userEvent.setup>) {
-  await utilisateur.click(screen.getByRole("combobox"));
+/** Ouvre un sélecteur de recherche désigné par son libellé et y choisit une option. */
+async function choisir(
+  utilisateur: ReturnType<typeof userEvent.setup>,
+  libelleChamp: string,
+  option: string,
+) {
+  await utilisateur.click(screen.getByLabelText(libelleChamp));
   const popup = await screen.findByRole("listbox");
-  await utilisateur.click(within(popup).getByText("Douala - Bonabéri"));
-  await utilisateur.type(screen.getByLabelText("Code d'activité"), "ACT-01");
+  await utilisateur.click(within(popup).getByText(option));
+}
+
+async function remplirRattachement(utilisateur: ReturnType<typeof userEvent.setup>) {
+  await choisir(utilisateur, "Zone", "Douala - Bonabéri");
+  // L'activité est un identifiant du référentiel, pas un code saisi : l'API refuse
+  // tout ce qui n'est pas un UUID de la table `activite` (constaté en recette E2E).
+  await choisir(utilisateur, "Activité", "Transporteur (Moto-taxi, Chauffeur)");
   await utilisateur.type(screen.getByLabelText("Localisation"), "Marché central");
   fireEvent.change(screen.getByLabelText("Date d'adhésion"), { target: { value: "2026-01-15" } });
+  await choisir(utilisateur, "Pack de cotisation", "Pack Essentiel 700 F/jour");
   await utilisateur.click(screen.getByRole("button", { name: "Suivant" }));
 }
 
@@ -46,6 +58,23 @@ describe("NouvelAdherent", () => {
 
     expect(await screen.findByText("Le nom est obligatoire.")).toBeInTheDocument();
     expect(screen.getByText("Le téléphone principal est obligatoire.")).toBeInTheDocument();
+  });
+
+  it("ne propose pas un pack retiré du catalogue", async () => {
+    simulerSessionActive();
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/adherents/nouveau" });
+
+    await screen.findByLabelText("Nom");
+    await remplirIdentite(utilisateur, "690000001");
+
+    await utilisateur.click(screen.getByLabelText("Pack de cotisation"));
+    const popup = await screen.findByRole("listbox");
+
+    // L'API renvoie les packs inactifs pour que les adhérents déjà rattachés restent
+    // affichables ; ils ne doivent pas pour autant être souscrivables.
+    expect(within(popup).getByText("Pack Essentiel 700 F/jour")).toBeInTheDocument();
+    expect(within(popup).queryByText("Pack retire du catalogue")).not.toBeInTheDocument();
   });
 
   it("signale un doublon potentiel de façon non bloquante puis crée l'adhérent après confirmation", async () => {

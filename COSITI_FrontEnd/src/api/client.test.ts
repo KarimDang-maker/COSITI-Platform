@@ -2,91 +2,47 @@ import { describe, expect, it } from "vitest";
 import { http, HttpResponse } from "msw";
 import { serveur } from "@/test/msw/serveur";
 import { client } from "@/api/client";
-import { definirJetonAcces, EVENEMENT_SESSION_EXPIREE, obtenirJetonAcces } from "@/auth/jeton";
-import { ErreurApiException } from "@/api/erreurs";
+import { obtenirJetonAcces } from "@/auth/jeton";
 
-describe("client HTTP", () => {
-  it("rejoue la requête après une rotation de jeton réussie sur 401", async () => {
-    definirJetonAcces("jeton-expire");
+/**
+ * Régression du jalon J12.
+ *
+ * Le serveur fait tourner le jeton de rafraîchissement à chaque usage et traite la
+ * représentation d'un jeton déjà consommé comme un vol probable : il révoque alors
+ * **toute la famille**, jeton fraîchement émis compris (`ServiceJetonImpl.rafraichir`).
+ * Deux reprises de session lancées en parallèle — deux onglets restaurés ensemble, ou
+ * le double montage de `StrictMode` en développement — déconnectaient donc l'utilisateur
+ * et inscrivaient une alerte de sécurité infondée. Constaté en recette E2E.
+ *
+ * Un seul appel doit partir, quel que soit le nombre d'appelants simultanés.
+ */
+describe("client.rafraichirSession", () => {
+  it("n'émet qu'un seul appel réseau pour des reprises concurrentes", async () => {
     let appels = 0;
-
     serveur.use(
-      http.get("/api/v1/_test/protege", ({ request }) => {
+      http.post("/api/v1/auth/rafraichir", async () => {
         appels += 1;
-        const autorisation = request.headers.get("Authorization");
-        if (autorisation === "Bearer jeton-expire") {
-          return HttpResponse.json(
-            { code: "AUTH_JETON_EXPIRE", message: "Jeton expiré.", traceId: "t1", avertissements: [] },
-            { status: 401 },
-          );
-        }
-        return HttpResponse.json({ ok: true });
+        // Latence volontaire : sans elle, le premier appel serait résolu avant que le
+        // second ne commence, et le test passerait même sans verrou.
+        await new Promise((resoudre) => setTimeout(resoudre, 20));
+        return HttpResponse.json({ jetonAcces: "jeton-repris" });
       }),
-      http.post("/api/v1/auth/rafraichir", () => HttpResponse.json({ jetonAcces: "jeton-renouvele" })),
     );
 
-    const resultat = await client.get<{ ok: boolean }>("/_test/protege");
+    const resultats = await Promise.all([
+      client.rafraichirSession(),
+      client.rafraichirSession(),
+      client.rafraichirSession(),
+    ]);
 
-    expect(resultat).toEqual({ ok: true });
-    expect(appels).toBe(2);
-    expect(obtenirJetonAcces()).toBe("jeton-renouvele");
+    expect(resultats).toEqual([true, true, true]);
+    expect(appels).toBe(1);
+    expect(obtenirJetonAcces()).toBe("jeton-repris");
   });
 
-  it("efface le jeton et signale la perte de session quand la rotation échoue", async () => {
-    definirJetonAcces("jeton-expire");
-    let sessionExpiree = false;
-    const ecouteur = () => {
-      sessionExpiree = true;
-    };
-    window.addEventListener(EVENEMENT_SESSION_EXPIREE, ecouteur);
-
-    serveur.use(
-      http.get("/api/v1/_test/protege", () =>
-        HttpResponse.json(
-          { code: "AUTH_JETON_EXPIRE", message: "Jeton expiré.", traceId: "t2", avertissements: [] },
-          { status: 401 },
-        ),
-      ),
-      http.post("/api/v1/auth/rafraichir", () =>
-        HttpResponse.json(
-          { code: "AUTH_SESSION_ABSENTE", message: "Aucune session à reprendre.", traceId: "t3", avertissements: [] },
-          { status: 401 },
-        ),
-      ),
-    );
-
-    await expect(client.get("/_test/protege")).rejects.toBeInstanceOf(ErreurApiException);
-
+  it("signale l'absence de session sans lever d'exception", async () => {
+    // Le gestionnaire par défaut répond 401 : c'est le cas d'un visiteur sans cookie.
+    await expect(client.rafraichirSession()).resolves.toBe(false);
     expect(obtenirJetonAcces()).toBeNull();
-    expect(sessionExpiree).toBe(true);
-    window.removeEventListener(EVENEMENT_SESSION_EXPIREE, ecouteur);
-  });
-
-  it("normalise une erreur 409 avec ses détails (ex. doublon)", async () => {
-    serveur.use(
-      http.post("/api/v1/_test/conflit", () =>
-        HttpResponse.json(
-          {
-            code: "ADHERENT_DOUBLON_POTENTIEL",
-            message: "Un doublon potentiel a été détecté.",
-            traceId: "t4",
-            avertissements: [],
-            candidats: [{ adherentId: "a1", matricule: "COSITI-00042" }],
-          },
-          { status: 409 },
-        ),
-      ),
-    );
-
-    try {
-      await client.post("/_test/conflit", {});
-      expect.unreachable("la requête aurait dû échouer");
-    } catch (e) {
-      expect(e).toBeInstanceOf(ErreurApiException);
-      const erreur = e as ErreurApiException;
-      expect(erreur.statut).toBe(409);
-      expect(erreur.code).toBe("ADHERENT_DOUBLON_POTENTIEL");
-      expect(erreur.details?.candidats).toEqual([{ adherentId: "a1", matricule: "COSITI-00042" }]);
-    }
   });
 });

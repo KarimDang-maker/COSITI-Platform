@@ -54,6 +54,9 @@ class ServiceAdherentImplTest {
     private ServicePerimetreDonnees perimetre;
     @Mock
     private ServiceAudit serviceAudit;
+    /** Sert au libellé de zone des réponses de lecture (jalon J12) ; aucun test ici ne le sollicite. */
+    @Mock
+    private cm.cositi.api.organisation.repository.ZoneRepository zoneRepository;
 
     private ServiceAdherentImpl service;
     private Utilisateur auteur;
@@ -61,7 +64,7 @@ class ServiceAdherentImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceAdherentImpl(adherentRepository, adhesionRepository, packRepository, serviceMatricule,
-                serviceDoublonAdherent, perimetre, serviceAudit);
+                serviceDoublonAdherent, perimetre, serviceAudit, zoneRepository);
         auteur = new Utilisateur("agent1", "hash", "Agent Un");
         setId(auteur, UUID.randomUUID());
     }

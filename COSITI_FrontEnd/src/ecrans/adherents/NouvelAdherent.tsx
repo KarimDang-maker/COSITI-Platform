@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useZones } from "@/hooks/useOrganisation";
-import { useCreerAdherent, useVerifierDoublon } from "@/hooks/useAdherents";
+import { useActivites, useCreerAdherent, usePacks, useVerifierDoublon } from "@/hooks/useAdherents";
 import type { CandidatDoublon } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterNomComplet, masquerTelephone } from "@/lib/format";
@@ -41,24 +41,28 @@ const schema = z.object({
     ),
   telephoneSecondaire: z.string().trim().optional(),
   zoneId: z.string().min(1, "La zone est obligatoire."),
-  // TODO [V] : aucun endpoint de référentiel « activités » n'est documenté dans
-  // 03_SPECIFICATIONS_API.md (seule la table `activite` existe côté schéma).
-  // Saisi en texte libre en attendant la confirmation d'un endpoint de liste.
-  activiteId: z.string().trim().min(1, "Le code d'activité est obligatoire."),
+  activiteId: z.string().min(1, "L'activité est obligatoire."),
   associationId: z.string().trim().optional(),
   localisation: z.string().trim().min(1, "La localisation est obligatoire."),
   quartier: z.string().trim().optional(),
   ville: z.string().trim().optional(),
   dateAdhesion: z.string().min(1, "La date d'adhésion est obligatoire."),
+  packId: z.string().min(1, "Le pack est obligatoire."),
 });
 
 type ValeursFormulaire = z.infer<typeof schema>;
 
 const CHAMPS_ETAPE = [
   ["nom", "prenoms", "dateNaissance", "sexe", "numeroCni", "numeroCnps", "telephonePrincipal", "telephoneSecondaire"],
-  ["zoneId", "activiteId", "associationId", "localisation", "quartier", "ville", "dateAdhesion"],
+  ["zoneId", "activiteId", "associationId", "localisation", "quartier", "ville", "dateAdhesion", "packId"],
   [],
 ] as const satisfies readonly (readonly (keyof ValeursFormulaire)[])[];
+
+/** Un champ facultatif laissé vide vaut « absent », jamais la chaîne vide. */
+function sansVide(valeur: string | undefined): string | undefined {
+  const nettoye = valeur?.trim();
+  return nettoye ? nettoye : undefined;
+}
 
 const TITRES_ETAPE = ["Identité et contact", "Rattachement", "Vérification et confirmation"] as const;
 
@@ -66,6 +70,8 @@ export function NouvelAdherent() {
   const navigate = useNavigate();
   const [etape, setEtape] = useState(0);
   const { data: zones } = useZones();
+  const { data: activites } = useActivites();
+  const { data: packs } = usePacks();
   const verifierDoublon = useVerifierDoublon();
   const creerAdherent = useCreerAdherent();
   const [candidatsIgnores, setCandidatsIgnores] = useState<readonly CandidatDoublon[] | null>(null);
@@ -77,7 +83,7 @@ export function NouvelAdherent() {
     getValues,
     control,
     formState: { errors },
-  } = useForm<ValeursFormulaire>({ resolver: zodResolver(schema), defaultValues: { zoneId: "" } });
+  } = useForm<ValeursFormulaire>({ resolver: zodResolver(schema), defaultValues: { zoneId: "", activiteId: "", packId: "" } });
 
   async function etapeSuivante() {
     const champs = CHAMPS_ETAPE[etape] ?? [];
@@ -86,10 +92,10 @@ export function NouvelAdherent() {
     if (etape === 1) {
       const valeurs = getValues();
       verifierDoublon.mutate({
-        nom: valeurs.nom,
-        prenoms: valeurs.prenoms,
+        nomComplet: formaterNomComplet(valeurs.nom, valeurs.prenoms),
         telephonePrincipal: valeurs.telephonePrincipal,
-        numeroCni: valeurs.numeroCni,
+        numeroCni: sansVide(valeurs.numeroCni),
+        zoneId: valeurs.zoneId,
       });
     }
     setEtape((e) => Math.min(e + 1, TITRES_ETAPE.length - 1));
@@ -104,6 +110,18 @@ export function NouvelAdherent() {
     try {
       const adherent = await creerAdherent.mutateAsync({
         ...valeurs,
+        // Un champ facultatif laissé vide n'est pas « une valeur vide », c'est « pas de valeur ».
+        // Envoyée telle quelle, la chaîne vide était enregistrée en base et l'index unique partiel
+        // sur `numero_cni` la traitait comme une valeur : le **deuxième** adhérent sans CNI faisait
+        // échouer l'insertion. Constaté en recette E2E.
+        prenoms: sansVide(valeurs.prenoms),
+        dateNaissance: sansVide(valeurs.dateNaissance),
+        telephoneSecondaire: sansVide(valeurs.telephoneSecondaire),
+        numeroCni: sansVide(valeurs.numeroCni),
+        numeroCnps: sansVide(valeurs.numeroCnps),
+        associationId: sansVide(valeurs.associationId),
+        quartier: sansVide(valeurs.quartier),
+        ville: sansVide(valeurs.ville),
         confirmationDoublonIgnore: confirmationDoublonIgnore || undefined,
       });
       toast.success("Adhérent créé.");
@@ -219,17 +237,21 @@ export function NouvelAdherent() {
                 {errors.zoneId && <p className="text-sm text-danger-fort">{errors.zoneId.message}</p>}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="activiteId">Code d'activité</Label>
-                <Input
-                  id="activiteId"
-                  aria-invalid={!!errors.activiteId}
-                  aria-describedby="activiteId-aide"
-                  {...register("activiteId")}
+                <Label htmlFor="activiteId">Activité</Label>
+                <Controller
+                  control={control}
+                  name="activiteId"
+                  render={({ field }) => (
+                    <SelectRecherche
+                      id="activiteId"
+                      options={(activites ?? []).map((a) => ({ valeur: a.id, libelle: a.libelle }))}
+                      valeur={field.value}
+                      onChange={field.onChange}
+                      ariaInvalid={!!errors.activiteId}
+                      placeholder="Sélectionner une activité"
+                    />
+                  )}
                 />
-                <p id="activiteId-aide" className="text-xs text-texte-doux">
-                  TODO [V] : sélecteur à remplacer par une recherche dès qu'un
-                  endpoint de référentiel des activités sera confirmé.
-                </p>
                 {errors.activiteId && <p className="text-sm text-danger-fort">{errors.activiteId.message}</p>}
               </div>
               <div className="space-y-2 sm:col-span-2">
@@ -249,6 +271,29 @@ export function NouvelAdherent() {
                 <Label htmlFor="dateAdhesion">Date d'adhésion</Label>
                 <Input id="dateAdhesion" type="date" aria-invalid={!!errors.dateAdhesion} {...register("dateAdhesion")} />
                 {errors.dateAdhesion && <p className="text-sm text-danger-fort">{errors.dateAdhesion.message}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="packId">Pack de cotisation</Label>
+                <Controller
+                  control={control}
+                  name="packId"
+                  render={({ field }) => (
+                    <SelectRecherche
+                      id="packId"
+                      /* Seuls les packs actifs sont proposables : un pack retiré du catalogue
+                         reste renvoyé par l'API pour l'affichage des adhérents existants, mais
+                         il ne doit plus être souscrit. */
+                      options={(packs ?? [])
+                        .filter((p) => p.actif)
+                        .map((p) => ({ valeur: p.id, libelle: p.libelle }))}
+                      valeur={field.value}
+                      onChange={field.onChange}
+                      ariaInvalid={!!errors.packId}
+                      placeholder="Sélectionner un pack"
+                    />
+                  )}
+                />
+                {errors.packId && <p className="text-sm text-danger-fort">{errors.packId.message}</p>}
               </div>
             </div>
           )}

@@ -63,12 +63,26 @@ réel, jalon par jalon, et le détail des tests.
 
 | Existe aujourd'hui | Reste à faire |
 |---|---|
-| Design system complet : jetons, teintes, statuts, formatage, contrats de composants | Dashboards (J9), CNPS (J7), relances/comptes rendus (J8) et jalons suivants |
-| Tailwind v4 + shadcn/ui + CVA branchés sur les jetons COSITI | Playwright (parcours E2E critiques) — non installé faute de temps, voir `SUIVI_EXECUTION.md` |
+| Design system complet : jetons, teintes, statuts, formatage, contrats de composants | Les douze jalons J1–J12 sont livrés. Le reste à faire est consigné en décisions `[A]`/`[V]` dans `Conception/SUIVI_EXECUTION.md` — dont le MFA, non implémenté en V1 |
+| Tailwind v4 + shadcn/ui + CVA branchés sur les jetons COSITI | Multi-navigateur E2E (Firefox, WebKit) : seul Chromium est installé, voir `docs/journal-dependances.md` |
 | `api/client.ts`, `auth/`, `app/` (routage + garde de route) | CSP effective en production (`docs/04_SECURITE.md §5`, J11) |
 | J1 (auth), J2 (adhérents), J3 (organisation terrain), J4 (cotisations) — frontend et backend, voir `SUIVI_EXECUTION.md` | Contrats `[A]` de `03_SPECIFICATIONS_API.md §6` (désignation du Chef) à confirmer formellement par la COSITI ; champ `creePar` manquant sur `PaiementDto` (J4, voir décisions) |
-| J5 (contrôle DAF), J6 (droits et régularité) — frontend, backend livré par une session parallèle **pendant** ce lot et vérifié une fois disponible (`ControleurPaiement.confirmerChef`/`.signalerIncoherence`, `ControleurDroits`, `V8__permissions_j5_j6.sql`) ; voir `SUIVI_EXECUTION.md` pour le détail des écarts trouvés (ex. `AdherentEnRetardDto` sans pack/cumul/agent/zone/statut) | Tests backend J5/J6 non ré-exécutés par la session frontend (`mvn test` non lancé) ; recalcul manuel des droits ; production/transmission du rapport DAF au PCA |
+| J5 (contrôle DAF), J6 (droits et régularité), J7 (CNPS et documents), J8 (relances et comptes rendus), J9 (les six tableaux de bord), J10 (rapports, exports, audit), J11 (administration et durcissement), J12 (recette E2E et CI) | Recalcul manuel des droits depuis un écran ; transfert de portefeuille en lot ; filtres documentés mais non construits (`GET /adherents`, `GET /paiements`) — tous consignés dans `SUIVI_EXECUTION.md` |
 | `docs/01`, `02`, `03`, `04`, `05` et `journal-dependances.md` — tous présents | |
+
+`e2e/` contient la recette Playwright (jalon J12) : elle s'exécute contre la
+pile réelle, API et base comprises, et se lance par le workflow CI ou, en local,
+par un script d'orchestration propre à chaque poste — `COSITI_Backend/outils/`
+n'est **pas versionné**, voir la note dans `COSITI_Backend/AGENTS.md`. Les
+identifiants de démonstration viennent d'une variable d'environnement
+(`COSITI_E2E_MOT_DE_PASSE`), jamais du dépôt.
+
+**La recette possède son propre serveur Vite**, sur le port **5174** et avec
+`reuseExistingServer: false` : ne jamais rétablir la réutilisation du serveur
+de développement. Celui-ci lit `.env.development`, qui désigne l'API de
+développement — la recette s'exécutait alors silencieusement contre la mauvaise
+base. Ces fichiers sont typés par `tsconfig.e2e.json`, référencé depuis la
+racine : `npm run build` vérifie donc aussi les specs.
 
 Convention d'arborescence en vigueur (voir `docs/01_ARCHITECTURE.md` pour le
 détail complet) : `src/components/ui/` pour les primitives shadcn
@@ -95,7 +109,7 @@ depuis J1.
 | Tables | TanStack Table | installé (J1) |
 | Graphiques | Recharts | installé (J1), aucun graphique livré avant J9 |
 | Tests | Vitest, Testing Library, MSW | installés (J1) |
-| Tests E2E | Playwright (parcours critiques) | **non installé** — voir `Conception/SUIVI_EXECUTION.md` |
+| Tests E2E | Playwright (Chromium uniquement) | installé (J12) — `npm run test:e2e`, voir `docs/journal-dependances.md` |
 
 Toute dépendance passe la procédure de `docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md`
 et est consignée dans `docs/journal-dependances.md` **avant** installation.

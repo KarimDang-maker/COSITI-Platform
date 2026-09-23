@@ -7,9 +7,12 @@
  * (`AGENTS.md` règle 1 — le frontend masque, il ne décide jamais).
  *
  * Cycle de vie :
- *  1. Au montage, tentative silencieuse de `POST /auth/rafraichir` (cookie
- *     `HttpOnly` de rafraîchissement) : si elle réussit, la session reprend
- *     sans repasser par l'écran de connexion après un rechargement de page.
+ *  1. Au montage, tentative silencieuse de reprise via `client.rafraichirSession`
+ *     (cookie `HttpOnly` de rafraîchissement) : si elle réussit, la session
+ *     reprend sans repasser par l'écran de connexion après un rechargement de
+ *     page. **Toujours par cette méthode**, jamais par un appel direct : le
+ *     serveur révoque toute la famille de jetons si un jeton déjà consommé lui
+ *     est représenté.
  *  2. Si elle échoue, `statut` passe à `anonyme` — `GardeRoute` redirige vers
  *     `/connexion`.
  *  3. `api/client.ts` émet `EVENEMENT_SESSION_EXPIREE` quand une rotation en
@@ -31,10 +34,6 @@ import { definirJetonAcces, effacerJetonAcces, EVENEMENT_SESSION_EXPIREE } from 
 import type { CodePermission, ReponseConnexion, Utilisateur } from "@/auth/types";
 
 type StatutSession = "initialisation" | "connecte" | "anonyme";
-
-interface ReponseRafraichissement {
-  readonly jetonAcces: string;
-}
 
 interface ContexteAuthValeur {
   readonly statut: StatutSession;
@@ -61,12 +60,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let annule = false;
     (async () => {
       try {
-        const reponse = await client.post<ReponseRafraichissement>(
-          "/auth/rafraichir",
-          undefined,
-          { authentifie: false },
-        );
-        definirJetonAcces(reponse.jetonAcces);
+        // `client.rafraichirSession` et non un `POST /auth/rafraichir` direct : voir la note
+        // sur cette methode. Le serveur fait tourner le jeton et revoque toute la famille si
+        // un jeton deja consomme est represente ; deux appels concurrents deconnectaient donc
+        // l'utilisateur. Le verrou du client garantit un seul appel en vol.
+        const repris = await client.rafraichirSession();
+        if (!repris) {
+          if (!annule) setStatut("anonyme");
+          return;
+        }
         await chargerProfil();
       } catch {
         if (!annule) setStatut("anonyme");

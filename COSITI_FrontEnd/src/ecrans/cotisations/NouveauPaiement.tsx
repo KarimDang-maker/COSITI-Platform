@@ -16,7 +16,6 @@ import { useAgents } from "@/hooks/useOrganisation";
 import { useEnregistrerPaiement } from "@/hooks/usePaiements";
 import { estModeMobileMoney } from "@/api/paiements";
 import { estErreurApi } from "@/api/erreurs";
-import { formaterNomComplet } from "@/lib/format";
 
 const schema = z
   .object({
@@ -104,7 +103,9 @@ export function NouveauPaiement() {
                   id="adherentId"
                   options={(adherents?.contenu ?? []).map((a) => ({
                     valeur: a.id,
-                    libelle: `${a.matricule} — ${formaterNomComplet(a.nom, a.prenoms)}`,
+                    // La réponse de liste porte `nomComplet`, pas `nom`/`prenoms` : le sélecteur
+                    // d'adhérent n'affichait donc que le matricule.
+                    libelle: `${a.matricule} — ${a.nomComplet}`,
                   }))}
                   valeur={field.value}
                   onChange={field.onChange}

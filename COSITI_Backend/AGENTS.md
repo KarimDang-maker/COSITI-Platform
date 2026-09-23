@@ -44,7 +44,7 @@ Chiffre à garder en tête : sur 172 adhérents, 115 n'ont jamais cotisé. Le ta
 - Une branche par jalon, une PR par lot fonctionnel cohérent.
 - Aucune PR sans tests. Couverture minimale sur les services métier : calcul des droits, affectation des paiements, contrôle de doublon, RBAC.
 - Commits conventionnels (`feat:`, `fix:`, `chore:`, `refactor:`, `test:`, `sec:`).
-- La CI doit être verte : compilation, tests, `osv-scanner`, `dependency-check`, `spotbugs` + `find-sec-bugs`, `gitleaks`.
+- La CI doit être verte : `.github/workflows/ci.yml` (livré au jalon J12) exécute compilation, tests, `npm audit`, `npm audit signatures`, `gitleaks` sur tout l'historique, `osv-scanner` et la recette E2E. `spotbugs` + `find-sec-bugs` et `dependency-check` restent à ajouter au workflow : les plugins Maven correspondants ne sont pas encore déclarés dans le `pom.xml` — signalé dans `../SUIVI_EXECUTION.md` plutôt qu'annoncé comme fait.
 
 ## 5. Jalons (détail dans `../JALONS_PROJET_COSITI.md`)
 
@@ -64,7 +64,21 @@ Chiffre à garder en tête : sur 172 adhérents, 115 n'ont jamais cotisé. Le ta
 | J11 | Administration, durcissement sécurité |
 | J12 | Recette E2E, stabilisation, pilote |
 
-Chaque jalon est un prototype complet et testable (backend + frontend), avec son propre critère de passage — voir `../JALONS_PROJET_COSITI.md`. Le suivi d'avancement se fait dans `../SUIVI_EXECUTION.md`, à mettre à jour à chaque avancée réelle dans le code. J4 et au-delà peuvent démarrer, mais ne doivent pas figer les règles [V] tant que le DAF n'a pas répondu.
+Chaque jalon est un prototype complet et testable (backend + frontend), avec son propre critère de passage — voir `../JALONS_PROJET_COSITI.md`. Le suivi d'avancement se fait dans `../SUIVI_EXECUTION.md`, à mettre à jour à chaque avancée réelle dans le code.
+
+**État au 23/09/2026 : les jalons J0 à J12 sont livrés.** Ce qui reste est consigné en décisions `[A]`/`[V]` dans `../SUIVI_EXECUTION.md` — notamment les règles métier non validées par la COSITI (répartition d'un versement, seuil de retard, assiette CNPS, composition d'un dossier), le MFA non implémenté, et les contrats `[A]` livrés mais non formellement validés (ajout d'agent, désignation du Chef, comptes rendus, rapport DAF). **Aucune de ces règles n'est figée en constante dans le code** : elles vivent toutes dans la table `parametre` et sont signalées à l'écran tant qu'elles portent le statut `V`.
+
+### Exécuter les tests
+
+| Contexte | Commande |
+|---|---|
+| Poste de développement (sans Docker) | `outils/dev/tests-backend.ps1` — recrée `cositi_db_test` sur le PostgreSQL portable et lance la suite |
+| CI, ou poste avec Docker | `./mvnw verify` — les tests d'intégration démarrent leur PostgreSQL par Testcontainers |
+| Recette E2E (pile complète) | `outils/dev/e2e.ps1 -MotDePasseDemo '<mot de passe démo>'` |
+
+`ConfigurationTestsIntegration` bascule entre les deux modes selon la présence de la propriété `cositi.test.db.url` : aucun code de test ne change.
+
+> **`outils/dev/` n'est pas versionné** (`.gitignore`). Ces scripts portent le mot de passe du cluster PostgreSQL local, et la règle absolue n° 8 interdit tout secret dans Git : chaque poste garde donc les siens. Un clone neuf ne les aura pas. Ce qu'ils font tient en trois étapes reproductibles à la main : recréer une base vierge (`cositi_db_test` ou `cositi_db_e2e`), lancer `mvn test -Dcositi.test.db.url=…` ou démarrer le jar avec `--spring.datasource.url=… --server.port=8083`, puis `npx playwright test` pour la recette. **La CI ne dépend pas de ces scripts** : `.github/workflows/ci.yml` lance l'API et les tests directement.
 
 ## 6. Documents de référence
 

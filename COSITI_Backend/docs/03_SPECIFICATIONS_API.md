@@ -52,6 +52,13 @@ Base : `/api/v1`. Format : JSON, UTF-8. Documentation générée par springdoc-o
 
 Filtres de `GET /adherents` : `recherche` (matricule, nom, téléphone, CNI), `zoneId`, `agentId`, `activiteId`, `statut`, `packId`, `associationId`, `sansAgentReferent`, `dateAdhesionDu`, `dateAdhesionAu`.
 
+`GET /adherents` renvoie un **résumé** par ligne, pas la fiche complète :
+`id`, `matricule`, `nomComplet`, `telephonePrincipal`, `zoneId`, `zoneLibelle`,
+`dateAdhesion`, `statut`. `GET /adherents/{id}` renvoie la fiche entière, dont
+`nom` et `prenoms` séparés. **Les deux formes sont distinctes** : les confondre
+côté client faisait afficher un tiret dans trois colonnes de la liste (corrigé
+au jalon J12, où `zoneLibelle` et `dateAdhesion` ont été ajoutés au résumé).
+
 `POST /adherents/verifier-doublon` est appelé avant la soumission du formulaire. Réponse :
 ```json
 { "candidats": [ { "adherentId": "…", "matricule": "COSITI-00042",
@@ -132,6 +139,7 @@ Réponse de situation :
 | Méthode | Chemin |
 |---|---|
 | GET / POST / PUT | `/zones`, `/zones/{id}` |
+| GET | `/activites` — référentiel en lecture seule (jalon J12) |
 | GET / POST / PUT | `/agents`, `/agents/{id}` |
 | GET | `/agents/{id}/portefeuille` |
 | GET | `/agents/{id}/charge?periode=2026-09` |
@@ -140,6 +148,15 @@ Réponse de situation :
 | GET | `/portefeuilles/sans-agent?zoneId=…` |
 | GET / POST | `/remises-caisse`, `/remises-caisse/{id}/receptionner` |
 | POST | `/agents/{id}/designer-chef` `[A]` — réservé `DGA`, motif obligatoire, audité (`DGA-F03`) |
+
+**`GET /activites`** renvoie les sept activités insérées par la migration `V2`
+(`id`, `code`, `libelle`, `categorie`), triées par libellé, sans pagination.
+Aucune écriture n'est exposée : le référentiel vient de la COSITI.
+
+Ajouté au jalon J12 : `CreationAdherentDto.activiteId` est un UUID **obligatoire**,
+et aucun appel ne permettait d'en connaître les valeurs. L'écran de création
+demandait donc un code en texte libre que l'API refusait systématiquement —
+**aucun adhérent ne pouvait être enregistré par l'interface**.
 | POST | `/agents/{id}/remplacer-chef` `[A]` — réservé `DGA`, motif obligatoire, audité (`DGA-F04`) |
 | GET | `/agents/chef?zoneId=…` `[A]` — Chef courant du périmètre |
 | GET | `/agents/{id}/historique-chef` `[A]` — historique des désignations/remplacements |

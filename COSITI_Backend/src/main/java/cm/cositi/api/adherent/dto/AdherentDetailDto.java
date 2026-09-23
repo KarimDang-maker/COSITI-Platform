@@ -20,6 +20,7 @@ public record AdherentDetailDto(
         String numeroCnps,
         UUID activiteId,
         UUID zoneId,
+        String zoneLibelle,
         UUID associationId,
         String localisation,
         String quartier,
@@ -32,10 +33,19 @@ public record AdherentDetailDto(
         boolean archive,
         Long version
 ) {
+    /**
+     * Sans libellé de zone : forme utilisée pour les instantanés d'audit « avant/après », où seul
+     * l'identifiant de zone fait foi et où une requête supplémentaire ne servirait à rien.
+     */
     public static AdherentDetailDto depuis(Adherent a) {
+        return depuis(a, null);
+    }
+
+    /** Forme destinée à l'affichage : la fiche montre le nom de la zone, pas son UUID. */
+    public static AdherentDetailDto depuis(Adherent a, String zoneLibelle) {
         return new AdherentDetailDto(a.getId(), a.getMatricule(), a.getNom(), a.getPrenoms(), a.getDateNaissance(),
                 a.getSexe(), a.getTelephonePrincipal(), a.getTelephoneSecondaire(), a.getNumeroCni(), a.getNumeroCnps(),
-                a.getActiviteId(), a.getZoneId(), a.getAssociationId(), a.getLocalisation(), a.getQuartier(),
+                a.getActiviteId(), a.getZoneId(), zoneLibelle, a.getAssociationId(), a.getLocalisation(), a.getQuartier(),
                 a.getVille(), a.getLatitude(), a.getLongitude(), a.getDateAdhesion(), a.getStatut(),
                 a.isInscriptionPayee(), a.isArchive(), a.getVersion());
     }

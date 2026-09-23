@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/auth/ContexteAuth";
 import { AvatarUtilisateur } from "@/components/cositi/avatar-utilisateur";
+import { ClocheNotifications } from "@/components/cositi/cloche-notifications";
 
 const LIBELLES_ROLE: Readonly<Record<string, string>> = {
   PCA: "PCA",
@@ -30,9 +31,10 @@ interface EnteteApplicationProps {
  * En-tête de la coquille applicative : titre de l'écran courant et menu
  * utilisateur avec rappel du rôle (`docs/02_DESIGN_SYSTEM.md §8`).
  *
- * Recherche globale et notifications ne sont pas encore spécifiées par un
- * écran de `docs/03_SPECIFICATIONS_ECRANS.md` pour J1–J4 : elles ne sont pas
- * construites ici (`AGENTS.md` règle 10 — ne pas inventer un écran).
+ * Les notifications sont branchées depuis le jalon J8 (`ClocheNotifications`),
+ * le domaine `notification` existant désormais côté API. La recherche globale
+ * reste non construite : aucun écran de `docs/03_SPECIFICATIONS_ECRANS.md` ne
+ * la spécifie (`AGENTS.md` règle 10 — ne pas inventer un écran).
  */
 export function EnteteApplication({ titre }: EnteteApplicationProps) {
   const { utilisateur, deconnecter } = useAuth();
@@ -48,7 +50,10 @@ export function EnteteApplication({ titre }: EnteteApplicationProps) {
           libellé n'est qu'un repère de navigation dans l'en-tête. */}
       <p className="text-lg font-semibold text-titre">{titre}</p>
 
-      <DropdownMenu>
+      <div className="flex items-center gap-2">
+        <ClocheNotifications />
+
+        <DropdownMenu>
         <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-anneau">
           <AvatarUtilisateur nomComplet={utilisateur.nomComplet} />
           <span className="text-left text-sm">
@@ -73,7 +78,8 @@ export function EnteteApplication({ titre }: EnteteApplicationProps) {
             Se déconnecter
           </DropdownMenuItem>
         </DropdownMenuContent>
-      </DropdownMenu>
+        </DropdownMenu>
+      </div>
     </header>
   );
 }

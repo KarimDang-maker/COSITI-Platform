@@ -16,8 +16,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermission } from "@/auth/ContexteAuth";
 import { useAdherents } from "@/hooks/useAdherents";
-import type { Adherent, StatutAdherent } from "@/api/adherents";
-import { formaterDate, formaterNomComplet, formaterTelephone } from "@/lib/format";
+import { useLancerExport } from "@/hooks/useExports";
+import type { AdherentResume, StatutAdherent } from "@/api/adherents";
+import { formaterDate, formaterTelephone } from "@/lib/format";
 import { estErreurApi } from "@/api/erreurs";
 
 const OPTIONS_STATUT: readonly { valeur: StatutAdherent; libelle: string }[] = [
@@ -35,6 +36,8 @@ export function ListeAdherents() {
   const [parametres, definirParametres] = useSearchParams();
   const navigate = useNavigate();
   const peutCreer = usePermission("ADHERENT:CREER");
+  const peutExporter = usePermission("EXPORT:ADHERENTS");
+  const lancerExport = useLancerExport();
   const [tri, setTri] = useState<SortingState>([]);
 
   const recherche = parametres.get("recherche") ?? "";
@@ -68,7 +71,7 @@ export function ListeAdherents() {
     definirParametres(suivants, { replace: true });
   }
 
-  const colonnes = useMemo<ColumnDef<Adherent>[]>(
+  const colonnes = useMemo<ColumnDef<AdherentResume>[]>(
     () => [
       {
         id: "matricule",
@@ -80,9 +83,11 @@ export function ListeAdherents() {
       {
         id: "nom",
         header: "Adhérent",
-        accessorFn: (a) => formaterNomComplet(a.nom, a.prenoms),
+        // `nomComplet` est assemblé par le serveur : la réponse de liste ne porte ni `nom`
+        // ni `prenoms`, et les lire ici affichait un tiret sur chaque ligne.
+        accessorKey: "nomComplet",
         enableSorting: true,
-        cell: ({ row }) => formaterNomComplet(row.original.nom, row.original.prenoms),
+        cell: ({ row }) => row.original.nomComplet,
       },
       {
         id: "telephonePrincipal",
@@ -112,14 +117,28 @@ export function ListeAdherents() {
   return (
     <CoquilleApplication titre="Adhérents">
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <h1>Adhérents</h1>
-          {peutCreer && (
-            <Button onClick={() => navigate("/adherents/nouveau")}>
-              <Plus className="size-4" aria-hidden="true" />
-              Nouvel adhérent
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {peutExporter && (
+              <Button
+                variant="outline"
+                disabled={lancerExport.isPending}
+                // Les filtres actifs sont repris : on exporte ce qu'on voit, pas la base entière.
+                onClick={() =>
+                  lancerExport.mutate({ type: "adherents", filtres: { statut: statut || undefined } })
+                }
+              >
+                {lancerExport.isPending ? "Export en cours…" : "Exporter (CSV)"}
+              </Button>
+            )}
+            {peutCreer && (
+              <Button onClick={() => navigate("/adherents/nouveau")}>
+                <Plus className="size-4" aria-hidden="true" />
+                Nouvel adhérent
+              </Button>
+            )}
+          </div>
         </div>
 
         <BarreFiltres>
@@ -188,7 +207,7 @@ export function ListeAdherents() {
               tri={tri}
               onChangerTri={setTri}
               onActiverLigne={(a) => navigate(`/adherents/${a.id}`)}
-              libelleLigne={(a) => `Ouvrir la fiche de ${formaterNomComplet(a.nom, a.prenoms)}`}
+              libelleLigne={(a) => `Ouvrir la fiche de ${a.nomComplet}`}
             />
 
             <div className="flex items-center justify-between text-sm text-texte-doux">

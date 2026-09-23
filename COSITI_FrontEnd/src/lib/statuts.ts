@@ -163,6 +163,21 @@ const RESULTAT_RELANCE = {
   ABSENT: { libelle: "Absent", teinte: "attention" },
 } satisfies TableStatuts;
 
+/**
+ * Cycle de vie d'une campagne de relance. Ajouté au jalon J8 : codes réels de
+ * `cm.cositi.api.relance.entite.StatutCampagne` (backend), absents de la
+ * version précédente de cette table — complété, pas redéfini.
+ */
+const CAMPAGNE_RELANCE = {
+  ACTIVE: { libelle: "Active", teinte: "succes", aide: "La campagne accepte de nouvelles relances." },
+  SUSPENDUE: { libelle: "Suspendue", teinte: "attention" },
+  CLOTUREE: {
+    libelle: "Clôturée",
+    teinte: "neutre",
+    aide: "Aucune nouvelle relance ne peut y être rattachée, et elle ne peut pas être rouverte.",
+  },
+} satisfies TableStatuts;
+
 const CANAL_RELANCE = {
   APPEL: { libelle: "Appel", teinte: "neutre" },
   SMS: { libelle: "SMS", teinte: "neutre" },
@@ -203,6 +218,7 @@ export const STATUTS = {
   rapportDaf: RAPPORT_DAF,
   resultatRelance: RESULTAT_RELANCE,
   canalRelance: CANAL_RELANCE,
+  campagneRelance: CAMPAGNE_RELANCE,
   validationParametre: VALIDATION_PARAMETRE,
 } as const;
 
