@@ -1,6 +1,7 @@
 package cm.cositi.api.reporting.service;
 
 import cm.cositi.api.audit.ServiceAudit;
+import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.securite.entite.Utilisateur;
@@ -9,6 +10,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -153,6 +156,47 @@ public class ServiceExportImpl implements ServiceExport {
         return produire("dossiers-cnps", entetes, sql.toString(), parametres, filtres);
     }
 
+    @Override
+    @PreAuthorize("hasAuthority('AUDIT:EXPORTER')")
+    public FichierExport exporterAudit(String entite, String type, Instant depuis, Instant jusqua, Utilisateur demandeur) {
+        List<String> entetes = List.of("horodatage", "utilisateur", "type_operation", "entite", "entite_id",
+                "motif", "resultat");
+
+        StringBuilder sql = new StringBuilder("""
+                SELECT horodatage, utilisateur_identifiant, type_operation, entite, entite_id, motif, resultat
+                FROM journal_audit
+                WHERE 1 = 1
+                """);
+        List<Object> parametres = new ArrayList<>();
+        if (entite != null && !entite.isBlank()) {
+            sql.append(" AND entite = ?");
+            parametres.add(entite);
+        }
+        if (type != null && !type.isBlank()) {
+            sql.append(" AND type_operation = ?");
+            parametres.add(type);
+        }
+        if (depuis != null) {
+            sql.append(" AND horodatage >= ?");
+            parametres.add(Timestamp.from(depuis));
+        }
+        if (jusqua != null) {
+            sql.append(" AND horodatage <= ?");
+            parametres.add(Timestamp.from(jusqua));
+        }
+        sql.append(" ORDER BY horodatage DESC");
+
+        Map<String, Object> filtres = new LinkedHashMap<>();
+        filtres.put("entite", entite);
+        filtres.put("type", type);
+        filtres.put("depuis", depuis);
+        filtres.put("jusqua", jusqua);
+
+        // Journalisée sous AUDIT_EXPORT_PDF (§3), pas EXPORT_SENSIBLE : produire(..., typeAuditDedie) court-circuite
+        // donc l'appel habituel à serviceAudit.tracerExport.
+        return produire("audit", entetes, sql.toString(), parametres, filtres, TypeOperation.AUDIT_EXPORT_PDF);
+    }
+
     // ------------------------------------------------------------------ Interne
 
     /**
@@ -184,6 +228,11 @@ public class ServiceExportImpl implements ServiceExport {
 
     private FichierExport produire(String typeExport, List<String> entetes, String sql, List<Object> parametres,
                                     Map<String, Object> filtres) {
+        return produire(typeExport, entetes, sql, parametres, filtres, null);
+    }
+
+    private FichierExport produire(String typeExport, List<String> entetes, String sql, List<Object> parametres,
+                                    Map<String, Object> filtres, TypeOperation typeAuditDedie) {
         int seuil = serviceParametre.entier(CLE_SEUIL);
 
         List<List<String>> lignes = jdbcTemplate.query(sql, (rs, numero) -> {
@@ -209,7 +258,12 @@ public class ServiceExportImpl implements ServiceExport {
         }
 
         // Journalisation obligatoire : type, filtres, nombre de lignes (docs/04_SECURITE.md §4).
-        serviceAudit.tracerExport(typeExport, filtres, lignes.size());
+        if (typeAuditDedie != null) {
+            serviceAudit.tracer(typeAuditDedie, "journal_audit", null, null,
+                    Map.of("filtres", filtres, "nbLignes", lignes.size()), null);
+        } else {
+            serviceAudit.tracerExport(typeExport, filtres, lignes.size());
+        }
 
         String nomFichier = "cositi-" + typeExport + "-" + LocalDate.now() + ".csv";
         return new FichierExport(nomFichier, csv.toString(), lignes.size());

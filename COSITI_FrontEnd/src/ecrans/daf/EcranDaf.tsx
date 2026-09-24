@@ -83,7 +83,7 @@ function ActionsControle({ paiement }: ActionsControleProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <span>
-                <Button size="sm" disabled>
+                <Button size="sm" variant="outline" disabled>
                   Confirmer
                 </Button>
               </span>
@@ -93,6 +93,7 @@ function ActionsControle({ paiement }: ActionsControleProps) {
         ) : (
           <Button
             size="sm"
+            variant="outline"
             disabled={confirmer.isPending}
             onClick={() => {
               confirmer.mutate(paiement.id, {

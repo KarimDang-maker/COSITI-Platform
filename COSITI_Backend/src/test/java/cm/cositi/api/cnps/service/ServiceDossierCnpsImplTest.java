@@ -4,6 +4,7 @@ import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.cnps.dto.DossierCnpsDto;
 import cm.cositi.api.cnps.dto.PieceManquanteDto;
+import cm.cositi.api.cnps.dto.SituationImmatriculationCnpsDto;
 import cm.cositi.api.cnps.entite.DossierCnps;
 import cm.cositi.api.cnps.entite.HistoriqueDossierCnps;
 import cm.cositi.api.cnps.entite.PieceDossierCnps;
@@ -25,7 +26,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -217,6 +221,43 @@ class ServiceDossierCnpsImplTest {
         assertThat(dto.avertissements())
                 .anyMatch(a -> a.contains("PIECES_CNPS_OBLIGATOIRES"))
                 .anyMatch(a -> a.contains("ASSIETTE_CNPS"));
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void situationsImmatriculation_couvre_immatricules_et_non_immatricules_dans_le_meme_appel() {
+        SituationImmatriculationCnpsDto nonImmatricule = new SituationImmatriculationCnpsDto(adherentId,
+                "COSITI-0001", "Traoré Moussa", "Menuisier", "+225070000000", new BigDecimal("16100"),
+                new BigDecimal("15000"), null, null, false);
+        UUID autreAdherentId = UUID.randomUUID();
+        SituationImmatriculationCnpsDto dejaImmatricule = new SituationImmatriculationCnpsDto(autreAdherentId,
+                "COSITI-0002", "Kouamé Ahou", "Commerçante", "+225050000000", new BigDecimal("25000"),
+                new BigDecimal("15000"), "CNPS-2026-98432", LocalDate.of(2026, 2, 18), true);
+
+        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any()))
+                .thenReturn(List.of(nonImmatricule, dejaImmatricule));
+        when(perimetre.peutAccederAdherent(eq(gestionnaire), any())).thenReturn(true);
+
+        List<SituationImmatriculationCnpsDto> resultats = service.situationsImmatriculation(null, gestionnaire);
+
+        assertThat(resultats).containsExactly(nonImmatricule, dejaImmatricule);
+        assertThat(resultats).filteredOn(s -> s.numeroCnps() == null).extracting(SituationImmatriculationCnpsDto::matricule)
+                .containsExactly("COSITI-0001");
+        assertThat(resultats).filteredOn(s -> s.numeroCnps() != null).extracting(SituationImmatriculationCnpsDto::matricule)
+                .containsExactly("COSITI-0002");
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void situationsImmatriculation_respecte_le_perimetre_du_demandeur() {
+        SituationImmatriculationCnpsDto horsPerimetre = new SituationImmatriculationCnpsDto(adherentId,
+                "COSITI-0009", "Hors périmètre", "Agriculteur", "+225060000000", new BigDecimal("16000"),
+                new BigDecimal("15000"), null, null, false);
+
+        when(jdbcTemplate.query(anyString(), any(RowMapper.class), any(), any())).thenReturn(List.of(horsPerimetre));
+        when(perimetre.peutAccederAdherent(eq(gestionnaire), eq(adherentId))).thenReturn(false);
+
+        assertThat(service.situationsImmatriculation(null, gestionnaire)).isEmpty();
     }
 
     private List<PieceDossierCnps> toutesPiecesFournies() {

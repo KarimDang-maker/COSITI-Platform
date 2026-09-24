@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -67,6 +68,16 @@ public class ControleurExport {
     public ResponseEntity<Resource> cnps(@RequestParam(required = false) String statut,
                                           @AuthenticationPrincipal Utilisateur demandeur) {
         return reponse(serviceExport.exporterDossiersCnps(statut, demandeur));
+    }
+
+    /** Réservé au Super Administrateur (correctif COSITI V1 §3) — voir {@code ServiceExport#exporterAudit}. */
+    @PostMapping("/audit")
+    public ResponseEntity<Resource> audit(@RequestParam(required = false) String entite,
+                                           @RequestParam(required = false) String type,
+                                           @RequestParam(required = false) Instant depuis,
+                                           @RequestParam(required = false) Instant jusqua,
+                                           @AuthenticationPrincipal Utilisateur demandeur) {
+        return reponse(serviceExport.exporterAudit(entite, type, depuis, jusqua, demandeur));
     }
 
     private ResponseEntity<Resource> reponse(ServiceExport.FichierExport fichier) {

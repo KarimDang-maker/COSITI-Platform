@@ -4,10 +4,14 @@ import cm.cositi.api.adherent.dto.AdherentResumeDto;
 import cm.cositi.api.organisation.dto.AgentDto;
 import cm.cositi.api.organisation.dto.ChargeAgentDto;
 import cm.cositi.api.organisation.dto.CreationAgentDto;
+import cm.cositi.api.organisation.dto.DecisionObjectifDto;
 import cm.cositi.api.organisation.dto.DesignerChefDto;
 import cm.cositi.api.organisation.dto.HistoriqueDesignationChefDto;
+import cm.cositi.api.organisation.dto.ObjectifRecouvrementDto;
+import cm.cositi.api.organisation.dto.PropositionObjectifDto;
 import cm.cositi.api.organisation.repository.AgentRepository;
 import cm.cositi.api.organisation.service.ServiceAgent;
+import cm.cositi.api.organisation.service.ServiceObjectifRecouvrement;
 import cm.cositi.api.organisation.service.ServicePortefeuille;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.securite.entite.Utilisateur;
@@ -35,12 +39,15 @@ public class ControleurAgent {
     private final ServiceAgent serviceAgent;
     private final ServicePortefeuille servicePortefeuille;
     private final AgentRepository agentRepository;
+    private final ServiceObjectifRecouvrement serviceObjectifRecouvrement;
 
     public ControleurAgent(ServiceAgent serviceAgent, ServicePortefeuille servicePortefeuille,
-                            AgentRepository agentRepository) {
+                            AgentRepository agentRepository,
+                            ServiceObjectifRecouvrement serviceObjectifRecouvrement) {
         this.serviceAgent = serviceAgent;
         this.servicePortefeuille = servicePortefeuille;
         this.agentRepository = agentRepository;
+        this.serviceObjectifRecouvrement = serviceObjectifRecouvrement;
     }
 
     @GetMapping
@@ -94,5 +101,29 @@ public class ControleurAgent {
     public List<HistoriqueDesignationChefDto> historiqueChef(@PathVariable UUID id) {
         AgentDto agent = consulter(id);
         return serviceAgent.historiqueChef(agent.zoneId());
+    }
+
+    /** Proposition d'objectif de recouvrement (Gestionnaire, Chef) — RAPORT_V1.md §4.4/§6.5. */
+    @PostMapping("/{id}/objectifs")
+    public ResponseEntity<ObjectifRecouvrementDto> proposerObjectif(@PathVariable UUID id,
+                                                                     @Valid @RequestBody PropositionObjectifDto dto,
+                                                                     @AuthenticationPrincipal Utilisateur auteur) {
+        ObjectifRecouvrementDto objectif = serviceObjectifRecouvrement.proposer(id, dto, auteur);
+        URI localisation = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{oid}").buildAndExpand(objectif.id()).toUri();
+        return ResponseEntity.created(localisation).body(objectif);
+    }
+
+    /** Approuve ou rejette une proposition — réservé à la DGA (arbitrage, §6.11). */
+    @PostMapping("/{id}/objectifs/{oid}/decision")
+    public ResponseEntity<ObjectifRecouvrementDto> deciderObjectif(@PathVariable UUID id, @PathVariable UUID oid,
+                                                                    @Valid @RequestBody DecisionObjectifDto dto,
+                                                                    @AuthenticationPrincipal Utilisateur dga) {
+        return ResponseEntity.ok(serviceObjectifRecouvrement.decider(oid, dto, dga));
+    }
+
+    @GetMapping("/{id}/objectifs")
+    public List<ObjectifRecouvrementDto> historiqueObjectifs(@PathVariable UUID id) {
+        return serviceObjectifRecouvrement.historique(id);
     }
 }

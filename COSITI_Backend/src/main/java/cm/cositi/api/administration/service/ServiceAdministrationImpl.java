@@ -112,7 +112,7 @@ public class ServiceAdministrationImpl implements ServiceAdministration {
     }
 
     @Override
-    @PreAuthorize("hasAuthority('ADMINISTRATION:GERER')")
+    @PreAuthorize("hasAuthority('UTILISATEUR:GERER')")
     @Transactional
     public CompteCree creerUtilisateur(CreationUtilisateurDto dto, Utilisateur auteur) {
         if (utilisateurRepository.existsByIdentifiant(dto.identifiant())) {
@@ -120,6 +120,7 @@ public class ServiceAdministrationImpl implements ServiceAdministration {
                     "Cet identifiant de connexion est déjà utilisé.");
         }
         Set<Role> roles = resoudreRoles(dto.roles());
+        verifierRolesAutorisesParPca(roles);
 
         String motDePasseClair = genererMotDePasse();
         Utilisateur compte = new Utilisateur(dto.identifiant(), encodeurMotDePasse.encode(motDePasseClair),
@@ -143,7 +144,7 @@ public class ServiceAdministrationImpl implements ServiceAdministration {
     }
 
     @Override
-    @PreAuthorize("hasAuthority('ADMINISTRATION:GERER')")
+    @PreAuthorize("hasAuthority('UTILISATEUR:GERER')")
     @Transactional
     public UtilisateurAdminDto modifierUtilisateur(UUID utilisateurId, ModificationUtilisateurDto dto,
                                                     Utilisateur auteur) {
@@ -161,10 +162,14 @@ public class ServiceAdministrationImpl implements ServiceAdministration {
     }
 
     @Override
-    @PreAuthorize("hasAuthority('ADMINISTRATION:GERER')")
+    @PreAuthorize("hasAuthority('UTILISATEUR:DESACTIVER')")
     @Transactional
     public UtilisateurAdminDto changerActivation(UUID utilisateurId, ChangementActivationDto dto,
                                                   Utilisateur auteur) {
+        // RAPORT_V1.md §3.8/§9.9 : le Super Administrateur ne devrait désactiver un compte que sur mémo du
+        // PCA (memoId obligatoire). Le mémo n'existe pas encore (vague 2 du correctif) — jusque-là, aucune
+        // régression : le comportement actuel (SA désactive librement, comme PCA) est conservé, signalé ici
+        // plutôt que silencieusement complet.
         Utilisateur compte = charger(utilisateurId);
 
         if (!dto.actif() && compte.getId().equals(auteur.getId())) {
@@ -187,11 +192,12 @@ public class ServiceAdministrationImpl implements ServiceAdministration {
     }
 
     @Override
-    @PreAuthorize("hasAuthority('ADMINISTRATION:GERER')")
+    @PreAuthorize("hasAuthority('UTILISATEUR:GERER')")
     @Transactional
     public UtilisateurAdminDto changerRoles(UUID utilisateurId, ChangementRolesDto dto, Utilisateur auteur) {
         Utilisateur compte = charger(utilisateurId);
         Set<Role> cibles = resoudreRoles(dto.roles());
+        verifierRolesAutorisesParPca(cibles);
 
         boolean perdSonAdministration = compte.getId().equals(auteur.getId())
                 && compte.possedeRole("SUPER_ADMIN")
@@ -332,6 +338,29 @@ public class ServiceAdministrationImpl implements ServiceAdministration {
             throw new ExceptionValidation("ROLE_REQUIS", "Un compte doit porter au moins un rôle.", "roles");
         }
         return roles;
+    }
+
+    /**
+     * RAPORT_V1.md §3.8/§4.9/§9.9 : le PCA crée/gère tous les rôles sauf Agent de terrain (créé par la DGA,
+     * {@code ServiceAgentImpl.creerParDga}), Chef des agents de terrain (désignation DGA parmi les agents
+     * existants, {@code ServiceAgentImpl.designerChef}, jamais une création de compte autonome) et Super
+     * Administrateur (compte technique de démarrage, jamais créé via cette API métier).
+     */
+    private static final Set<String> ROLES_INTERDITS_VIA_UTILISATEUR_GERER =
+            Set.of("AGENT_TERRAIN", "CHEF_AGENT_TERRAIN", "SUPER_ADMIN");
+
+    private void verifierRolesAutorisesParPca(Set<Role> roles) {
+        for (Role role : roles) {
+            if (ROLES_INTERDITS_VIA_UTILISATEUR_GERER.contains(role.getCode())) {
+                throw new ExceptionAutorisation("UTILISATEUR_ROLE_NON_AUTORISE",
+                        "Le rôle « " + role.getCode() + " » ne se crée pas par cette voie : "
+                                + ("AGENT_TERRAIN".equals(role.getCode())
+                                        ? "un Agent de terrain est créé par la DGA (organisation terrain)."
+                                        : "CHEF_AGENT_TERRAIN".equals(role.getCode())
+                                                ? "le Chef est désigné par la DGA parmi les agents existants."
+                                                : "le Super Administrateur est un compte technique de démarrage."));
+            }
+        }
     }
 
     private boolean estDernierAdministrateurActif(Utilisateur compte) {

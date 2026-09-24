@@ -153,6 +153,62 @@ export function modifierAdherent(id: string, corps: Partial<CorpsCreationAdheren
 }
 
 /**
+ * Saisie préparatoire par l'Agent de terrain (correctif COSITI V1 §5) — jamais une création
+ * définitive : ni pack, ni adhésion, ni allocation. `POST /adherents` reste réservé à la
+ * Gestionnaire des comptes (`ADHERENT:CREER`) ; ceci appelle `POST /adherents/preinscription`
+ * (`ADHERENT:PREINSCRIRE`).
+ */
+export interface CorpsPreinscriptionAdherent {
+  nom: string;
+  prenoms?: string;
+  telephonePrincipal: string;
+  telephoneSecondaire?: string;
+  numeroCni?: string;
+  activiteId: string;
+  zoneId: string;
+  localisation: string;
+  quartier?: string;
+  ville?: string;
+  confirmationDoublonIgnore?: boolean;
+}
+
+export function preinscrireAdherent(corps: CorpsPreinscriptionAdherent) {
+  return client.post<Adherent>("/adherents/preinscription", corps);
+}
+
+/**
+ * Complète un adhérent {@code PREINSCRIT} en dossier définitif — réservée à la Gestionnaire
+ * (`ADHERENT:CREER`, §5). Ouvre l'adhésion (pack) et enregistre la préférence d'allocation
+ * Sécurité Sociale/Épargne (§8).
+ */
+export interface CorpsFinalisationAdherent {
+  dateAdhesion: string;
+  packId: string;
+  montantReference: number;
+  allocationSecuriteSociale?: number;
+  allocationEpargne?: number;
+  consentementDonnees?: boolean;
+}
+
+export function finaliserAdherent(id: string, corps: CorpsFinalisationAdherent) {
+  return client.post<Adherent>(`/adherents/${id}/finaliser`, corps);
+}
+
+/** État des deux comptes métier (Sécurité Sociale/Épargne) de l'adhérent, sur un seul dossier (§7). */
+export interface ComptesAdherent {
+  readonly adherentId: string;
+  readonly totalSecuriteSociale: number;
+  readonly totalEpargne: number;
+  readonly preferenceAllocationSecuriteSociale: number | null;
+  readonly preferenceAllocationEpargne: number | null;
+  readonly preferenceDatePreference: string | null;
+}
+
+export function obtenirComptesAdherent(id: string) {
+  return client.get<ComptesAdherent>(`/adherents/${id}/comptes`);
+}
+
+/**
  * La situation de droits d'un adhérent (couvert jusqu'au, jours de retard,
  * cumul cotisé, éligibilité CNPS…) vivait ici depuis J2
  * (`GET /adherents/{id}/situation`, documenté par

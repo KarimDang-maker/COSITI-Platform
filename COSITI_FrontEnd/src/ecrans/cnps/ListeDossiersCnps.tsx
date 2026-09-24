@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDossiersCnps, useEligiblesNonImmatricules, useOuvrirDossierCnps } from "@/hooks/useCnps";
+import { useLancerExport } from "@/hooks/useExports";
 import { useAuth } from "@/auth/ContexteAuth";
 import type { AdherentEligibleCnps, DossierCnps, StatutDossierCnps } from "@/api/cnps";
 import { estErreurApi } from "@/api/erreurs";
@@ -59,6 +60,8 @@ export function ListeDossiersCnps() {
   const ouvrirDossier = useOuvrirDossierCnps();
 
   const peutGerer = aLaPermission("CNPS:GERER");
+  const peutExporter = aLaPermission("EXPORT:CNPS");
+  const lancerExport = useLancerExport();
 
   function mettreAJourParametre(cle: string, valeur: string | undefined) {
     const suivants = new URLSearchParams(parametres);
@@ -159,11 +162,22 @@ export function ListeDossiersCnps() {
   return (
     <CoquilleApplication titre="CNPS">
       <div className="space-y-4">
-        <div>
-          <h1>Suivi CNPS</h1>
-          <p className="text-texte-doux">
-            Dossiers d'immatriculation, pièces et déclarations mensuelles.
-          </p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1>Suivi CNPS</h1>
+            <p className="text-texte-doux">
+              Dossiers d'immatriculation, pièces et déclarations mensuelles.
+            </p>
+          </div>
+          {peutExporter && (
+            <Button
+              variant="outline"
+              disabled={lancerExport.isPending}
+              onClick={() => lancerExport.mutate({ type: "cnps", filtres: { statut } })}
+            >
+              {lancerExport.isPending ? "Export en cours…" : "Exporter (CSV)"}
+            </Button>
+          )}
         </div>
 
         <Tabs value={onglet} onValueChange={(valeur) => mettreAJourParametre("onglet", valeur)}>

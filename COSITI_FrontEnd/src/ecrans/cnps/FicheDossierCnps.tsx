@@ -26,7 +26,7 @@ import { useAjouterPieceCnps } from "@/hooks/useCnps";
 import { useAuth } from "@/auth/ContexteAuth";
 import { LIBELLES_TYPE_PIECE, type StatutDossierCnps, type TypePieceCnps } from "@/api/cnps";
 import { estErreurApi } from "@/api/erreurs";
-import { formaterDate, formaterMoisAnnee, formaterMontant } from "@/lib/format";
+import { formaterDate, formaterMoisAnnee, formaterMontant, moisCourant } from "@/lib/format";
 
 /**
  * Transitions proposées à l'écran. Le graphe qui fait foi est celui du serveur
@@ -52,12 +52,6 @@ const LIBELLES_TRANSITION: Readonly<Record<StatutDossierCnps, string>> = {
   TRAITE: "Marquer traité",
   REJETE: "Enregistrer un rejet CNPS",
 };
-
-/** Mois courant au format attendu par l'API (`AAAA-MM`). */
-function moisCourant(): string {
-  const maintenant = new Date();
-  return `${maintenant.getFullYear()}-${String(maintenant.getMonth() + 1).padStart(2, "0")}`;
-}
 
 /**
  * `/cnps/:id` — Dossier CNPS d'un adhérent (J7) : pièces, cycle de vie du
@@ -141,10 +135,13 @@ export function FicheDossierCnps() {
 
           {peutChangerStatut && transitionsPossibles.length > 0 && (
             <div className="flex flex-wrap gap-2">
-              {transitionsPossibles.map((cible) => (
+              {transitionsPossibles.map((cible, indice) => (
                 <Button
                   key={cible}
-                  variant={cible === "REJETE" ? "outline" : "default"}
+                  // Une seule action primaire par écran (`docs/02_DESIGN_SYSTEM.md §1.4`) : seule la
+                  // transition la plus probable (première du tableau `TRANSITIONS`) est `default`,
+                  // les autres — dont REJETE, toujours — restent `outline`.
+                  variant={indice === 0 ? "default" : "outline"}
                   size="sm"
                   onClick={() => setTransitionEnCours(cible)}
                 >
@@ -245,6 +242,7 @@ export function FicheDossierCnps() {
                   />
                 </div>
                 <Button
+                  variant="outline"
                   disabled={preparerDeclaration.isPending || !periode}
                   onClick={() =>
                     preparerDeclaration.mutate(periode, {

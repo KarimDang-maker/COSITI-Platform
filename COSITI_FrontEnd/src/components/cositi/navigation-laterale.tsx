@@ -1,5 +1,5 @@
 import { NavLink } from "react-router";
-import { Users, MapPinned, Wallet, ShieldCheck, ScrollText, FileHeart, ClipboardList, PhoneCall, LayoutDashboard, FileText, History, Settings } from "lucide-react";
+import { Users, MapPinned, Wallet, ShieldCheck, ScrollText, FileHeart, ClipboardList, PhoneCall, LayoutDashboard, FileText, History, Settings, BellRing, IdCard, FolderHeart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/ContexteAuth";
 import { cheminTableauBord } from "@/api/tableauxDeBord";
@@ -60,6 +60,26 @@ const ENTREES: readonly EntreeNavigation[] = [
     icone: FileHeart,
     // `V9__permissions_j7_cnps_documents.sql` : lecture ouverte à PCA, DG, DGA,
     // DAF et Gestionnaire des comptes ; l'Agent et le Chef n'ont pas ce domaine.
+    permission: "CNPS:LIRE",
+  },
+  {
+    chemin: "/alertes",
+    libelle: "Alertes & Relances",
+    icone: BellRing,
+    // Module Gestionnaire des comptes — compose des lectures déjà gated par CNPS:LIRE/DROITS:LIRE ;
+    // même permission d'affichage de menu que le domaine CNPS lui-même.
+    permission: "CNPS:LIRE",
+  },
+  {
+    chemin: "/immatriculations",
+    libelle: "Immatriculations",
+    icone: IdCard,
+    permission: "CNPS:LIRE",
+  },
+  {
+    chemin: "/dossiers-cnps",
+    libelle: "Dossiers CNPS",
+    icone: FolderHeart,
     permission: "CNPS:LIRE",
   },
   {

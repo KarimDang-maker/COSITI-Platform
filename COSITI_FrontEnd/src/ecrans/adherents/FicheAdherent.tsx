@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { Alerte } from "@/components/cositi/alerte";
@@ -5,12 +6,14 @@ import { AvertissementRegle } from "@/components/cositi/avertissement-regle";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useAdherent } from "@/hooks/useAdherents";
+import { useAdherent, useComptesAdherent } from "@/hooks/useAdherents";
 import { useSituationDroits, usePeriodesDroits } from "@/hooks/useDroits";
 import { usePermission } from "@/auth/ContexteAuth";
 import { estErreurApi } from "@/api/erreurs";
+import { DialogueFinaliserAdherent } from "@/ecrans/adherents/DialogueFinaliserAdherent";
 import {
   formaterDate,
   formaterMatricule,
@@ -37,9 +40,13 @@ export function FicheAdherent() {
   // (PCA/DG/DGA/DAF/GESTIONNAIRE_COMPTE/CHEF_AGENT_TERRAIN/AGENT_TERRAIN),
   // jamais à `SUPER_ADMIN`.
   const peutLireDroits = usePermission("DROITS:LIRE");
+  // Réservée à la Gestionnaire des comptes (§5) — complète un adhérent préinscrit par un Agent.
+  const peutFinaliser = usePermission("ADHERENT:CREER");
   const { data: adherent, isLoading, isError, error } = useAdherent(id);
   const { data: situation } = useSituationDroits(peutLireDroits ? id : undefined);
   const { data: periodes } = usePeriodesDroits(peutLireDroits ? id : undefined);
+  const { data: comptes } = useComptesAdherent(id);
+  const [finalisationOuverte, setFinalisationOuverte] = useState(false);
 
   if (isLoading) {
     return (
@@ -70,8 +77,24 @@ export function FicheAdherent() {
             <h1>{formaterNomComplet(adherent.nom, adherent.prenoms)}</h1>
             <p className="ref text-texte-doux">{formaterMatricule(adherent.matricule)}</p>
           </div>
-          <BadgeStatut domaine="adherent" code={adherent.statut} />
+          <div className="flex items-center gap-3">
+            {peutFinaliser && adherent.statut === "PREINSCRIT" && (
+              <Button onClick={() => setFinalisationOuverte(true)}>Finaliser le dossier</Button>
+            )}
+            <BadgeStatut domaine="adherent" code={adherent.statut} />
+          </div>
         </div>
+
+        {adherent.statut === "PREINSCRIT" && (
+          <Alerte teinte="attention" titre="Dossier en préinscription">
+            <p>
+              Cet adhérent a été préinscrit par un Agent de terrain (§5) : identité et contact seulement.
+              {peutFinaliser
+                ? " Finalisez le dossier pour lui ouvrir un pack et une allocation."
+                : " La Gestionnaire des comptes doit encore compléter son pack et son allocation."}
+            </p>
+          </Alerte>
+        )}
 
         <Card>
           <CardHeader>
@@ -93,6 +116,33 @@ export function FicheAdherent() {
             </dl>
           </CardContent>
         </Card>
+
+        {comptes && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Comptes de l'adhérent</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* Un seul dossier adhérent, deux composantes consultées ensemble (§7). */}
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <LigneChamp libelle="Compte Sécurité Sociale" valeur={formaterMontant(comptes.totalSecuriteSociale)} />
+                <LigneChamp libelle="Compte Épargne" valeur={formaterMontant(comptes.totalEpargne)} />
+                {comptes.preferenceAllocationSecuriteSociale !== null && (
+                  <>
+                    <LigneChamp
+                      libelle="Préférence Sécurité Sociale"
+                      valeur={formaterMontant(comptes.preferenceAllocationSecuriteSociale)}
+                    />
+                    <LigneChamp
+                      libelle="Préférence Épargne"
+                      valeur={formaterMontant(comptes.preferenceAllocationEpargne ?? 0)}
+                    />
+                  </>
+                )}
+              </dl>
+            </CardContent>
+          </Card>
+        )}
 
         {peutLireDroits && situation && (
           <Card>
@@ -167,6 +217,15 @@ export function FicheAdherent() {
           </Link>
         </p>
       </div>
+
+      {peutFinaliser && (
+        <DialogueFinaliserAdherent
+          ouvert={finalisationOuverte}
+          onOuvertChange={setFinalisationOuverte}
+          adherentId={adherent.id}
+          nomAdherent={formaterNomComplet(adherent.nom, adherent.prenoms)}
+        />
+      )}
     </CoquilleApplication>
   );
 }

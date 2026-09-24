@@ -2,14 +2,18 @@ package cm.cositi.api.adherent.controleur;
 
 import cm.cositi.api.adherent.dto.AdherentDetailDto;
 import cm.cositi.api.adherent.dto.AdherentResumeDto;
-import cm.cositi.api.adherent.dto.AdhesionDto;
 import cm.cositi.api.adherent.dto.ArchiverDto;
 import cm.cositi.api.adherent.dto.CandidatsDoublonDto;
-import cm.cositi.api.adherent.dto.ChangerPackDto;
 import cm.cositi.api.adherent.dto.ChangerStatutDto;
+import cm.cositi.api.adherent.dto.CompteAdherentDto;
 import cm.cositi.api.adherent.dto.CreationAdherentDto;
 import cm.cositi.api.adherent.dto.CritereRechercheAdherent;
+import cm.cositi.api.adherent.dto.DecisionChangementAllocationDto;
+import cm.cositi.api.adherent.dto.DemandeChangementAllocationDto;
+import cm.cositi.api.adherent.dto.FinalisationAdherentDto;
 import cm.cositi.api.adherent.dto.ModificationAdherentDto;
+import cm.cositi.api.adherent.dto.PreinscriptionAdherentDto;
+import cm.cositi.api.adherent.dto.PropositionChangementAllocationDto;
 import cm.cositi.api.adherent.dto.VerifierDoublonDto;
 import cm.cositi.api.adherent.entite.StatutAdherent;
 import cm.cositi.api.adherent.exception.ExceptionDoublonPotentiel;
@@ -38,6 +42,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URI;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -81,6 +86,31 @@ public class ControleurAdherent {
         return ResponseEntity.created(localisation).body(cree);
     }
 
+    /** Saisie préparatoire par l'Agent de terrain (§5) — jamais une création définitive. */
+    @PostMapping("/preinscription")
+    public ResponseEntity<AdherentDetailDto> preinscrire(@Valid @RequestBody PreinscriptionAdherentDto dto,
+                                                          @AuthenticationPrincipal Utilisateur auteur) {
+        AdherentDetailDto cree = serviceAdherent.preinscrire(dto, auteur);
+        URI localisation = ServletUriComponentsBuilder.fromCurrentRequest().replacePath("/api/v1/adherents/{id}")
+                .buildAndExpand(cree.id()).toUri();
+        return ResponseEntity.created(localisation).body(cree);
+    }
+
+    /** Complète un adhérent préinscrit en dossier définitif — réservée à la Gestionnaire (§5). */
+    @PostMapping("/{id}/finaliser")
+    public ResponseEntity<AdherentDetailDto> finaliser(@PathVariable UUID id,
+                                                        @Valid @RequestBody FinalisationAdherentDto dto,
+                                                        @AuthenticationPrincipal Utilisateur auteur) {
+        return ResponseEntity.ok(serviceAdherent.finaliser(id, dto, auteur));
+    }
+
+    /** État des deux comptes métier (Sécurité Sociale/Épargne) de l'adhérent (§7). */
+    @GetMapping("/{id}/comptes")
+    public ResponseEntity<CompteAdherentDto> comptes(@PathVariable UUID id,
+                                                       @AuthenticationPrincipal Utilisateur demandeur) {
+        return ResponseEntity.ok(serviceAdherent.comptes(id, demandeur));
+    }
+
     @PostMapping("/verifier-doublon")
     public ResponseEntity<CandidatsDoublonDto> verifierDoublon(@Valid @RequestBody VerifierDoublonDto dto) {
         var candidats = serviceDoublonAdherent.rechercher(
@@ -115,10 +145,32 @@ public class ControleurAdherent {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/{id}/pack")
-    public ResponseEntity<AdhesionDto> changerPack(@PathVariable UUID id, @Valid @RequestBody ChangerPackDto dto,
-                                                    @AuthenticationPrincipal Utilisateur auteur) {
-        return ResponseEntity.ok(serviceAdherent.changerPack(id, dto.packId(), dto.effetLe(), auteur));
+    /**
+     * Changement de pack/allocation après création (RAPORT_V1.md §6.3/§9.5) — la Gestionnaire propose,
+     * elle n'applique jamais elle-même ({@link #validerChangementAllocation}).
+     */
+    @PostMapping("/{id}/allocation-changes")
+    public ResponseEntity<DemandeChangementAllocationDto> proposerChangementAllocation(
+            @PathVariable UUID id, @Valid @RequestBody PropositionChangementAllocationDto dto,
+            @AuthenticationPrincipal Utilisateur auteur) {
+        DemandeChangementAllocationDto demande = serviceAdherent.proposerChangementAllocation(id, dto, auteur);
+        URI localisation = ServletUriComponentsBuilder.fromCurrentRequest()
+                .path("/{cid}").buildAndExpand(demande.id()).toUri();
+        return ResponseEntity.created(localisation).body(demande);
+    }
+
+    /** Approuve (applique) ou rejette une proposition de changement — réservé au DAF. */
+    @PostMapping("/{id}/allocation-changes/{cid}/validate")
+    public ResponseEntity<DemandeChangementAllocationDto> validerChangementAllocation(
+            @PathVariable UUID id, @PathVariable UUID cid, @Valid @RequestBody DecisionChangementAllocationDto dto,
+            @AuthenticationPrincipal Utilisateur daf) {
+        return ResponseEntity.ok(serviceAdherent.deciderChangementAllocation(cid, dto, daf));
+    }
+
+    @GetMapping("/{id}/allocation-changes")
+    public ResponseEntity<List<DemandeChangementAllocationDto>> historiqueChangementsAllocation(
+            @PathVariable UUID id, @AuthenticationPrincipal Utilisateur demandeur) {
+        return ResponseEntity.ok(serviceAdherent.historiqueChangementsAllocation(id, demandeur));
     }
 
     @ExceptionHandler(ExceptionDoublonPotentiel.class)

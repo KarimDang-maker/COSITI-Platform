@@ -10,17 +10,24 @@ import cm.cositi.api.commun.exception.ExceptionMetier;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.commun.reponse.ReponsePaginee;
+import cm.cositi.api.commun.util.ValidationAllocation;
 import cm.cositi.api.cotisation.dto.AffectationDto;
 import cm.cositi.api.cotisation.dto.AnnulerPaiementDto;
 import cm.cositi.api.cotisation.dto.CorrectionPaiementDto;
 import cm.cositi.api.cotisation.dto.CritereJournalPaiement;
 import cm.cositi.api.cotisation.dto.EnregistrementPaiementDto;
 import cm.cositi.api.cotisation.dto.PaiementDto;
+import cm.cositi.api.cotisation.dto.RecommandationAllocationDto;
 import cm.cositi.api.cotisation.dto.RecuDto;
 import cm.cositi.api.cotisation.entite.Paiement;
+import cm.cositi.api.cotisation.entite.RecommandationAllocationPaiement;
 import cm.cositi.api.cotisation.entite.StatutPaiement;
 import cm.cositi.api.cotisation.repository.PaiementRepository;
+import cm.cositi.api.cotisation.repository.RecommandationAllocationPaiementRepository;
 import cm.cositi.api.droits.service.ServiceCalculDroits;
+import cm.cositi.api.notification.ServiceNotification;
+import cm.cositi.api.parametre.ParametreRepository;
+import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
 import org.springframework.data.domain.Page;
@@ -42,6 +49,8 @@ import java.util.UUID;
 public class ServicePaiementImpl implements ServicePaiement {
 
     private static final Set<String> MODES_MOBILE_MONEY = Set.of("ORANGE_MONEY", "MTN_MOMO");
+    private static final String CLE_PARAMETRE_MINIMUM_SECURITE_SOCIALE = "MONTANT_MINIMUM_SECURITE_SOCIALE";
+    private static final String CODE_COMPOSANTE_SECURITE_SOCIALE = ServiceAffectationPaiementImpl.CODE_COMPOSANTE_SECURITE_SOCIALE;
 
     private final PaiementRepository paiementRepository;
     private final AdherentRepository adherentRepository;
@@ -50,11 +59,18 @@ public class ServicePaiementImpl implements ServicePaiement {
     private final ServiceAffectationPaiement serviceAffectationPaiement;
     private final ServiceCalculDroits serviceCalculDroits;
     private final ServiceAudit serviceAudit;
+    private final RecommandationAllocationPaiementRepository recommandationRepository;
+    private final ServiceParametre serviceParametre;
+    private final ParametreRepository parametreRepository;
+    private final ServiceNotification serviceNotification;
 
     public ServicePaiementImpl(PaiementRepository paiementRepository, AdherentRepository adherentRepository,
                                 JdbcTemplate jdbcTemplate, ServicePerimetreDonnees perimetre,
                                 ServiceAffectationPaiement serviceAffectationPaiement,
-                                ServiceCalculDroits serviceCalculDroits, ServiceAudit serviceAudit) {
+                                ServiceCalculDroits serviceCalculDroits, ServiceAudit serviceAudit,
+                                RecommandationAllocationPaiementRepository recommandationRepository,
+                                ServiceParametre serviceParametre, ParametreRepository parametreRepository,
+                                ServiceNotification serviceNotification) {
         this.paiementRepository = paiementRepository;
         this.adherentRepository = adherentRepository;
         this.jdbcTemplate = jdbcTemplate;
@@ -62,6 +78,10 @@ public class ServicePaiementImpl implements ServicePaiement {
         this.serviceAffectationPaiement = serviceAffectationPaiement;
         this.serviceCalculDroits = serviceCalculDroits;
         this.serviceAudit = serviceAudit;
+        this.recommandationRepository = recommandationRepository;
+        this.serviceParametre = serviceParametre;
+        this.parametreRepository = parametreRepository;
+        this.serviceNotification = serviceNotification;
     }
 
     @Override
@@ -111,7 +131,31 @@ public class ServicePaiementImpl implements ServicePaiement {
         serviceAudit.tracer(TypeOperation.PAIEMENT_CREATION, "paiement", paiement.getId(), null,
                 PaiementDto.depuis(paiement), null);
 
+        if (dto.recommandationAllocation() != null) {
+            enregistrerRecommandationAllocation(paiement, dto.recommandationAllocation(), auteur);
+        }
+
         return new ResultatEnregistrementPaiement(PaiementDto.depuis(paiement), false);
+    }
+
+    /**
+     * Donnée métier structurée (§8) — jamais un commentaire libre — recueillie par l'agent auprès de l'adhérent
+     * pour un paiement supérieur à 1000 FCFA. Validée immédiatement (échec rapide) : elle sera relue telle
+     * quelle par {@code ServiceAffectationPaiementImpl.affecter} à la validation du paiement.
+     */
+    private void enregistrerRecommandationAllocation(Paiement paiement, RecommandationAllocationDto dto,
+                                                       Utilisateur auteur) {
+        BigDecimal minimumSecuriteSociale = serviceParametre.decimal(CLE_PARAMETRE_MINIMUM_SECURITE_SOCIALE);
+        ValidationAllocation.verifier(paiement.getMontant(), dto.allocationSecuriteSociale(), dto.allocationEpargne(),
+                minimumSecuriteSociale);
+
+        UUID recueilliParId = dto.recueilliParId() != null ? dto.recueilliParId() : auteur.getId();
+        RecommandationAllocationPaiement recommandation = new RecommandationAllocationPaiement(paiement.getId(),
+                dto.allocationSecuriteSociale(), dto.allocationEpargne(), recueilliParId);
+        recommandation = recommandationRepository.save(recommandation);
+
+        serviceAudit.tracer(TypeOperation.RECOMMANDATION_ALLOCATION_ENREGISTREMENT, "paiement", paiement.getId(),
+                null, RecommandationAllocationDto.depuis(recommandation), null);
     }
 
     @Override
@@ -141,12 +185,20 @@ public class ServicePaiementImpl implements ServicePaiement {
 
         List<AffectationDto> affectations = serviceAffectationPaiement.affecter(paiement.getId(), validateur);
         // Jalon J6 : imputation des droits dans la même transaction que la validation (AGENTS.md règle absolue n°6).
+        // Depuis le correctif COSITI V1 §7-§8, une affectation se ventile désormais en Sécurité Sociale (CNPS)
+        // + Épargne : seule la part Sécurité Sociale ouvre des jours de droits/éligibilité CNPS — l'Épargne est
+        // un compte personnel de l'adhérent, sans lien avec la couverture du pack.
         for (AffectationDto affectation : affectations) {
-            serviceCalculDroits.imputer(affectation.id());
+            if (CODE_COMPOSANTE_SECURITE_SOCIALE.equals(affectation.composanteCode())) {
+                serviceCalculDroits.imputer(affectation.id());
+            }
         }
 
         serviceAudit.tracer(TypeOperation.PAIEMENT_VALIDATION, "paiement", paiement.getId(), null,
                 PaiementDto.depuis(paiement), null);
+
+        alerterSeuilCnpsSiFranchi(paiement.getAdherentId());
+
         return PaiementDto.depuis(paiement);
     }
 
@@ -343,5 +395,53 @@ public class ServicePaiementImpl implements ServicePaiement {
     private Paiement charger(UUID id) {
         return paiementRepository.findById(id)
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable("PAIEMENT_INTROUVABLE", "Paiement introuvable."));
+    }
+
+    /**
+     * RAPORT_V1.md §6.4/§7.3 : alerte la Gestionnaire quand le solde validé du compte Sécurité Sociale
+     * franchit le seuil CNPS de son pack ({@code SEUIL_CNPS_PACK_700}/{@code SEUIL_CNPS_PACK_1000}, posés en
+     * V1). Une seule alerte par adhérent ({@code adherent.alerte_seuil_cnps_le}) : sans ce verrou, chaque
+     * paiement suivant redéclencherait la même notification. Un pack personnalisé sans paramètre correspondant
+     * ne déclenche aucune alerte — signalé, jamais un seuil inventé.
+     */
+    private void alerterSeuilCnpsSiFranchi(UUID adherentId) {
+        Boolean dejaAlerte = jdbcTemplate.queryForObject(
+                "SELECT alerte_seuil_cnps_le IS NOT NULL FROM adherent WHERE id = ?", Boolean.class, adherentId);
+        if (!Boolean.FALSE.equals(dejaAlerte)) {
+            return;
+        }
+
+        String codePack = jdbcTemplate.query("""
+                SELECT pk.code FROM adhesion ad JOIN pack pk ON pk.id = ad.pack_id
+                WHERE ad.adherent_id = ? AND ad.date_fin IS NULL
+                """, rs -> rs.next() ? rs.getString("code") : null, adherentId);
+        if (codePack == null) {
+            return;
+        }
+
+        String cleSeuil = "SEUIL_CNPS_" + codePack;
+        if (parametreRepository.findByCle(cleSeuil).isEmpty()) {
+            return;
+        }
+        BigDecimal seuil = serviceParametre.decimal(cleSeuil);
+
+        BigDecimal soldeSecuriteSociale = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(ap.montant), 0)
+                FROM affectation_paiement ap
+                JOIN paiement p ON p.id = ap.paiement_id
+                JOIN composante_affectation c ON c.id = ap.composante_id
+                WHERE p.adherent_id = ? AND c.code = 'CNPS' AND p.statut IN ('VALIDE', 'RAPPROCHE')
+                """, BigDecimal.class, adherentId);
+
+        if (soldeSecuriteSociale == null || soldeSecuriteSociale.compareTo(seuil) < 0) {
+            return;
+        }
+
+        jdbcTemplate.update("UPDATE adherent SET alerte_seuil_cnps_le = now() WHERE id = ?", adherentId);
+        serviceNotification.notifierRoles(List.of("GESTIONNAIRE_COMPTE"), "SEUIL_CNPS_ATTEINT",
+                "Seuil CNPS atteint",
+                "Le compte Sécurité Sociale d'un adhérent a atteint le seuil de " + seuil
+                        + " FCFA — l'immatriculation CNPS peut être engagée.",
+                "adherent", adherentId);
     }
 }

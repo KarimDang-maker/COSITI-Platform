@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
 import { rendreAvecProviders, screen, waitFor } from "@/test/rendu";
 import { serveur } from "@/test/msw/serveur";
-import { JETON_SUPER_ADMIN } from "@/test/msw/donnees";
+import { JETON_PCA, JETON_SUPER_ADMIN } from "@/test/msw/donnees";
 import { EcranAdministration } from "@/ecrans/administration/EcranAdministration";
 
 function simulerSession(jeton: string) {
@@ -49,7 +49,8 @@ describe("EcranAdministration", () => {
   });
 
   it("crée un compte sans champ de mot de passe et le révèle une seule fois", async () => {
-    simulerSession(JETON_SUPER_ADMIN);
+    // RAPORT_V1 V15 : la création de compte revient au PCA, jamais au Super Administrateur.
+    simulerSession(JETON_PCA);
     const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/administration" });
 
@@ -61,7 +62,7 @@ describe("EcranAdministration", () => {
     await utilisateur.type(screen.getByLabelText("Identifiant de connexion"), "nouveau.compte");
     await utilisateur.type(screen.getByLabelText("Nom complet"), "Compte Nouveau");
     await utilisateur.click(screen.getByLabelText("Rôle"));
-    await utilisateur.click(await screen.findByRole("option", { name: "Agent de terrain" }));
+    await utilisateur.click(await screen.findByRole("option", { name: "Gestionnaire des comptes" }));
     await utilisateur.click(screen.getByRole("button", { name: "Créer le compte" }));
 
     await screen.findByText("Kp9!mZ2xQw7$Lb4T");

@@ -2,6 +2,7 @@ package cm.cositi.api.reporting.service;
 
 import cm.cositi.api.securite.entite.Utilisateur;
 
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -35,4 +36,11 @@ public interface ServiceExport {
     FichierExport exporterPaiements(LocalDate du, LocalDate au, String statut, Utilisateur demandeur);
 
     FichierExport exporterDossiersCnps(String statut, Utilisateur demandeur);
+
+    /**
+     * Export/impression de l'audit — réservé au Super Administrateur (correctif COSITI V1 §3), lui-même
+     * journalisé sous {@code AUDIT_EXPORT_PDF} et non {@code EXPORT_SENSIBLE} : « toute génération de rapport
+     * d'audit doit elle-même être auditée » se distingue d'un export métier ordinaire.
+     */
+    FichierExport exporterAudit(String entite, String type, Instant depuis, Instant jusqua, Utilisateur demandeur);
 }

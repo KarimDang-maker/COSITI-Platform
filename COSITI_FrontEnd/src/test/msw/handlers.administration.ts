@@ -64,6 +64,15 @@ const ROLES: readonly RoleAdmin[] = [
     description: "Opérations terrain et comptes rendus",
     permissions: ["ADHERENT:CREER", "ADHERENT:LIRE", "PAIEMENT:CREER"],
   },
+  // RAPORT_V1 V15 : AGENT_TERRAIN/CHEF_AGENT_TERRAIN/SUPER_ADMIN sont exclus de la création de compte
+  // par le PCA (DialogueCreerUtilisateur.ROLES_EXCLUS_DE_CETTE_CREATION) — un rôle réellement créable
+  // par cette voie doit rester disponible dans ce jeu de données pour les tests de création.
+  {
+    code: "GESTIONNAIRE_COMPTE",
+    libelle: "Gestionnaire des comptes",
+    description: "Suivi des adhérents, cotisations et dossiers CNPS",
+    permissions: ["ADHERENT:LIRE", "PAIEMENT:LIRE", "CNPS:LIRE"],
+  },
 ];
 
 const PARAMETRES: readonly ParametreAdmin[] = [

@@ -3,6 +3,7 @@ package cm.cositi.api.cnps.service;
 import cm.cositi.api.cnps.dto.AdherentEligibleCnpsDto;
 import cm.cositi.api.cnps.dto.DossierCnpsDto;
 import cm.cositi.api.cnps.dto.PieceManquanteDto;
+import cm.cositi.api.cnps.dto.SituationImmatriculationCnpsDto;
 import cm.cositi.api.cnps.entite.StatutDossierCnps;
 import cm.cositi.api.cnps.entite.TypePieceCnps;
 import cm.cositi.api.commun.reponse.ReponsePaginee;
@@ -39,4 +40,12 @@ public interface ServiceDossierCnps {
     List<PieceManquanteDto> piecesManquantes(UUID dossierId, Utilisateur demandeur);
 
     List<AdherentEligibleCnpsDto> eligiblesNonImmatricules(UUID zoneId, Utilisateur demandeur);
+
+    /**
+     * Situation face au seuil CNPS de tous les adhérents concernés — immatriculés ou non — pour l'écran
+     * Immatriculations du Gestionnaire des comptes ({@code FONCTIONALITE_GestComtes_V1.md} §7-§13, 3
+     * onglets). Étend {@link #eligiblesNonImmatricules} (qui exclut les adhérents déjà immatriculés) : même
+     * calcul de {@code cumulCotise}/{@code seuilEligibilite}, sans le filtre d'exclusion.
+     */
+    List<SituationImmatriculationCnpsDto> situationsImmatriculation(UUID zoneId, Utilisateur demandeur);
 }

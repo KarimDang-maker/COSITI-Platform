@@ -6,6 +6,7 @@ import cm.cositi.api.cnps.dto.AdherentEligibleCnpsDto;
 import cm.cositi.api.cnps.dto.DossierCnpsDto;
 import cm.cositi.api.cnps.dto.PieceDossierCnpsDto;
 import cm.cositi.api.cnps.dto.PieceManquanteDto;
+import cm.cositi.api.cnps.dto.SituationImmatriculationCnpsDto;
 import cm.cositi.api.cnps.entite.DossierCnps;
 import cm.cositi.api.cnps.entite.HistoriqueDossierCnps;
 import cm.cositi.api.cnps.entite.PieceDossierCnps;
@@ -263,6 +264,54 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
                 rs.getBigDecimal("cumul"),
                 rs.getBigDecimal("seuil"),
                 rs.getBoolean("dossier_ouvert")), zone, zone);
+
+        return resultats.stream()
+                .filter(dto -> perimetre.peutAccederAdherent(demandeur, dto.adherentId()))
+                .toList();
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('CNPS:LIRE')")
+    public List<SituationImmatriculationCnpsDto> situationsImmatriculation(UUID zoneId, Utilisateur demandeur) {
+        // Même calcul que eligiblesNonImmatricules (cumul imputé vs seuil du pack DE L'ADHÉRENT), mais sans
+        // le filtre d'exclusion des adhérents déjà immatriculés — l'écran Immatriculations a besoin des deux
+        // populations (3 onglets, FONCTIONALITE_GestComtes_V1.md §7-§13). « Déjà immatriculé » = numéro CNPS
+        // sur la fiche adhérent OU sur un dossier d'immatriculation, comme dans eligiblesNonImmatricules.
+        String sql = """
+                SELECT a.id, a.matricule, a.nom, a.prenoms, act.libelle AS profession, a.telephone_principal,
+                       p.code AS pack_code, COALESCE(SUM(pd.montant_impute), 0) AS cumul,
+                       p.seuil_eligibilite_cnps AS seuil,
+                       COALESCE(a.numero_cnps, d.numero_immatriculation) AS numero_cnps,
+                       d.date_immatriculation,
+                       (d.id IS NOT NULL) AS dossier_ouvert
+                FROM adherent a
+                JOIN adhesion adh ON adh.adherent_id = a.id AND adh.date_fin IS NULL
+                JOIN pack p ON p.id = adh.pack_id
+                JOIN activite act ON act.id = a.activite_id
+                LEFT JOIN periode_droits pd ON pd.adherent_id = a.id AND pd.statut <> 'ANNULEE'
+                LEFT JOIN dossier_cnps d ON d.adherent_id = a.id
+                WHERE a.archive = false
+                  AND (CAST(? AS uuid) IS NULL OR a.zone_id = CAST(? AS uuid))
+                GROUP BY a.id, a.matricule, a.nom, a.prenoms, act.libelle, a.telephone_principal, p.code,
+                         p.seuil_eligibilite_cnps, a.numero_cnps, d.numero_immatriculation, d.date_immatriculation, d.id
+                HAVING COALESCE(SUM(pd.montant_impute), 0) >= p.seuil_eligibilite_cnps
+                ORDER BY a.nom, a.prenoms
+                """;
+
+        String zone = zoneId == null ? null : zoneId.toString();
+        List<SituationImmatriculationCnpsDto> resultats = jdbcTemplate.query(sql,
+                (rs, ligne) -> new SituationImmatriculationCnpsDto(
+                        UUID.fromString(rs.getString("id")),
+                        rs.getString("matricule"),
+                        nomComplet(rs.getString("nom"), rs.getString("prenoms")),
+                        rs.getString("profession"),
+                        rs.getString("telephone_principal"),
+                        rs.getBigDecimal("cumul"),
+                        rs.getBigDecimal("seuil"),
+                        rs.getString("numero_cnps"),
+                        rs.getObject("date_immatriculation", java.time.LocalDate.class),
+                        rs.getBoolean("dossier_ouvert")),
+                zone, zone);
 
         return resultats.stream()
                 .filter(dto -> perimetre.peutAccederAdherent(demandeur, dto.adherentId()))

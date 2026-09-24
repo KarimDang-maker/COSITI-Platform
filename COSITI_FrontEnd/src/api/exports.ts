@@ -12,13 +12,18 @@
  */
 import { client, type FichierRecu } from "@/api/client";
 
-export type TypeExport = "adherents" | "paiements" | "cnps";
+export type TypeExport = "adherents" | "paiements" | "cnps" | "audit";
 
 export interface FiltresExport {
   zoneId?: string;
   statut?: string;
   du?: string;
   au?: string;
+  /** `audit` uniquement — réservé au Super Administrateur (correctif COSITI V1 §3). */
+  entite?: string;
+  type?: string;
+  depuis?: string;
+  jusqua?: string;
 }
 
 export function lancerExport(type: TypeExport, filtres: FiltresExport = {}): Promise<FichierRecu> {

@@ -244,6 +244,11 @@ public class Adherent extends EntiteArchivable {
         return dateAdhesion;
     }
 
+    /** Renseignée par la Gestionnaire lors de la finalisation d'un adhérent préinscrit par un Agent (§5). */
+    public void setDateAdhesion(LocalDate dateAdhesion) {
+        this.dateAdhesion = dateAdhesion;
+    }
+
     public StatutAdherent getStatut() {
         return statut;
     }

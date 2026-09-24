@@ -198,7 +198,11 @@ export function ListeComptesRendus() {
                     ? "Sélectionnez les comptes rendus contrôlés à consolider."
                     : `${selection.length} compte(s) rendu(s) sélectionné(s).`}
                 </p>
-                <Button disabled={selection.length === 0} onClick={() => setConsolidationOuverte(true)}>
+                <Button
+                  variant="outline"
+                  disabled={selection.length === 0}
+                  onClick={() => setConsolidationOuverte(true)}
+                >
                   Consolider et préparer pour la DGA
                 </Button>
               </div>

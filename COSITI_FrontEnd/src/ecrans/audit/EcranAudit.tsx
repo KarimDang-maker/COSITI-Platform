@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAudit } from "@/hooks/useAudit";
+import { useLancerExport } from "@/hooks/useExports";
+import { usePermission } from "@/auth/ContexteAuth";
 import type { LigneAudit } from "@/api/audit";
 import { estErreurApi } from "@/api/erreurs";
 import { abregerIdentifiant, formaterDateHeure } from "@/lib/format";
@@ -51,6 +53,11 @@ export function EcranAudit() {
   );
 
   const { data, isLoading, isError, error } = useAudit(filtres);
+  // Réservé au Super Administrateur (correctif COSITI V1 §3) : « le bouton Exporter PDF / Imprimer
+  // l'audit doit donc être invisible pour le PCA et tous les autres rôles ». Le frontend masque —
+  // l'autorisation réelle reste vérifiée côté API (`AUDIT:EXPORTER`), jamais ici.
+  const peutExporter = usePermission("AUDIT:EXPORTER");
+  const lancerExport = useLancerExport();
 
   function mettreAJour(cle: string, valeur: string | undefined) {
     const suivants = new URLSearchParams(parametres);
@@ -108,12 +115,25 @@ export function EcranAudit() {
   return (
     <CoquilleApplication titre="Audit">
       <div className="space-y-4">
-        <div>
-          <h1>Journal d'audit</h1>
-          <p className="text-texte-doux">
-            Trace immuable des opérations. Aucune modification ni purge n'est possible depuis
-            l'application, quel que soit le rôle.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1>Journal d'audit</h1>
+            <p className="text-texte-doux">
+              Trace immuable des opérations. Aucune modification ni purge n'est possible depuis
+              l'application, quel que soit le rôle.
+            </p>
+          </div>
+          {peutExporter && (
+            <Button
+              variant="outline"
+              disabled={lancerExport.isPending}
+              onClick={() =>
+                lancerExport.mutate({ type: "audit", filtres: { entite, type, depuis: filtres.depuis } })
+              }
+            >
+              {lancerExport.isPending ? "Export en cours…" : "Exporter (CSV)"}
+            </Button>
+          )}
         </div>
 
         <BarreFiltres>

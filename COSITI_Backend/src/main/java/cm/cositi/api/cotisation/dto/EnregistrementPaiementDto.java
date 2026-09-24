@@ -16,6 +16,13 @@ public record EnregistrementPaiementDto(
         @NotBlank(message = "Le mode de paiement est obligatoire.") String modePaiement,
         String referenceTransaction,
         @NotBlank(message = "Le type de paiement est obligatoire.") String typePaiement,
-        UUID agentEncaisseurId
+        UUID agentEncaisseurId,
+        /**
+         * Recommandation structurée d'allocation Sécurité Sociale/Épargne recueillie par l'agent auprès de
+         * l'adhérent (correctif COSITI V1 §8) — facultative, et uniquement significative pour un montant
+         * supérieur à 1000 FCFA ({@code ServicePaiementImpl} vérifie ce seuil, jamais un simple commentaire
+         * libre côté client).
+         */
+        RecommandationAllocationDto recommandationAllocation
 ) {
 }

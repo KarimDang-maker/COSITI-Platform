@@ -8,6 +8,13 @@ import { DialogueConfirmation } from "@/components/cositi/dialogue-confirmation"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth, usePermission } from "@/auth/ContexteAuth";
 import {
@@ -16,6 +23,8 @@ import {
   useAnnulerPaiement,
   useSignalerIncoherencePaiement,
   useConfirmerParChefPaiement,
+  useAffectationsPaiement,
+  useRecuPaiement,
 } from "@/hooks/usePaiements";
 import { useAdherent } from "@/hooks/useAdherents";
 import { estErreurApi } from "@/api/erreurs";
@@ -44,6 +53,8 @@ export function DetailPaiement() {
 
   const { data: paiement, isLoading, isError, error } = usePaiement(id);
   const { data: adherent } = useAdherent(paiement?.adherentId);
+  const paiementValide = paiement?.statut === "VALIDE" || paiement?.statut === "RAPPROCHE";
+  const { data: affectations } = useAffectationsPaiement(paiementValide ? id : undefined);
   const valider = useValiderPaiement();
   const annuler = useAnnulerPaiement();
   const signaler = useSignalerIncoherencePaiement();
@@ -52,6 +63,8 @@ export function DetailPaiement() {
   const [dialogueCorrectionOuvert, setDialogueCorrectionOuvert] = useState(false);
   const [dialogueAnnulationOuvert, setDialogueAnnulationOuvert] = useState(false);
   const [dialogueIncoherenceOuvert, setDialogueIncoherenceOuvert] = useState(false);
+  const [recuOuvert, setRecuOuvert] = useState(false);
+  const { data: recu } = useRecuPaiement(id, recuOuvert);
 
   if (isLoading) {
     return (
@@ -126,7 +139,32 @@ export function DetailPaiement() {
           </CardContent>
         </Card>
 
+        {paiementValide && affectations && affectations.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Répartition Sécurité Sociale / Épargne</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {/* §8 : « afficher clairement cette répartition lors de l'enregistrement et du contrôle
+                  d'un paiement ». */}
+              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {affectations.map((a) => (
+                  <LigneChamp
+                    key={a.id}
+                    libelle={a.composanteCode === "EPARGNE" ? "Épargne" : "Sécurité Sociale"}
+                    valeur={formaterMontant(a.montant)}
+                  />
+                ))}
+              </dl>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="flex flex-wrap gap-3">
+          <Button variant="outline" onClick={() => setRecuOuvert(true)}>
+            Voir le reçu
+          </Button>
+
           {peutValider &&
             (estCreateur ? (
               <Tooltip>
@@ -204,6 +242,28 @@ export function DetailPaiement() {
             ))}
         </div>
       </div>
+
+      <Dialog open={recuOuvert} onOpenChange={setRecuOuvert}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reçu {recu?.numeroRecu ?? paiement.numeroRecu}</DialogTitle>
+            <DialogDescription>
+              {recu?.provisoire
+                ? "Reçu provisoire : ce paiement n'est pas encore validé par le DAF. Le reçu définitif sera disponible après validation."
+                : "Reçu définitif : ce paiement a été validé."}
+            </DialogDescription>
+          </DialogHeader>
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <LigneChamp libelle="Montant" valeur={formaterMontant(recu?.montant ?? paiement.montant)} />
+            <LigneChamp libelle="Date du paiement" valeur={formaterDate(recu?.datePaiement ?? paiement.datePaiement)} />
+            <LigneChamp libelle="Adhérent" valeur={nomAdherent} />
+            <LigneChamp
+              libelle="Statut"
+              valeur={recu?.provisoire ? "Provisoire" : "Définitif"}
+            />
+          </dl>
+        </DialogContent>
+      </Dialog>
 
       <DialogueCorrigerPaiement
         ouvert={dialogueCorrectionOuvert}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -26,17 +26,19 @@ export interface LigneZone {
 }
 
 /**
- * Couleur de série unique, reprise du jeton de marque `--cositi-vert` (#146b45).
- *
  * Recharts pose la couleur en attribut SVG et ne lit pas les variables CSS : c'est
- * le seul endroit du frontend où une valeur de couleur est écrite en clair, et
- * elle doit rester alignée sur `src/styles/tokens.css §1`. Une seule série, donc
- * une seule teinte : pas de palette catégorielle, pas de légende (le titre nomme
- * la mesure).
+ * le seul endroit du frontend où une valeur de couleur est lue hors des classes
+ * Tailwind. Plutôt que de recopier les HEX de `tokens.css` (et risquer qu'ils
+ * dérivent, comme constaté : la bordure recopiée ici avait glissé d'un caractère
+ * par rapport à `--cositi-bordure`), on lit le jeton calculé sur `:root` à l'exécution.
+ * Une seule série, donc une seule teinte : pas de palette catégorielle, pas de
+ * légende (le titre nomme la mesure).
  */
-const COULEUR_SERIE = "#146b45";
-const COULEUR_GRILLE = "#e3e7e5";
-const COULEUR_AXE = "#6b7280";
+function lireJeton(nom: string, repli: string): string {
+  if (typeof window === "undefined") return repli;
+  const valeur = getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
+  return valeur || repli;
+}
 
 type Mesure = "activation" | "collecte" | "retard";
 
@@ -87,6 +89,15 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
     );
   }
 
+  const couleurs = useMemo(
+    () => ({
+      serie: lireJeton("--primaire", "#146b45"),
+      grille: lireJeton("--bordure", "#e3e8e6"),
+      axe: lireJeton("--texte-doux", "#6b7280"),
+    }),
+    [],
+  );
+
   const definition = MESURES[mesure];
   const donnees = zones
     .map((zone) => ({
@@ -122,11 +133,11 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
         <ResponsiveContainer width="100%" height={Math.max(180, donnees.length * 44)}>
           <BarChart data={donnees} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
             {/* Grille discrète, sur l'axe des valeurs seulement : elle aide à lire, elle ne décore pas. */}
-            <CartesianGrid horizontal={false} stroke={COULEUR_GRILLE} />
+            <CartesianGrid horizontal={false} stroke={couleurs.grille} />
             <XAxis
               type="number"
               tickFormatter={(valeur: number) => definition.format(valeur)}
-              stroke={COULEUR_AXE}
+              stroke={couleurs.axe}
               tick={{ fontSize: 12 }}
               axisLine={false}
               tickLine={false}
@@ -135,7 +146,7 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
               type="category"
               dataKey="libelle"
               width={140}
-              stroke={COULEUR_AXE}
+              stroke={couleurs.axe}
               tick={{ fontSize: 12 }}
               axisLine={false}
               tickLine={false}
@@ -145,11 +156,11 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
               // Recharts type la valeur en `ValueType | undefined` : on la ramène à un nombre plutôt que
               // de forcer le type, une valeur absente devant s'afficher comme un zéro et non planter.
               formatter={(valeur) => [definition.format(Number(valeur ?? 0)), definition.libelle]}
-              contentStyle={{ borderRadius: 8, border: "1px solid #e3e7e5", fontSize: 13 }}
+              contentStyle={{ borderRadius: 8, border: `1px solid ${couleurs.grille}`, fontSize: 13 }}
             />
             <Bar dataKey="valeur" radius={[0, 4, 4, 0]} barSize={18}>
               {donnees.map((ligne) => (
-                <Cell key={ligne.zone.zoneId} fill={COULEUR_SERIE} />
+                <Cell key={ligne.zone.zoneId} fill={couleurs.serie} />
               ))}
             </Bar>
           </BarChart>

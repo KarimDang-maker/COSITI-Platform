@@ -1,16 +1,29 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ajouterPiece,
+  ajouterPiecePrestation,
   changerStatutDossier,
+  changerStatutDossierPrestation,
+  journalDossierPrestation,
   listerDeclarations,
   listerDossiers,
+  listerDossiersPrestation,
   listerEligiblesNonImmatricules,
+  listerOffres,
+  listerSituationsImmatriculation,
+  modifierObservationsPrestation,
   obtenirDossier,
+  obtenirDossierPrestation,
   ouvrirDossier,
+  ouvrirDossierPrestation,
   preparerDeclaration,
   transmettreDeclaration,
+  type CreationDossierPrestation,
   type FiltresDossiers,
+  type FiltresDossiersPrestation,
+  type RubriqueCnps,
   type StatutDossierCnps,
+  type StatutDossierPrestationCnps,
   type TypePieceCnps,
 } from "@/api/cnps";
 
@@ -97,6 +110,85 @@ export function useTransmettreDeclaration() {
   return useMutation({
     mutationFn: (variables: { declarationId: string; accuseDocumentId?: string }) =>
       transmettreDeclaration(variables.declarationId, variables.accuseDocumentId),
+    onSuccess: invalider,
+  });
+}
+
+/* ============================================================================
+ * Dossiers de prestation CNPS — même domaine de clé (`cnps`) et même stratégie
+ * d'invalidation large que ci-dessus : ouvrir un dossier de prestation change
+ * aussi le compteur `nombreDossiers` du référentiel des offres.
+ * ========================================================================== */
+
+export function useOffresCnps(rubrique?: RubriqueCnps) {
+  return useQuery({
+    queryKey: [CLE, "offres", rubrique],
+    queryFn: () => listerOffres(rubrique),
+  });
+}
+
+export function useDossiersPrestation(filtres: FiltresDossiersPrestation) {
+  return useQuery({
+    queryKey: [CLE, "dossiers-prestation", filtres],
+    queryFn: () => listerDossiersPrestation(filtres),
+    placeholderData: (precedente) => precedente,
+  });
+}
+
+export function useDossierPrestation(dossierId: string | undefined) {
+  return useQuery({
+    queryKey: [CLE, "dossier-prestation", dossierId],
+    queryFn: () => obtenirDossierPrestation(dossierId!),
+    enabled: !!dossierId,
+  });
+}
+
+export function useJournalDossierPrestation(dossierId: string | undefined) {
+  return useQuery({
+    queryKey: [CLE, "journal-prestation", dossierId],
+    queryFn: () => journalDossierPrestation(dossierId!),
+    enabled: !!dossierId,
+  });
+}
+
+export function useSituationsImmatriculation(zoneId?: string) {
+  return useQuery({
+    queryKey: [CLE, "immatriculations", zoneId],
+    queryFn: () => listerSituationsImmatriculation(zoneId),
+  });
+}
+
+export function useOuvrirDossierPrestation() {
+  const invalider = useInvalidationCnps();
+  return useMutation({
+    mutationFn: (dto: CreationDossierPrestation) => ouvrirDossierPrestation(dto),
+    onSuccess: invalider,
+  });
+}
+
+export function useAjouterPiecePrestation(dossierId: string) {
+  const invalider = useInvalidationCnps();
+  return useMutation({
+    mutationFn: (variables: { documentId: string; pieceOffreId: string }) =>
+      ajouterPiecePrestation(dossierId, variables.documentId, variables.pieceOffreId),
+    onSuccess: invalider,
+  });
+}
+
+export function useChangerStatutDossierPrestation(dossierId: string) {
+  const invalider = useInvalidationCnps();
+  return useMutation({
+    mutationFn: (variables: { statut: StatutDossierPrestationCnps; commentaire?: string }) =>
+      changerStatutDossierPrestation(dossierId, variables.statut, variables.commentaire),
+    onSuccess: invalider,
+  });
+}
+
+export function useModifierObservationsPrestation(dossierId: string) {
+  const invalider = useInvalidationCnps();
+  return useMutation({
+    mutationFn: (variables: { observations?: string; prochaineRelanceLe?: string }) =>
+      modifierObservationsPrestation(dossierId, variables.observations, variables.prochaineRelanceLe),
     onSuccess: invalider,
   });
 }

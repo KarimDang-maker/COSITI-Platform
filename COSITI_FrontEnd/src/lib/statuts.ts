@@ -120,6 +120,18 @@ const PIECE_CNPS = {
   REJETEE: { libelle: "Rejetée", teinte: "danger" },
 } satisfies TableStatuts;
 
+/**
+ * Dossiers de prestation CNPS (allocations familiales, PVID, risques professionnels) — module
+ * Gestionnaire des comptes, distinct de {@link DOSSIER_CNPS} (immatriculation).
+ */
+const DOSSIER_PRESTATION_CNPS = {
+  INCOMPLET: { libelle: "Incomplet", teinte: "attention", aide: "Des pièces obligatoires manquent." },
+  COMPLET: { libelle: "Complet", teinte: "info", aide: "Prêt à transmettre à la CNPS." },
+  TRANSMIS_CNPS: { libelle: "Transmis CNPS", teinte: "info" },
+  TRAITE: { libelle: "Traité", teinte: "succes" },
+  REJETE: { libelle: "Rejeté", teinte: "danger" },
+} satisfies TableStatuts;
+
 /* ==========================================================================
    4. Documents
    ======================================================================== */
@@ -186,7 +198,17 @@ const CANAL_RELANCE = {
 } satisfies TableStatuts;
 
 /* ==========================================================================
-   6. Paramètres — marqueurs de validation du cahier des charges
+   6. Comptes utilisateurs (administration, J11)
+   ======================================================================== */
+
+const COMPTE = {
+  ACTIF: { libelle: "Actif", teinte: "succes" },
+  SUSPENDU: { libelle: "Suspendu", teinte: "neutre" },
+  VERROUILLE: { libelle: "Verrouillé", teinte: "danger", aide: "Cinq échecs de connexion consécutifs." },
+} satisfies TableStatuts;
+
+/* ==========================================================================
+   7. Paramètres — marqueurs de validation du cahier des charges
    ======================================================================== */
 
 const VALIDATION_PARAMETRE = {
@@ -200,7 +222,7 @@ const VALIDATION_PARAMETRE = {
 } satisfies TableStatuts;
 
 /* ==========================================================================
-   7. Registre et résolution
+   8. Registre et résolution
    ======================================================================== */
 
 export const STATUTS = {
@@ -211,6 +233,7 @@ export const STATUTS = {
   modePaiement: MODE_PAIEMENT,
   remiseCaisse: REMISE_CAISSE,
   dossierCnps: DOSSIER_CNPS,
+  dossierPrestationCnps: DOSSIER_PRESTATION_CNPS,
   pieceCnps: PIECE_CNPS,
   document: DOCUMENT,
   analyseAntivirus: ANALYSE_ANTIVIRUS,
@@ -219,6 +242,7 @@ export const STATUTS = {
   resultatRelance: RESULTAT_RELANCE,
   canalRelance: CANAL_RELANCE,
   campagneRelance: CAMPAGNE_RELANCE,
+  compte: COMPTE,
   validationParametre: VALIDATION_PARAMETRE,
 } as const;
 

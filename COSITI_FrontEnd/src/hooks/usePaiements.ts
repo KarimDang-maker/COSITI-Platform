@@ -4,8 +4,10 @@ import {
   confirmerParChefPaiement,
   corrigerPaiement,
   enregistrerPaiement,
+  listerAffectationsPaiement,
   listerPaiements,
   obtenirPaiement,
+  obtenirRecu,
   signalerIncoherencePaiement,
   validerPaiement,
   type CorpsCorrectionPaiement,
@@ -84,5 +86,23 @@ export function useConfirmerParChefPaiement() {
   return useMutation({
     mutationFn: ({ id, motif }: { id: string; motif?: string }) => confirmerParChefPaiement(id, motif),
     onSuccess: (_donnees, { id }) => invalider(clientRequetes, id),
+  });
+}
+
+/** Répartition Sécurité Sociale/Épargne (§7-§8) — n'existe qu'une fois le paiement validé. */
+export function useAffectationsPaiement(id: string | undefined) {
+  return useQuery({
+    queryKey: [CLE, "affectations", id],
+    queryFn: () => listerAffectationsPaiement(id!),
+    enabled: !!id,
+  });
+}
+
+/** Reçu provisoire (avant validation) ou définitif (après) — RAPORT_V1.md §6.2 point 8. */
+export function useRecuPaiement(id: string | undefined, active: boolean) {
+  return useQuery({
+    queryKey: [CLE, "recu", id],
+    queryFn: () => obtenirRecu(id!),
+    enabled: !!id && active,
   });
 }

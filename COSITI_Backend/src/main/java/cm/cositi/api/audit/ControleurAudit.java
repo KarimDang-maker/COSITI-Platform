@@ -14,6 +14,10 @@ import java.util.UUID;
 
 /**
  * Lecture seule : aucune méthode d'écriture ni de purge n'est exposée (docs/03_SPECIFICATIONS_API.md §10).
+ *
+ * <p>L'export/impression PDF réservé au Super Administrateur (correctif COSITI V1 §3) vit dans
+ * {@code ControleurExport}/{@code ServiceExport} (jalon J10) — même infrastructure d'export CSV que
+ * adhérents/paiements/CNPS, pas un endpoint dupliqué ici.</p>
  */
 @RestController
 public class ControleurAudit {

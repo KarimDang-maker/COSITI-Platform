@@ -20,18 +20,13 @@ import {
 } from "@/hooks/useOrganisation";
 import type { Agent, AdherentResume } from "@/api/organisation";
 import { estErreurApi } from "@/api/erreurs";
-import { formaterTelephone } from "@/lib/format";
+import { formaterTelephone, moisCourant } from "@/lib/format";
 import { DialogueAjouterAgent } from "@/ecrans/organisation/DialogueAjouterAgent";
 import { DialogueDesignerChef } from "@/ecrans/organisation/DialogueDesignerChef";
 import { DialogueMouvementPortefeuille } from "@/ecrans/organisation/DialogueMouvementPortefeuille";
 
-function periodeCourante(): string {
-  const maintenant = new Date();
-  return `${maintenant.getFullYear()}-${String(maintenant.getMonth() + 1).padStart(2, "0")}`;
-}
-
 function LignePortefeuilleAgent({ agent }: { agent: Agent }) {
-  const { data: charge, isLoading } = useChargeAgent(agent.id, periodeCourante());
+  const { data: charge, isLoading } = useChargeAgent(agent.id, moisCourant());
   if (isLoading) return <Skeleton className="h-4 w-16" />;
   return <span className="chiffre">{charge?.nombreAdherents ?? "—"}</span>;
 }
@@ -181,7 +176,10 @@ export function EcranOrganisation() {
           </CardHeader>
           <CardContent>
             {zonesEnCours && <Skeleton className="h-24 w-full" />}
-            {zones && (
+            {zones && zones.length === 0 && (
+              <EtatVide titre="Aucune zone" description="Aucune zone n'est configurée sur cette plateforme." />
+            )}
+            {zones && zones.length > 0 && (
               <Table>
                 <TableHeader>
                   <TableRow>

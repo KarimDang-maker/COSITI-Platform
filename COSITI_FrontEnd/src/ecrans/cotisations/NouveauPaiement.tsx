@@ -30,6 +30,10 @@ const schema = z
     }),
     referenceTransaction: z.string().trim().optional(),
     agentEncaisseurId: z.string().optional(),
+    // Recommandation structurée d'allocation Sécurité Sociale/Épargne (§8) — facultative, uniquement
+    // significative au-delà de 1000 FCFA. Les deux champs sont liés : l'un sans l'autre n'a pas de sens.
+    allocationSecuriteSociale: z.string().trim().optional(),
+    allocationEpargne: z.string().trim().optional(),
   })
   .superRefine((valeurs, ctx) => {
     if (estModeMobileMoney(valeurs.modePaiement) && !valeurs.referenceTransaction) {
@@ -38,6 +42,14 @@ const schema = z
         path: ["referenceTransaction"],
         message:
           "La référence de transaction est obligatoire pour un paiement Orange Money ou MTN MoMo. Saisissez-la depuis le message de confirmation reçu.",
+      });
+    }
+    if ((valeurs.allocationSecuriteSociale && !valeurs.allocationEpargne) ||
+      (!valeurs.allocationSecuriteSociale && valeurs.allocationEpargne)) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["allocationEpargne"],
+        message: "Renseignez les deux montants (Sécurité Sociale et Épargne), ou aucun des deux.",
       });
     }
   });
@@ -65,6 +77,10 @@ export function NouveauPaiement() {
   } = useForm<Valeurs>({ resolver: zodResolver(schema) });
 
   const modeSelectionne = watch("modePaiement");
+  const montantSaisi = Number(watch("montant") || 0);
+  // §8 : « pour un montant supérieur à 1000 FCFA, l'agent de terrain peut recueillir la
+  // recommandation du membre » — les champs restent masqués en dessous de ce seuil.
+  const seuilRecommandationFranchi = montantSaisi > 1000;
 
   async function soumettre(valeurs: Valeurs) {
     try {
@@ -77,6 +93,13 @@ export function NouveauPaiement() {
           referenceTransaction: valeurs.referenceTransaction || undefined,
           typePaiement: TYPE_PAIEMENT,
           agentEncaisseurId: valeurs.agentEncaisseurId || undefined,
+          recommandationAllocation:
+            valeurs.allocationSecuriteSociale && valeurs.allocationEpargne
+              ? {
+                  allocationSecuriteSociale: Number(valeurs.allocationSecuriteSociale),
+                  allocationEpargne: Number(valeurs.allocationEpargne),
+                }
+              : undefined,
         },
         cleIdempotence,
       });
@@ -187,6 +210,44 @@ export function NouveauPaiement() {
               )}
             />
           </div>
+
+          {seuilRecommandationFranchi && (
+            <div className="space-y-2 rounded-lg border border-bordure bg-surface p-4">
+              <p className="text-sm font-medium">
+                Recommandation d'allocation de l'adhérent (facultative, montant &gt; 1000 FCFA)
+              </p>
+              <p className="text-xs text-texte-doux">
+                Donnée structurée (§8) — jamais un commentaire libre. La Sécurité Sociale doit rester ≥ 700
+                FCFA et la somme des deux doit égaler le montant du paiement ; sans saisie, la répartition
+                par défaut du serveur s'applique.
+              </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="allocationSecuriteSociale">Allocation Sécurité Sociale (FCFA)</Label>
+                  <Input
+                    id="allocationSecuriteSociale"
+                    type="number"
+                    min="700"
+                    aria-invalid={!!errors.allocationSecuriteSociale}
+                    {...register("allocationSecuriteSociale")}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="allocationEpargne">Allocation Épargne (FCFA)</Label>
+                  <Input
+                    id="allocationEpargne"
+                    type="number"
+                    min="0"
+                    aria-invalid={!!errors.allocationEpargne}
+                    {...register("allocationEpargne")}
+                  />
+                  {errors.allocationEpargne && (
+                    <p className="text-sm text-danger-fort">{errors.allocationEpargne.message}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {enregistrer.isError && (
             <Alerte teinte="danger">

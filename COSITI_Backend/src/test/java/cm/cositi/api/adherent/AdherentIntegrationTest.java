@@ -220,10 +220,16 @@ class AdherentIntegrationTest extends ConfigurationTestsIntegration {
                 .body("code", equalTo("ADHERENT_STATUT_TERMINAL"));
     }
 
+    /**
+     * RAPORT_V1.md §6.3/§7.2 : un changement de pack/allocation après création n'est plus appliqué
+     * directement par la Gestionnaire — elle propose, le DAF valide et l'application se produit alors
+     * seulement (séparation des tâches).
+     */
     @Test
-    void changerPackClotLAdhesionOuverteEtEnOuvreUneNouvelle() {
-        String jeton = creerUtilisateurEtSeConnecter("gest.test6", "GESTIONNAIRE_COMPTE", null);
-        UUID adherentId = UUID.fromString(given().header("Authorization", "Bearer " + jeton)
+    void changementAllocationEstApplqueSeulementApresValidationDuDaf() {
+        String jetonGestionnaire = creerUtilisateurEtSeConnecter("gest.test6", "GESTIONNAIRE_COMPTE", null);
+        String jetonDaf = creerUtilisateurEtSeConnecter("daf.test6", "DAF", null);
+        UUID adherentId = UUID.fromString(given().header("Authorization", "Bearer " + jetonGestionnaire)
                 .contentType(ContentType.JSON)
                 .body(corpsAdherent("Biya Samuel", "677111007"))
                 .when().post("/adherents")
@@ -232,15 +238,32 @@ class AdherentIntegrationTest extends ConfigurationTestsIntegration {
 
         UUID pack1000Id = jdbcTemplate.queryForObject("SELECT id FROM pack WHERE code = 'PACK_1000'", UUID.class);
 
-        given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
-                .body(Map.of("packId", pack1000Id.toString(), "effetLe", LocalDate.now().plusDays(1).toString()))
-                .when().post("/adherents/" + adherentId + "/pack")
+        // La Gestionnaire propose : rien n'est encore appliqué.
+        UUID demandeId = UUID.fromString(given().header("Authorization", "Bearer " + jetonGestionnaire)
+                .contentType(ContentType.JSON)
+                .body(Map.of("packId", pack1000Id.toString(), "montantReference", 1000,
+                        "allocationSecuriteSociale", 700, "allocationEpargne", 300))
+                .when().post("/adherents/" + adherentId + "/allocation-changes")
+                .then().statusCode(201)
+                .body("statut", equalTo("EN_ATTENTE"))
+                .extract().path("id"));
+
+        // La Gestionnaire n'a pas la permission de valider (réservée au DAF).
+        given().header("Authorization", "Bearer " + jetonGestionnaire).contentType(ContentType.JSON)
+                .body(Map.of("approuver", true))
+                .when().post("/adherents/" + adherentId + "/allocation-changes/" + demandeId + "/validate")
+                .then().statusCode(403);
+
+        // Le DAF valide : le pack est désormais appliqué.
+        given().header("Authorization", "Bearer " + jetonDaf).contentType(ContentType.JSON)
+                .body(Map.of("approuver", true, "motif", "Conforme à la demande de l'adhérent"))
+                .when().post("/adherents/" + adherentId + "/allocation-changes/" + demandeId + "/validate")
                 .then().statusCode(200)
-                .body("packId", equalTo(pack1000Id.toString()));
+                .body("statut", equalTo("VALIDEE"));
 
         Integer nbAdhesionsOuvertes = jdbcTemplate.queryForObject(
-                "SELECT count(*) FROM adhesion WHERE adherent_id = ? AND date_fin IS NULL",
-                Integer.class, adherentId);
+                "SELECT count(*) FROM adhesion WHERE adherent_id = ? AND date_fin IS NULL AND pack_id = ?",
+                Integer.class, adherentId, pack1000Id);
         org.assertj.core.api.Assertions.assertThat(nbAdhesionsOuvertes).isEqualTo(1);
     }
 }

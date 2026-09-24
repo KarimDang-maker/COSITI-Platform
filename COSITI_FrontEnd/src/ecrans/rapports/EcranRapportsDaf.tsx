@@ -28,7 +28,7 @@ import { useProduireRapportDaf, useRapportsDaf, useTransmettreRapportDaf } from 
 import { useAuth } from "@/auth/ContexteAuth";
 import type { RapportDaf } from "@/api/rapportsDaf";
 import { estErreurApi } from "@/api/erreurs";
-import { formaterDateHeure, formaterMontant, formaterNombre, formaterPeriode } from "@/lib/format";
+import { formaterDateHeure, formaterDateSaisie, formaterMontant, formaterNombre, formaterPeriode } from "@/lib/format";
 
 const TAILLE_PAGE = 25;
 
@@ -85,8 +85,8 @@ export function EcranRapportsDaf() {
     resolver: zodResolver(schema),
     defaultValues: {
       titre: "",
-      periodeDebut: moisDernier.toISOString().slice(0, 10),
-      periodeFin: finMoisDernier.toISOString().slice(0, 10),
+      periodeDebut: formaterDateSaisie(moisDernier),
+      periodeFin: formaterDateSaisie(finMoisDernier),
     },
   });
 

@@ -177,6 +177,13 @@ export function formaterDateSaisie(valeur: string | Date | null | undefined): st
   }).format(date);
 }
 
+/** Mois courant au format attendu par l'API (`AAAA-MM`), dans le fuseau de Douala — jamais celui du navigateur. */
+export function moisCourant(): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: FUSEAU, year: "numeric", month: "2-digit" }).format(
+    new Date(),
+  );
+}
+
 /**
  * Nombre de jours pleins écoulés depuis une date, dans le fuseau de Douala.
  * Sert au calcul d'affichage du retard, jamais à une décision métier : le

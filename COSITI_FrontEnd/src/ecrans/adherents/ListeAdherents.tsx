@@ -36,6 +36,9 @@ export function ListeAdherents() {
   const [parametres, definirParametres] = useSearchParams();
   const navigate = useNavigate();
   const peutCreer = usePermission("ADHERENT:CREER");
+  // Saisie préparatoire par l'Agent de terrain (correctif COSITI V1 §5) — jamais une création
+  // définitive : bouton distinct de « Nouvel adhérent », qui reste réservé à la Gestionnaire.
+  const peutPreinscrire = usePermission("ADHERENT:PREINSCRIRE");
   const peutExporter = usePermission("EXPORT:ADHERENTS");
   const lancerExport = useLancerExport();
   const [tri, setTri] = useState<SortingState>([]);
@@ -130,6 +133,12 @@ export function ListeAdherents() {
                 }
               >
                 {lancerExport.isPending ? "Export en cours…" : "Exporter (CSV)"}
+              </Button>
+            )}
+            {peutPreinscrire && (
+              <Button variant="outline" onClick={() => navigate("/adherents/preinscription")}>
+                <Plus className="size-4" aria-hidden="true" />
+                Préinscrire
               </Button>
             )}
             {peutCreer && (

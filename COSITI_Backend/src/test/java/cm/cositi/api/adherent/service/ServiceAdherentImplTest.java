@@ -57,6 +57,16 @@ class ServiceAdherentImplTest {
     /** Sert au libellé de zone des réponses de lecture (jalon J12) ; aucun test ici ne le sollicite. */
     @Mock
     private cm.cositi.api.organisation.repository.ZoneRepository zoneRepository;
+    /** Correctif COSITI V1 §5/§7-§8 ; aucun test de ce fichier ne sollicite la préinscription/finalisation. */
+    @Mock
+    private cm.cositi.api.adherent.repository.PreferenceAllocationAdherentRepository preferenceAllocationRepository;
+    @Mock
+    private cm.cositi.api.parametre.ServiceParametre serviceParametre;
+    @Mock
+    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    /** Correctif RAPORT_V1 §6.3/§7.2 ; aucun test de ce fichier ne sollicite le changement d'allocation. */
+    @Mock
+    private cm.cositi.api.adherent.repository.DemandeChangementAllocationRepository demandeChangementAllocationRepository;
 
     private ServiceAdherentImpl service;
     private Utilisateur auteur;
@@ -64,7 +74,8 @@ class ServiceAdherentImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceAdherentImpl(adherentRepository, adhesionRepository, packRepository, serviceMatricule,
-                serviceDoublonAdherent, perimetre, serviceAudit, zoneRepository);
+                serviceDoublonAdherent, perimetre, serviceAudit, zoneRepository, preferenceAllocationRepository,
+                serviceParametre, jdbcTemplate, demandeChangementAllocationRepository);
         auteur = new Utilisateur("agent1", "hash", "Agent Un");
         setId(auteur, UUID.randomUUID());
     }

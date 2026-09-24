@@ -7,6 +7,7 @@ import { TableauDonnees } from "@/components/cositi/tableau-donnees";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
+import { EtatVide } from "@/components/cositi/etat-vide";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { DialogueConfirmation } from "@/components/cositi/dialogue-confirmation";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DialogueCreerUtilisateur } from "@/ecrans/administration/DialogueCreerUtilisateur";
 import { DialogueModifierParametre } from "@/ecrans/administration/DialogueModifierParametre";
+import { usePermission } from "@/auth/ContexteAuth";
 import {
   useChangerActivation,
   useParametres,
@@ -42,10 +44,19 @@ export function EcranAdministration() {
   const onglet = parametresUrl.get("onglet") ?? "utilisateurs";
   const recherche = parametresUrl.get("recherche") ?? "";
 
+  // Comptes, rôles et paramètres sont des données sensibles qui peuvent avoir changé ailleurs
+  // (un autre administrateur, un autre onglet) depuis la dernière visite. Aucune invalidation
+  // manuelle n'est nécessaire ici : ces requêtes n'ont pas de `staleTime` (défaut 0), donc
+  // TanStack Query les considère déjà périmées et les rejoue à chaque montage de cet écran —
+  // un `invalidateQueries` explicite ne ferait que dupliquer cet appel en vol.
   const utilisateurs = useUtilisateursAdmin({ recherche: recherche || undefined });
   const roles = useRolesAdmin();
   const parametres = useParametres();
   const changerActivation = useChangerActivation();
+  // RAPORT_V1 §3.8/§4.9/§9.9 : la création/gestion des comptes revient au PCA (UTILISATEUR:GERER) ; la
+  // désactivation reste possible au SA en plus du PCA (UTILISATEUR:DESACTIVER) — le SA a perdu la création.
+  const peutGererComptes = usePermission("UTILISATEUR:GERER");
+  const peutDesactiverComptes = usePermission("UTILISATEUR:DESACTIVER");
 
   const [creationOuverte, setCreationOuverte] = useState(false);
   const [aBasculer, setABasculer] = useState<UtilisateurAdmin | null>(null);
@@ -76,12 +87,8 @@ export function EcranAdministration() {
         header: "État",
         cell: ({ row }) => (
           <span className="flex flex-wrap gap-1">
-            <BadgeStatut domaine="campagneRelance" code={row.original.actif ? "ACTIVE" : "SUSPENDUE"} />
-            {row.original.verrouille && (
-              <span className="inline-flex items-center rounded-sm border border-danger-trait bg-danger-doux px-2 py-0.5 text-xs font-semibold text-danger-fort">
-                Verrouillé
-              </span>
-            )}
+            <BadgeStatut domaine="compte" code={row.original.actif ? "ACTIF" : "SUSPENDU"} />
+            {row.original.verrouille && <BadgeStatut domaine="compte" code="VERROUILLE" />}
           </span>
         ),
       },
@@ -93,14 +100,15 @@ export function EcranAdministration() {
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <Button variant="outline" size="sm" onClick={() => setABasculer(row.original)}>
-            {row.original.actif ? "Désactiver" : "Réactiver"}
-          </Button>
-        ),
+        cell: ({ row }) =>
+          peutDesactiverComptes && (
+            <Button variant="outline" size="sm" onClick={() => setABasculer(row.original)}>
+              {row.original.actif ? "Désactiver" : "Réactiver"}
+            </Button>
+          ),
       },
     ],
-    [],
+    [peutDesactiverComptes],
   );
 
   return (
@@ -113,7 +121,7 @@ export function EcranAdministration() {
               Comptes, rôles et règles de paramétrage. Toutes les actions sont auditées.
             </p>
           </div>
-          {onglet === "utilisateurs" && (
+          {onglet === "utilisateurs" && peutGererComptes && (
             <Button onClick={() => setCreationOuverte(true)}>Créer un compte</Button>
           )}
         </div>
@@ -149,7 +157,13 @@ export function EcranAdministration() {
                 </p>
               </Alerte>
             )}
-            {utilisateurs.data && (
+            {utilisateurs.data && utilisateurs.data.contenu.length === 0 && (
+              <EtatVide
+                titre="Aucun compte trouvé"
+                description="Aucun compte ne correspond à cette recherche."
+              />
+            )}
+            {utilisateurs.data && utilisateurs.data.contenu.length > 0 && (
               <TableauDonnees
                 colonnes={colonnesUtilisateurs}
                 lignes={utilisateurs.data.contenu}
@@ -163,7 +177,16 @@ export function EcranAdministration() {
               Les huit rôles de la V1 sont <strong>fermés</strong> : ils ne se créent ni ne se suppriment.
               Cet onglet montre leurs permissions effectives, telles que le serveur les applique.
             </p>
-            {roles.data && (
+            {roles.isLoading && <SqueletteTableau colonnes={3} />}
+            {roles.isError && (
+              <Alerte teinte="danger" titre="Impossible de charger les rôles">
+                <p>{estErreurApi(roles.error) ? roles.error.message : "Une erreur inattendue est survenue."}</p>
+              </Alerte>
+            )}
+            {roles.data && roles.data.length === 0 && (
+              <EtatVide titre="Aucun rôle" description="Aucun rôle n'est configuré sur cette plateforme." />
+            )}
+            {roles.data && roles.data.length > 0 && (
               <div className="space-y-3">
                 {roles.data.map((role) => (
                   <div key={role.code} className="rounded-lg border border-bordure bg-surface p-4">
@@ -196,7 +219,20 @@ export function EcranAdministration() {
               </p>
             </Alerte>
 
-            {parametres.data && (
+            {parametres.isLoading && <SqueletteTableau colonnes={5} />}
+            {parametres.isError && (
+              <Alerte teinte="danger" titre="Impossible de charger les paramètres">
+                <p>
+                  {estErreurApi(parametres.error)
+                    ? parametres.error.message
+                    : "Une erreur inattendue est survenue."}
+                </p>
+              </Alerte>
+            )}
+            {parametres.data && parametres.data.length === 0 && (
+              <EtatVide titre="Aucun paramètre" description="Aucune règle de paramétrage n'est configurée." />
+            )}
+            {parametres.data && parametres.data.length > 0 && (
               <Table>
                 <TableHeader>
                   <TableRow>

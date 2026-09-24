@@ -170,3 +170,186 @@ export function transmettreDeclaration(declarationId: string, accuseDocumentId?:
     undefined,
   );
 }
+
+/* ============================================================================
+ * Dossiers de prestation CNPS (allocations familiales, PVID, risques
+ * professionnels) — module Gestionnaire des comptes. Distinct des dossiers
+ * d'immatriculation ci-dessus : un adhérent immatriculé peut avoir plusieurs
+ * dossiers de prestation dans le temps, chacun rattaché à une offre d'une
+ * rubrique (PF/RP/PVID). Contrat vérifié directement dans
+ * `ControleurCnps.java`/`ServiceDossierPrestationCnpsImpl.java` (backend,
+ * même lot).
+ * ========================================================================== */
+
+/** Code de rubrique CNPS (`offre_cnps.rubrique`, V16). */
+export type RubriqueCnps = "PF" | "RP" | "PVID";
+
+/** `StatutDossierPrestationCnps` (backend). Domaine `dossierPrestationCnps` de `src/lib/statuts.ts`. */
+export type StatutDossierPrestationCnps = "INCOMPLET" | "COMPLET" | "TRANSMIS_CNPS" | "TRAITE" | "REJETE";
+
+export interface PieceOffreCnps {
+  readonly id: string;
+  readonly offreId: string;
+  readonly libelle: string;
+  readonly obligatoire: boolean;
+}
+
+export interface OffreCnps {
+  readonly id: string;
+  readonly rubrique: RubriqueCnps;
+  readonly code: string;
+  readonly libelle: string;
+  readonly description: string | null;
+  readonly delaiLibelle: string | null;
+  readonly badgeMetier: string | null;
+  readonly ordreAffichage: number;
+  readonly pieces: readonly PieceOffreCnps[];
+  /** Compté par le serveur — jamais recalculé côté client (`docs/02_DESIGN_SYSTEM.md`, règle 2 `AGENTS.md`). */
+  readonly nombreDossiers: number;
+}
+
+export interface PieceDossierPrestationCnps {
+  readonly id: string;
+  readonly dossierId: string;
+  readonly pieceOffreId: string;
+  readonly libellePiece: string;
+  readonly obligatoire: boolean;
+  readonly documentId: string | null;
+  readonly statut: StatutPieceCnps;
+  readonly note: string | null;
+}
+
+export interface PieceManquantePrestation {
+  readonly pieceOffreId: string;
+  readonly libelle: string;
+  readonly statutActuel: StatutPieceCnps;
+}
+
+export interface DossierPrestationCnps {
+  readonly id: string;
+  readonly adherentId: string;
+  readonly adherentMatricule: string | null;
+  readonly adherentNomComplet: string | null;
+  readonly numeroCnps: string | null;
+  readonly offreId: string;
+  readonly offreCode: string;
+  readonly offreLibelle: string;
+  readonly rubrique: RubriqueCnps;
+  readonly statut: StatutDossierPrestationCnps;
+  readonly nombrePersonnesACharge: number | null;
+  readonly dateDepot: string | null;
+  readonly dateTransmissionCnps: string | null;
+  readonly prochaineRelanceLe: string | null;
+  readonly observations: string | null;
+  readonly motifRejet: string | null;
+  readonly pieces: readonly PieceDossierPrestationCnps[];
+  readonly piecesManquantes: readonly PieceManquantePrestation[];
+  readonly creeLe: string;
+  readonly creePar: string | null;
+}
+
+/**
+ * Journal d'activité du dossier — jamais `/audit` (réservé `AUDIT:CONSULTER`, PCA/Super Administrateur).
+ * Ne trace que les transitions de statut : pas de ligne « réception de pièce »/« relance téléphonique »
+ * distincte, le backend ne les enregistre pas comme des événements séparés à ce jour.
+ */
+export interface HistoriqueDossierPrestationCnps {
+  readonly id: string;
+  readonly statutAvant: StatutDossierPrestationCnps | null;
+  readonly statutApres: StatutDossierPrestationCnps;
+  readonly auteurId: string | null;
+  readonly horodatage: string;
+  readonly commentaire: string | null;
+}
+
+/**
+ * Situation d'un adhérent face au seuil d'immatriculation CNPS de son pack, qu'il soit déjà immatriculé
+ * ou non — `GET /cnps/immatriculations`, écran Immatriculations (3 onglets dérivés côté client de
+ * `numeroCnps`, cf. `EcranImmatriculations.tsx`).
+ */
+export interface SituationImmatriculationCnps {
+  readonly adherentId: string;
+  readonly matricule: string;
+  readonly nomComplet: string;
+  readonly profession: string | null;
+  readonly telephone: string | null;
+  readonly cumulCotise: number;
+  readonly seuilEligibilite: number;
+  readonly numeroCnps: string | null;
+  readonly dateImmatriculation: string | null;
+  readonly dossierOuvert: boolean;
+}
+
+export interface FiltresDossiersPrestation {
+  rubrique?: RubriqueCnps;
+  offreId?: string;
+  statut?: StatutDossierPrestationCnps;
+  recherche?: string;
+  page?: number;
+  taille?: number;
+}
+
+export function listerOffres(rubrique?: RubriqueCnps) {
+  return client.get<OffreCnps[]>(`/cnps/offres${parametres({ rubrique })}`);
+}
+
+export function listerDossiersPrestation(filtres: FiltresDossiersPrestation) {
+  return client.get<EnveloppeListe<DossierPrestationCnps>>(
+    `/cnps/dossiers-prestation${parametres({ ...filtres })}`,
+  );
+}
+
+export function obtenirDossierPrestation(dossierId: string) {
+  return client.get<DossierPrestationCnps>(`/cnps/dossiers-prestation/${dossierId}`);
+}
+
+export interface CreationDossierPrestation {
+  adherentId: string;
+  offreId: string;
+  nombrePersonnesACharge?: number;
+}
+
+export function ouvrirDossierPrestation(dto: CreationDossierPrestation) {
+  return client.post<DossierPrestationCnps>("/cnps/dossiers-prestation", dto);
+}
+
+export function ajouterPiecePrestation(dossierId: string, documentId: string, pieceOffreId: string) {
+  return client.post<DossierPrestationCnps>(`/cnps/dossiers-prestation/${dossierId}/pieces`, {
+    documentId,
+    pieceOffreId,
+  });
+}
+
+export function changerStatutDossierPrestation(
+  dossierId: string,
+  statut: StatutDossierPrestationCnps,
+  commentaire?: string,
+) {
+  return client.post<DossierPrestationCnps>(`/cnps/dossiers-prestation/${dossierId}/statut`, {
+    statut,
+    commentaire,
+  });
+}
+
+export function modifierObservationsPrestation(
+  dossierId: string,
+  observations: string | undefined,
+  prochaineRelanceLe: string | undefined,
+) {
+  return client.post<DossierPrestationCnps>(`/cnps/dossiers-prestation/${dossierId}/observations`, {
+    observations,
+    prochaineRelanceLe,
+  });
+}
+
+export function piecesManquantesPrestation(dossierId: string) {
+  return client.get<PieceManquantePrestation[]>(`/cnps/dossiers-prestation/${dossierId}/pieces-manquantes`);
+}
+
+export function journalDossierPrestation(dossierId: string) {
+  return client.get<HistoriqueDossierPrestationCnps[]>(`/cnps/dossiers-prestation/${dossierId}/journal`);
+}
+
+export function listerSituationsImmatriculation(zoneId?: string) {
+  return client.get<SituationImmatriculationCnps[]>(`/cnps/immatriculations${parametres({ zoneId })}`);
+}

@@ -71,6 +71,16 @@ export function obtenirPaiement(id: string) {
   return client.get<Paiement>(`/paiements/${id}`);
 }
 
+/**
+ * Donnée métier structurée (correctif COSITI V1 §8) — jamais un commentaire libre — pour la recommandation
+ * d'allocation Sécurité Sociale/Épargne qu'un agent recueille auprès de l'adhérent pour un paiement supérieur
+ * à 1000 FCFA.
+ */
+export interface RecommandationAllocation {
+  allocationSecuriteSociale: number;
+  allocationEpargne: number;
+}
+
 export interface CorpsEnregistrementPaiement {
   adherentId: string;
   datePaiement: string;
@@ -79,6 +89,7 @@ export interface CorpsEnregistrementPaiement {
   referenceTransaction?: string;
   typePaiement: string;
   agentEncaisseurId?: string;
+  recommandationAllocation?: RecommandationAllocation;
 }
 
 /** `cleIdempotence` est générée une fois au montage de l'écran, jamais de valeur de repli si `crypto.randomUUID` est indisponible. */
@@ -136,4 +147,41 @@ export function signalerIncoherencePaiement(id: string, motif: string) {
  */
 export function confirmerParChefPaiement(id: string, motif?: string) {
   return client.post<Paiement>(`/paiements/${id}/confirmer-chef`, motif ? { motif } : undefined);
+}
+
+/**
+ * Répartition Sécurité Sociale/Épargne d'un paiement validé (correctif COSITI V1 §7-§8) —
+ * `composanteCode` vaut `"CNPS"` (Sécurité Sociale) ou `"EPARGNE"`. N'existe qu'une fois le paiement
+ * validé : `ServiceAffectationPaiementImpl.affecter` ne crée ces lignes qu'à la validation.
+ */
+export interface Affectation {
+  readonly id: string;
+  readonly paiementId: string;
+  readonly composanteId: string;
+  readonly composanteCode: string | null;
+  readonly montant: number;
+  readonly regleAppliquee: string;
+}
+
+export function listerAffectationsPaiement(id: string) {
+  return client.get<Affectation[]>(`/paiements/${id}/affectations`);
+}
+
+/**
+ * Reçu (RAPORT_V1.md §6.2 point 8) : {@code provisoire} tant que le paiement n'est pas validé — le
+ * frontend affiche cette nuance plutôt que de la déduire lui-même du statut brut.
+ */
+export interface Recu {
+  readonly paiementId: string;
+  readonly numeroRecu: string;
+  readonly adherentId: string;
+  readonly montant: number;
+  readonly datePaiement: string;
+  readonly modePaiement: ModePaiement;
+  readonly statut: StatutPaiement;
+  readonly provisoire: boolean;
+}
+
+export function obtenirRecu(id: string) {
+  return client.get<Recu>(`/paiements/${id}/recu`);
 }

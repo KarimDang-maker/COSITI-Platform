@@ -35,7 +35,15 @@ interface DialogueCreerUtilisateurProps {
 }
 
 /**
- * Création d'un compte (UC-SA-01, J11).
+ * RAPORT_V1.md §3.8/§4.9/§9.9 : un Agent de terrain se crée depuis l'organisation terrain (DGA), un Chef se
+ * désigne parmi les agents existants (DGA aussi) — jamais un compte autonome par cette voie. Le Super
+ * Administrateur est un compte technique de démarrage, jamais créé ici. Le backend refuse ces trois rôles
+ * de toute façon (`UTILISATEUR_ROLE_NON_AUTORISE`) : ce filtre n'est qu'un confort, pas la sécurité.
+ */
+const ROLES_EXCLUS_DE_CETTE_CREATION = new Set(["AGENT_TERRAIN", "CHEF_AGENT_TERRAIN", "SUPER_ADMIN"]);
+
+/**
+ * Création d'un compte — réservée au PCA (`UTILISATEUR:GERER`, RAPORT_V1.md §4.9).
  *
  * **Aucun champ de mot de passe.** Il est généré par le serveur et affiché une
  * seule fois à la fin : laisser l'administrateur le choisir en ferait un secret
@@ -45,6 +53,7 @@ interface DialogueCreerUtilisateurProps {
 export function DialogueCreerUtilisateur({ ouvert, onOuvertChange }: DialogueCreerUtilisateurProps) {
   const { data: roles } = useRolesAdmin();
   const creer = useCreerUtilisateur();
+  const rolesDisponibles = (roles ?? []).filter((role) => !ROLES_EXCLUS_DE_CETTE_CREATION.has(role.code));
 
   const [roleChoisi, setRoleChoisi] = useState<CodeRole | undefined>();
   const [motDePasseInitial, setMotDePasseInitial] = useState<string | null>(null);
@@ -145,7 +154,7 @@ export function DialogueCreerUtilisateur({ ouvert, onOuvertChange }: DialogueCre
                 <Label htmlFor="role-compte">Rôle</Label>
                 <SelectRecherche
                   id="role-compte"
-                  options={(roles ?? []).map((role) => ({ valeur: role.code, libelle: role.libelle }))}
+                  options={rolesDisponibles.map((role) => ({ valeur: role.code, libelle: role.libelle }))}
                   valeur={roleChoisi}
                   onChange={(valeur) => setRoleChoisi(valeur as CodeRole | undefined)}
                   placeholder="Choisir un rôle"

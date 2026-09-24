@@ -5,6 +5,7 @@ import { EcranChangerMotDePasse } from "@/ecrans/connexion/EcranChangerMotDePass
 import { ListeAdherents } from "@/ecrans/adherents/ListeAdherents";
 import { FicheAdherent } from "@/ecrans/adherents/FicheAdherent";
 import { NouvelAdherent } from "@/ecrans/adherents/NouvelAdherent";
+import { PreinscrireAdherent } from "@/ecrans/adherents/PreinscrireAdherent";
 import { EcranOrganisation } from "@/ecrans/organisation/EcranOrganisation";
 import { JournalCotisations } from "@/ecrans/cotisations/JournalCotisations";
 import { NouveauPaiement } from "@/ecrans/cotisations/NouveauPaiement";
@@ -13,6 +14,10 @@ import { EcranDaf } from "@/ecrans/daf/EcranDaf";
 import { EcranDroits } from "@/ecrans/droits/EcranDroits";
 import { ListeDossiersCnps } from "@/ecrans/cnps/ListeDossiersCnps";
 import { FicheDossierCnps } from "@/ecrans/cnps/FicheDossierCnps";
+import { EcranDossiersCnps } from "@/ecrans/cnps/EcranDossiersCnps";
+import { FicheDossierPrestationCnps } from "@/ecrans/cnps/FicheDossierPrestationCnps";
+import { EcranImmatriculations } from "@/ecrans/cnps/EcranImmatriculations";
+import { EcranAlertes } from "@/ecrans/alertes/EcranAlertes";
 import { ListeComptesRendus } from "@/ecrans/comptesrendus/ListeComptesRendus";
 import { NouveauCompteRendu } from "@/ecrans/comptesrendus/NouveauCompteRendu";
 import { FicheCompteRendu } from "@/ecrans/comptesrendus/FicheCompteRendu";
@@ -126,6 +131,14 @@ export function RoutesApplication() {
         }
       />
       <Route
+        path="/adherents/preinscription"
+        element={
+          <GardeRoute permission="ADHERENT:PREINSCRIRE">
+            <PreinscrireAdherent />
+          </GardeRoute>
+        }
+      />
+      <Route
         path="/adherents/:id"
         element={
           <GardeRoute permission="ADHERENT:LIRE">
@@ -199,6 +212,39 @@ export function RoutesApplication() {
         element={
           <GardeRoute permission="CNPS:LIRE">
             <FicheDossierCnps />
+          </GardeRoute>
+        }
+      />
+
+      <Route
+        path="/dossiers-cnps"
+        element={
+          <GardeRoute permission="CNPS:LIRE">
+            <EcranDossiersCnps />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/dossiers-cnps/:id"
+        element={
+          <GardeRoute permission="CNPS:LIRE">
+            <FicheDossierPrestationCnps />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/immatriculations"
+        element={
+          <GardeRoute permission="CNPS:LIRE">
+            <EcranImmatriculations />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/alertes"
+        element={
+          <GardeRoute permission="CNPS:LIRE">
+            <EcranAlertes />
           </GardeRoute>
         }
       />

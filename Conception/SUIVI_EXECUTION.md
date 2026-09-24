@@ -519,3 +519,419 @@ J6 (droits et régularité).
   notes conservées ci-dessus) ; rapprochement mobile money (P1, hors
   périmètre J5) ; production/transmission du rapport DAF au PCA (`[A]`,
   J5/J10, non commencée) ; modules J7 et suivants non commencés.
+
+## Correctif COSITI V1 — Droits, hiérarchie, visibilité et workflow (vague 1)
+
+Suite à `Conception/COSITI V1 — CORRECTION DES DROITS, HIÉRARCHIE, VISIBILITÉ
+ET WORKFLOW.md`. Complète et corrige la vague 1 amorcée par un agent
+d'arrière-plan interrompu (migration `V14`, entités/DTO/repositories
+`PreferenceAllocationAdherent`/`RecommandationAllocationPaiement` déjà posés
+mais non câblés) — code front+back écrit, **tests non exécutés dans cette
+session sur demande explicite** (à rejouer avant de considérer le lot clos).
+
+- **§7-§8 (double compte Sécurité Sociale/Épargne)** : `ServiceAffectationPaiementImpl.affecter`
+  ventile désormais chaque paiement validé en deux lignes (composantes `CNPS`
+  et `EPARGNE`) selon l'ordre de priorité recommandation structurée > préférence
+  du dossier (si son montant de référence égale le montant payé) > répartition
+  par défaut (`ValidationAllocation.repartitionParDefaut`, plancher 700 FCFA).
+  `ServiceCalculDroitsImpl.imputer` n'est plus appelé que sur la ligne `CNPS` —
+  l'Épargne est un compte personnel, sans lien avec les jours de couverture du
+  pack. `ServicePaiementImpl.enregistrer` persiste la recommandation de l'agent
+  (`RecommandationAllocationPaiement`) et la valide immédiatement (échec rapide).
+  `GET /adherents/{id}/comptes` (nouveau) expose les deux soldes constatés.
+- **§5 (création vs préinscription)** : `POST /adherents/preinscription`
+  (`ADHERENT:PREINSCRIRE`, Agent) crée un adhérent minimal sans pack ni
+  adhésion ; `POST /adherents/{id}/finaliser` (`ADHERENT:CREER`, Gestionnaire)
+  ouvre le pack et enregistre la préférence d'allocation. `POST /adherents`
+  (création complète directe) reste inchangé pour la Gestionnaire.
+- **§3 (audit)** : export/impression réservés au Super Administrateur intégrés
+  à l'infrastructure d'export existante (`ServiceExport`/`ControleurExport`,
+  `POST /exports/audit`, `AUDIT:EXPORTER`) plutôt qu'un endpoint dupliqué —
+  aucune bibliothèque PDF n'existe dans `pom.xml` : export CSV, PDF/impression
+  laissés au frontend (impression navigateur) ou à une décision de dépendance
+  future, signalée plutôt qu'improvisée. Journalisé sous `AUDIT_EXPORT_PDF`
+  (dédié), pas `EXPORT_SENSIBLE`.
+- **Frontend** : écran `/adherents/preinscription` (Agent), action « Finaliser
+  le dossier » + carte comptes sur la fiche adhérent, recommandation
+  d'allocation sur le formulaire de paiement (visible si montant > 1000 FCFA),
+  carte de répartition Sécurité Sociale/Épargne sur le détail d'un paiement
+  validé, bouton d'export CSV réservé à `AUDIT:EXPORTER` sur `/audit`.
+- **Non fait dans cette vague** (signalé, pas improvisé) : §9 (visibilité des
+  relances spéciales), §11 (reporting hiérarchique unifié — à réconcilier avec
+  `compte_rendu`/`rapport_daf`), §12 (notifications email — dépendance non
+  choisie), §14 (gestion de profils par le PCA + désactivation gatée par
+  mémo Super Admin), §20 points 13-14 (démarrage : déjà couvert par Flyway ;
+  base de sauvegarde des actions : non scopée).
+- `ServiceAffectationPaiementImplTest.java`/`ServicePaiementImplTest.java`
+  corrigés et réécrits (demande explicite utilisateur, hors vague) pour
+  refléter la ventilation CNPS/EPARGNE réelle (ancien test assertait encore
+  `COOPERATIVE`) ; `ServiceAdherentImplTest.java` corrigé au passage (même
+  cause : constructeur non suivi). **116/116 tests unitaires verts**
+  (`mvn -o test`, Docker indisponible pour les 103 tests d'intégration —
+  échec identique et attendu, sans rapport avec le code corrigé).
+
+## Correctif COSITI V1 — RAPORT_V1.md (vague 1/5)
+
+Nouveau document de spécification (845 lignes), plus détaillé que le
+correctif précédent. **Constat clé, vérifié par grep** : ses §10/§11
+(« adaptations du frontend existant », « conflits ») décrivent un ancien
+prototype (`mockData.ts`, `UserSwitchModal`, code `1111`/`0000`,
+`permissions.ts` à 16 drapeaux) qui n'existe pas dans ce dépôt — ignorés
+comme instructions littérales, seules les exigences fonctionnelles (§1-9,
+§12-14) s'appliquent au code réel (déjà moderne : JWT, permissions serveur,
+aucune donnée fictive). Décisions actées avec l'utilisateur : base de
+sauvegarde en version légère (pas de seconde base Postgres — instantané
+JSON avant/après déjà dans `journal_audit`, effacement de données à
+construire en vague 4) ; SSE réel ajouté en vague 2 malgré la mise en garde
+du correctif précédent (le document le redemande explicitement).
+
+**Vague 1 — corrections ciblées sur l'existant, terminée et vérifiée**
+(`mvn -o clean test` : 116/116 tests unitaires verts, aucune régression ;
+mêmes 103 échecs Docker-dépendants qu'avant, sans rapport) :
+
+- **§4.9/§9.9 création/gestion des comptes** : `ADMINISTRATION:GERER`
+  (jusqu'ici SUPER_ADMIN seul, contrairement au document) retiré de la
+  création/modification/rôles de comptes métier. Nouvelles permissions
+  `UTILISATEUR:GERER` (PCA seul) et `UTILISATEUR:DESACTIVER` (PCA +
+  SUPER_ADMIN — mémo obligatoire pour le SA différé en vague 2, aucun mémo
+  n'existant encore, signalé en commentaire plutôt que simulé). Restriction
+  serveur des rôles assignables via cette voie (jamais AGENT_TERRAIN/
+  CHEF_AGENT_TERRAIN/SUPER_ADMIN, déjà couverts par
+  `ServiceAgentImpl.creerParDga`/`designerChef` ou par l'amorçage) — vérifiée
+  côté service, pas seulement filtrée côté frontend (`DialogueCreerUtilisateur.tsx`
+  ne filtre le select que par confort). Le SA garde la réinitialisation de
+  mot de passe.
+- **§6.3/§7.2 changement de pack/allocation après création** : la
+  Gestionnaire ne l'applique plus directement (ancien `changerPack` retiré,
+  fichiers `ChangerPackDto`/`AdhesionDto` supprimés, inutilisés ailleurs).
+  Nouveau cycle proposition (GC, `ADHERENT:PROPOSER_ALLOCATION`) → décision
+  (DAF, `ADHERENT:VALIDER_ALLOCATION`, approuver/rejeter avec motif, jamais
+  de modification de la proposition — §6.11) sur la nouvelle table
+  `demande_changement_allocation` (migration V15). L'approbation applique le
+  pack et pose une nouvelle `PreferenceAllocationAdherent`, exactement comme
+  `finaliser()` le fait à la création. Endpoints `POST/GET
+  /adherents/{id}/allocation-changes` + `POST .../{{cid}}/validate` (noms de
+  route repris tels quels du §9.5 du document).
+- **§6.2 point 8 reçu provisoire/définitif** : `RecuDto` expose désormais
+  `provisoire` (statut ≠ VALIDE/RAPPROCHE) — la règle vit côté serveur, pas
+  recalculée par le frontend. Écran `DetailPaiement.tsx` : bouton « Voir le
+  reçu » ajouté (route jusqu'ici non consommée par le frontend).
+- **§6.4/§7.3 seuil CNPS** : le paramètre `SEUIL_CNPS_PACK_700/1000`
+  (posé en V1, jamais vérifié à l'exécution) déclenche désormais une
+  notification à la Gestionnaire (`ServiceNotification.notifierRoles`)
+  quand le solde validé du compte Sécurité Sociale le franchit, après
+  chaque validation de paiement. Une seule alerte par adhérent
+  (`adherent.alerte_seuil_cnps_le`, migration V15) — un pack personnalisé
+  sans paramètre correspondant ne déclenche aucune alerte inventée.
+- **§4.4/§6.5 objectif de recouvrement** : nouveau module
+  `ServiceObjectifRecouvrement` (table `objectif_recouvrement`, migration
+  V15) — proposition (Gestionnaire ou Chef, `ORGANISATION:PROPOSER_OBJECTIF`)
+  puis décision (DGA, `ORGANISATION:DECIDER_OBJECTIF`, approuver/rejeter
+  avec motif — arbitrage, §6.11). Une seule proposition par agent et par
+  mois. Endpoints `POST/GET /agents/{id}/objectifs` + `POST
+  .../{{oid}}/decision`.
+- **Non fait dans cette vague** (signalé, pas improvisé) : le mémo
+  obligatoire pour la désactivation par le SA (attend le module mémo,
+  vague 2) ; pas d'écran frontend pour proposer/décider un changement
+  d'allocation ni un objectif de recouvrement (backend complet, frontend à
+  construire — hors temps de cette vague, à faire avant de considérer la
+  fonctionnalité livrée de bout en bout) ; tests d'intégration Docker non
+  rejoués (environnement sans Docker).
+
+## Import des données réelles COSITI (hors vagues, demande explicite)
+
+Source : `Conception/donnees.md` (converti depuis `COSITI_Suivi_Adherents LE
+VRAI.xlsx`, transmis par l'utilisateur) — 173 adhérents et 228 paiements
+réels de la coopérative, pour disposer de données réelles manipulables en
+développement plutôt que du jeu de démonstration synthétique existant.
+
+- **Transformation** (`Conception/scripts_import/parse_donnees.py` puis
+  `finalize.py`, conservés comme trace des corrections) : 3 typos de date
+  corrigées (`10/06/20236`→`2026`, `148/06/2026`→`18/06/2026`,
+  `24/07/2027`→`24/07/2026`, ce dernier de toute façon rejeté par la
+  contrainte `date_paiement <= CURRENT_DATE` sinon) ; rapprochement de noms
+  entre les deux feuilles source (`MVOMO`→`MVOMO GERMAIN`, seul candidat
+  possible) ; une adhérente présente dans les paiements mais absente de la
+  feuille Adhérents (`MEGOUANG FOMBA NELLY`) ajoutée avec pour date
+  d'inscription celle de son unique paiement ; une ligne à 0 F ignorée
+  (case « Inscription plutôt », pas une cotisation) ; montants
+  « 9 900 F » → `9900` ; modes de paiement mappés vers l'enum contraint en
+  base (`ESPECES`/`ORANGE_MONEY`/`MTN_MOMO`/`VIREMENT`) — **hypothèse
+  documentée** : les ~40 lignes « Non précisé » (reprises d'un rapport
+  financier antérieur) sont posées à `ESPECES`, à corriger si l'information
+  réelle est retrouvée.
+- **Champs absents de la source, jamais inventés comme des faits réels** :
+  zone (aucune n'existe dans le classeur → zone `HISTORIQUE` créée,
+  ville/région = « Non précisé ») ; activité/profession (non capturée →
+  code `AUTRE`, déjà seedé en V2, jamais une classification inventée) ;
+  pack (la source ne distingue pas de pack par adhérent → `PACK_1000`
+  appliqué uniformément, **à corriger pack par pack si la vraie répartition
+  est un jour connue**) ; référence Mobile Money (jamais capturée →
+  préfixe explicite `HIST-IMPORT-nnnn`, non confondable avec une vraie
+  référence opérateur).
+- **Implémentation** : `SeedDonneesReellesDev`
+  (`cm.cositi.api.adherent.bootstrap`), même famille que
+  `SeedComptesDemonstrationDev` — `@Profile({"dev","local"})` + vérification
+  explicite du profil actif, idempotent (l'existence de la zone
+  `HISTORIQUE` sert de marqueur — `Parametre` n'a volontairement aucun
+  constructeur public, AGENTS.md règle n°1, donc pas de ligne dédiée pour un
+  marqueur). Lit `dev-seed/adherents_reels.csv` et `paiements_reels.csv`
+  (classpath). Chaque adhérent et paiement est audité
+  (`ADHERENT_CREATION`/`PAIEMENT_CREATION`, motif « Import historique »).
+  **Paiements importés en statut `A_CONTROLER`** (jamais `VALIDE`
+  directement, comme toute saisie) : un compte DAF peut les valider depuis
+  l'application réelle, ce qui exerce le workflow financier sur des
+  données réelles plutôt que sur le jeu de démonstration.
+- **Vérifié réellement** : instance de développement démarrée sur un port
+  temporaire (8091, pour ne pas interférer avec l'instance de l'utilisateur
+  sur 8082) contre la vraie base Postgres locale, puis arrêtée après
+  contrôle. Résultat en base : 173 adhérents, 228 paiements, total exact
+  **1 305 700 F** — identique au total du classeur source
+  (« Total des cotisations perçues »). Répartition par mode : 164 Espèces
+  (1 000 300 F), 59 Orange Money (280 400 F), 5 MTN MoMo (25 000 F).
+
+## Module Gestionnaire des comptes — Dossiers CNPS / PVID / Risques professionnels (vague 1/4)
+
+Trois documents dans `Conception/Gestionaires de comptes/` :
+`FONCTIONALITE_GestComtes_V1.md` et `V2.md` (mockups détaillés — Alertes &
+Relances, Immatriculations, Prestations familiales/PVID/RP structurées en
+rubriques × offres avec délais/pièces par offre) et
+`FONCTIONALITE_GestComtes_V2_BACK_FRONT.md` (checklist technique, très
+stricte sur « ne jamais inventer un endpoint »). Deux agents d'exploration
+ont d'abord audité le code réel (backend + frontend) : le module CNPS
+existant (`DossierCnps`, jalon J7) modélise **uniquement l'immatriculation**
+(un dossier par adhérent, contrainte `UNIQUE`) — aucune notion de
+rubrique/offre, et rien pour une demande de prestation (potentiellement
+plusieurs par adhérent dans le temps). C'est le cœur structurel manquant de
+toute la V2, construit dans cette vague.
+
+**Décisions de conception** (le contrat n'existait pas encore pour ces
+points — contenu repris des documents, pas inventé) :
+
+- Nouvelle entité `DossierPrestationCnps`, **distincte** de `DossierCnps` :
+  fusionner aurait cassé la contrainte `adherent_id UNIQUE` et le cycle de
+  vie d'immatriculation déjà testé.
+- Catalogue référentiel `offre_cnps` (rubrique PF/RP/PVID, code, libellé,
+  délai affiché, badge métier) + `piece_offre_cnps` (pièces obligatoires par
+  offre), seedés avec le contenu exact des **12 offres** décrites dans
+  `V1.md` §16-19 et `V2.md` §12-15/§36-39 (4 PF + 4 PVID + 4 RP) — lecture
+  seule côté application, comme `activite`/`pack` (référentiel géré par
+  migration, jamais par une route de création).
+- **Journal d'activité du dossier = vue scopée, jamais `AUDIT:CONSULTER`** :
+  donner l'accès audit global à la Gestionnaire romprait la visibilité
+  hiérarchique verrouillée à la vague précédente (PCA/SUPER_ADMIN seuls).
+  Nouvel endpoint dédié `GET .../journal`, gated `CNPS:LIRE` + périmètre du
+  dossier — réplique exactement le pattern déjà en place pour
+  `HistoriqueDossierCnps` (dont le Javadoc dit explicitement pourquoi il
+  existe), plutôt qu'une requête scopée sur `journal_audit` comme envisagé
+  initialement dans le plan.
+- `Relance` (module recouvrement terrain existant) **non réutilisé** :
+  suivi de relance porté par `DossierPrestationCnps.prochaineRelanceLe` +
+  `observations`, forme trop différente pour une extension sûre.
+- Statuts `INCOMPLET → COMPLET → TRANSMIS_CNPS → TRAITE`, avec
+  `TRANSMIS_CNPS → REJETE → INCOMPLET` — repris des captures (« Incomplet »,
+  « Transmis CNPS ») et alignés sur le cycle déjà en place pour
+  `StatutDossierCnps`, décision technique documentée dans l'enum, pas une
+  règle CNPS validée (même réserve que pour l'immatriculation).
+
+**Réalisé** : migration `V16__dossiers_prestation_cnps.sql` (5 tables,
+seed des 12 offres et de leurs pièces) ; module `cm.cositi.api.cnps`
+étendu — 6 entités, 5 repositories, 11 DTOs, `TypeOperation.CNPS_OBSERVATIONS_MODIFICATION` ;
+`ServiceDossierPrestationCnpsImpl` (ouvrir avec pièces auto-créées depuis le
+référentiel de l'offre, lister/filtrer par rubrique/offre/statut/recherche
+matricule-adhérent-n°CNPS via `JdbcTemplate` — pas de relation JPA
+inter-module, `docs/02_CLASSES_ET_METHODES.md §1` —, ajouter une pièce,
+changer de statut avec refus si pièces obligatoires manquantes pour
+COMPLET et motif obligatoire pour REJETE, modifier observations/relance,
+pièces manquantes, journal scopé) ; `ControleurCnps` étendu de 9 endpoints
+(`GET /offres`, CRUD/lecture de `/dossiers-prestation`, pièces, statut,
+observations, pièces-manquantes, journal), mêmes permissions existantes
+`CNPS:LIRE`/`CNPS:GERER`/`CNPS:CHANGER_STATUT` et `ServicePerimetreDonnees`
+réutilisé tel quel. Module Documents (upload chiffré) réutilisé sans
+modification.
+
+**Vérifié réellement** : `mvn -o clean test` — **126 tests unitaires
+verts, 0 régression** (mêmes 103 échecs Docker-dépendants qu'avant, sans
+rapport, confirmés spécifiques à `ConfigurationTestsIntegration`/
+Testcontainers et non à ce lot). 10 nouveaux tests
+`ServiceDossierPrestationCnpsImplTest` (ouverture avec pièces du
+référentiel, refus d'ouverture sur offre introuvable/inactive, blocage du
+passage à COMPLET tant qu'une pièce obligatoire manque, autorisation une
+fois toutes fournies, transition hors graphe refusée, motif de rejet
+obligatoire, ajout de pièce refusé sur dossier figé ou hors référentiel,
+distinction ATTENDUE/REJETEE, journal scopé). Instance de développement
+démarrée sur le port temporaire 8091 (jamais le port 8082 de
+l'utilisateur) contre la vraie base Postgres locale : catalogue des 12
+offres, création de dossier avec pièces auto-générées, filtrage par
+rubrique, recherche par matricule, refus 409 à la transition COMPLET avec
+pièce manquante, journal du dossier — tous vérifiés, dossier de test
+supprimé et instance arrêtée après contrôle.
+
+**Signalé, pas corrigé (hors périmètre de cette vague)** : bug
+préexistant de double encodage UTF-8 sur les caractères accentués
+(« é » stocké/servi en « Ã© »), observé aussi bien sur les anciennes
+données de démonstration V2 que sur les nouvelles données V16 — donc
+systémique et antérieur à ce lot, pas introduit par lui.
+
+**Non fait dans cette vague** (reste des 4 vagues du module Gestionnaire
+des comptes) : Alertes & Relances (centre catégorisé, agrégation
+adhérents en retard + seuil CNPS + dossiers incomplets), écran
+Immatriculations dédié, dashboard CNPS par rubrique/offre (4 cartes),
+composants génériques réutilisés PF/RP/PVID, recherche/filtres frontend,
+détail de dossier, bouton Export CNPS câblé côté écrans CNPS ; tests
+d'intégration RBAC dédiés à ce nouveau module (403/périmètre/audit) ;
+aucun écran frontend pour ce nouveau backend — volontairement, en attente
+des vagues suivantes du même plan.
+
+## Module Gestionnaire des comptes — Frontend (Alertes, Immatriculations, Dossiers CNPS) + hygiène de cache
+
+Suite directe de la vague précédente (backend seul) : construction du
+frontend des 3 écrans manquants, sur la base de 21 captures de l'ancienne
+plateforme (`COSITI_FrontEnd/COSITI/Gestionaire des comptes/**`, référence
+**fonctionnelle uniquement** — jamais le style ni la barre latérale de
+cette ancienne version) et des 3 documents `FONCTIONALITE_GestComtes_*`.
+Un audit UI/UX transverse (`docs/02_DESIGN_SYSTEM.md`) et un système de
+nettoyage de cache ont été ajoutés à la demande explicite de l'utilisateur,
+en cours de vague.
+
+**Vague 0 — corrections de conformité au design system (existant, 6
+écarts trouvés par audit, tous corrigés)** : couleurs Recharts recopiées en
+HEX au lieu d'être lues depuis les jetons (`graphique-zones.tsx` — a aussi
+révélé un vrai écart de teinte, la bordure recopiée avait dérivé d'un
+caractère par rapport à `--cositi-bordure`) ; badge « Verrouillé » construit
+à la main plutôt que via `BadgeStatut` (nouveau domaine `compte` ajouté à
+`lib/statuts.ts`) ; plusieurs boutons `default` visibles simultanément sur
+trois écrans (`FicheDossierCnps.tsx`, `EcranDaf.tsx`,
+`ListeComptesRendus.tsx`) ; une date formatée par `.toISOString().slice()`
+au lieu de `formaterDateSaisie` (fuseau UTC au lieu de Douala,
+`EcranRapportsDaf.tsx`) ; construction manuelle du mois courant dupliquée
+dans deux fichiers (consolidée en un seul `moisCourant()` dans
+`lib/format.ts`) ; états vide/chargement/erreur manquants sur plusieurs
+onglets de `EcranAdministration.tsx` et la carte Zones de
+`EcranOrganisation.tsx`.
+
+**Extensions backend minimales (additives, requises pour ne jamais
+afficher une donnée fabriquée côté écran)** :
+- Nouveau `GET /cnps/immatriculations` (`ServiceDossierCnps
+  .situationsImmatriculation`, `SituationImmatriculationCnpsDto`) :
+  reprend exactement le calcul de `eligiblesNonImmatricules` (cumul imputé
+  vs seuil du pack de l'adhérent) sans le filtre d'exclusion des
+  adhérents déjà immatriculés, avec profession/téléphone (jointure
+  `activite`) et numéro/date d'immatriculation. Sert les 3 onglets de
+  l'écran Immatriculations à partir d'un seul appel.
+- `DossierPrestationCnpsDto` enrichi de `adherentMatricule`,
+  `adherentNomComplet`, `numeroCnps` — chargés via une requête par
+  adhérent (`chargerIdentite`/`chargerIdentites`, une requête à un seul
+  paramètre fixe par adhérent plutôt qu'une clause `IN` à arité variable :
+  plus simple à isoler en test unitaire, coût négligeable vu le
+  plafond de pagination à 200 lignes).
+- **Deux bugs réels trouvés en vérifiant en direct contre la base de
+  développement, corrigés avant livraison** : (1) `chargerIdentite`
+  concaténait `nom + " " + prenoms` sans garde contre un `prenoms` nul
+  (fréquent sur les 173 adhérents importés de l'historique), produisant
+  visiblement le mot « null » dans l'interface — corrigé en réutilisant
+  la même règle que `ServiceDossierCnpsImpl.nomComplet` ; (2) confirmé au
+  passage, sans le corriger (hors périmètre) : la chaîne de calcul des
+  droits n'impute aucune période (`periode_droits` vide) même pour des
+  paiements validés pendant cette vérification — signalé, pas investigué
+  plus loin ici.
+- 2 tests unitaires ajoutés (`ServiceDossierCnpsImplTest`, couvrant les
+  deux populations et le filtre de périmètre). Suite complète à **128
+  tests unitaires verts** (mêmes ~103 échecs Docker-dépendants qu'avant,
+  sans rapport).
+
+**Décisions de conception actées** :
+- **« Vérification cycle 15/30 » — hypothèse `[A]`, à valider par la
+  COSITI** : aucun champ backend ne trace la date du contrôle bimensuel
+  réel. Cet onglet (présent sur les écrans Immatriculations et Alertes)
+  affiche l'ensemble des adhérents suivis par le mécanisme de seuil CNPS,
+  immatriculés ou non — pas une date fabriquée.
+- Filtre « Certificat de scolarité » visible sur les captures : **non
+  construit**, `CritereRechercheDossierPrestation` ne porte aucune colonne
+  pour ça (le Javadoc du DTO le dit explicitement) — ni actif, ni faux
+  contrôle désactivé.
+- Journal d'activité du dossier : affiche fidèlement les transitions de
+  statut fournies par `GET /cnps/dossiers-prestation/{id}/journal» — pas
+  de types d'événements libres (« réception de pièce »...) que le backend
+  n'enregistre pas.
+- Bandeau « Conseil de Surveillance / lecture seule » des captures : **non
+  reproduit** — ce rôle, remplacé par le Super Administrateur, est hors
+  périmètre du Gestionnaire des comptes (V2 §1/§4).
+- **Détail de dossier construit en page (`/dossiers-cnps/:id`), pas en
+  modale contrairement aux captures** : une modale y aurait nécessité
+  d'en ouvrir une seconde pour ajouter une pièce
+  (`DialogueTeleverserDocument`), interdit explicitement par
+  `docs/02_DESIGN_SYSTEM.md §9.2` (« fenêtre modale à l'intérieur d'une
+  fenêtre modale »). Mêmes conventions que `FicheDossierCnps.tsx`
+  existant.
+- **Export CSV non câblé sur les nouveaux écrans Dossiers CNPS et
+  Immatriculations** : `POST /exports/cnps` n'exporte que la table
+  `dossier_cnps` (immatriculation), pas `dossier_prestation_cnps` ni la
+  vue unifiée du nouvel endpoint — câbler le bouton y aurait exporté des
+  données différentes de ce que l'écran affiche. Câblé uniquement sur
+  `ListeDossiersCnps.tsx` (écran d'immatriculation existant, dont les
+  données correspondent exactement à cet export), qui n'avait jusqu'ici
+  aucun bouton.
+
+**Nettoyage de cache (demande explicite)** : `deconnecter()`
+(`ContexteAuth.tsx`) appelle désormais `clientRequetes.clear()` — purge
+tout le cache TanStack Query en mémoire, pour qu'aucune donnée d'un
+compte ne survive à la session suivante sur un poste partagé. Pour le
+retour sur `/administration`, aucune invalidation manuelle n'a été
+ajoutée : les requêtes de ce domaine n'ont pas de `staleTime` (défaut 0),
+donc TanStack Query les rejoue déjà à chaque montage de l'écran — un
+`invalidateQueries` explicite testé en premier lieu s'est révélé
+**redondant et généreait une régression** (double appel en vol contre un
+gestionnaire MSW à usage unique dans les tests), retiré.
+
+**Écrans livrés** :
+- `/dossiers-cnps` (`EcranDossiersCnps.tsx`) — 4 cartes KPI (PF/RP/PVID/
+  Tous, totaux agrégés côté client à partir des `nombreDossiers` déjà
+  comptés par offre côté serveur), tuiles d'offres par rubrique,
+  détail d'offre, recherche/filtres serveur, tableau de dossiers.
+  Composants réutilisés (un seul jeu, pas de duplication par rubrique) :
+  `CarteRubriqueCnps`, `TuileOffreCnps`/`TuileToutesLesOffres`,
+  `DetailOffreCnps`.
+- `/dossiers-cnps/:id` (`FicheDossierPrestationCnps.tsx`) — identité,
+  transitions de statut (une seule action `default` à la fois),
+  checklist de pièces interactive (`ListePiecesDossierPrestation`, ajout
+  via `DialogueTeleverserDocument` existant), dates, observations,
+  journal d'activité (`JournalActiviteDossier`).
+- `/immatriculations` (`EcranImmatriculations.tsx`) — bandeau règle
+  métier, 3 onglets dérivés d'un seul appel réel, recherche, action
+  « Éligible CNPS » (ouvre un dossier d'immatriculation,
+  `useOuvrirDossierCnps` déjà existant) ou « Dossier Allocations »
+  (navigue vers `/dossiers-cnps` filtré par matricule).
+- `/alertes` (`EcranAlertes.tsx`) — 5 onglets composés de 3 requêtes
+  réelles (`GET /droits/retardataires`, `GET /cnps/immatriculations`,
+  `GET /cnps/dossiers-prestation?statut=INCOMPLET`) — jamais un
+  `GET /alertes` unique inventé. Aucune pastille de priorité
+  ATTENTION/URGENT : aucun DTO ne la fournit, pas inventée côté client.
+- 3 entrées ajoutées à la barre latérale existante (`navigation-laterale
+  .tsx`), gated `CNPS:LIRE` — la barre elle-même non retouchée
+  structurellement, conformément à la demande.
+
+**Vérifié réellement** : `mvn -o clean test` (backend, 128/128 unitaires,
+0 régression) ; `npx tsc -b`, `npm run build`, `npm run test` (frontend,
+**102/102 tests verts**, dont 8 nouveaux — 4 fichiers de smoke test un par
+écran + 1 test dédié au nettoyage de cache à la déconnexion) ; instance de
+développement sur le port temporaire 8091 (jamais 8082) contre la vraie
+base Postgres locale : `GET /cnps/immatriculations` vérifié dans ses deux
+branches (adhérent éligible non immatriculé, adhérent déjà immatriculé
+avec numéro et date) via des données de test insérées puis nettoyées
+(paiements réels temporairement validés puis remis à `A_CONTROLER`,
+lignes `periode_droits`/`dossier_cnps`/`dossier_prestation_cnps` de test
+supprimées après contrôle) ; enrichissement de
+`GET /cnps/dossiers-prestation` vérifié de bout en bout, bug d'affichage
+« null » trouvé et corrigé au passage.
+
+**Non fait dans cette vague** (signalé, pas improvisé) : pas de
+vérification manuelle dans un navigateur réel (aucun outil
+d'automatisation de navigateur disponible dans cette session) — la
+vérification s'appuie sur la compilation TypeScript stricte, la
+construction de production et la suite de tests de rendu (React Testing
+Library + MSW, y compris les nouveaux écrans) ; tests d'intégration
+backend RBAC dédiés au nouvel endpoint `/cnps/immatriculations` (401/403)
+non ajoutés, seuls des tests unitaires de service existent pour ce lot ;
+la cause racine du défaut d'imputation des droits constaté en vérifiant
+(§ ci-dessus) n'a pas été creusée, hors périmètre de cette vague frontend.

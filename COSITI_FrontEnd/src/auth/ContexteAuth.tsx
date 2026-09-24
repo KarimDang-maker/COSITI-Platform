@@ -29,6 +29,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { client } from "@/api/client";
 import { definirJetonAcces, effacerJetonAcces, EVENEMENT_SESSION_EXPIREE } from "@/auth/jeton";
 import type { CodePermission, ReponseConnexion, Utilisateur } from "@/auth/types";
@@ -49,6 +50,7 @@ const ContexteAuth = createContext<ContexteAuthValeur | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [statut, setStatut] = useState<StatutSession>("initialisation");
   const [utilisateur, setUtilisateur] = useState<Utilisateur | null>(null);
+  const clientRequetes = useQueryClient();
 
   const chargerProfil = useCallback(async () => {
     const moi = await client.get<Utilisateur>("/auth/moi");
@@ -114,8 +116,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       effacerJetonAcces();
       setUtilisateur(null);
       setStatut("anonyme");
+      // Purge tout le cache TanStack Query en mémoire : aucune donnée d'un compte
+      // ne doit survivre à la session suivante sur le même poste partagé.
+      clientRequetes.clear();
     }
-  }, []);
+  }, [clientRequetes]);
 
   const aLaPermission = useCallback(
     (permission: CodePermission) => utilisateur?.permissions.includes(permission) ?? false,
