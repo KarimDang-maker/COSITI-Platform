@@ -80,15 +80,8 @@ interface GraphiqueZonesProps {
 export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
   const [mesure, setMesure] = useState<Mesure>("activation");
   const [tableauVisible, setTableauVisible] = useState(false);
-
-  if (zones.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-bordure-forte p-6 text-center text-texte-doux">
-        Aucune zone à comparer.
-      </p>
-    );
-  }
-
+  // Avant le retour anticipé ci-dessous : un Hook ne peut jamais être appelé
+  // conditionnellement (règle des Hooks React).
   const couleurs = useMemo(
     () => ({
       serie: lireJeton("--primaire", "#146b45"),
@@ -97,6 +90,14 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
     }),
     [],
   );
+
+  if (zones.length === 0) {
+    return (
+      <p className="rounded-lg border border-dashed border-bordure-forte p-6 text-center text-texte-doux">
+        Aucune zone à comparer.
+      </p>
+    );
+  }
 
   const definition = MESURES[mesure];
   const donnees = zones
