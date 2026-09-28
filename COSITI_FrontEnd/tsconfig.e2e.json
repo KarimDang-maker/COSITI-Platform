@@ -1,0 +1,33 @@
+{
+  /*
+   * Projet TypeScript de la recette E2E.
+   *
+   * Sans lui, `e2e/**` et `playwright.config.ts` n'appartiennent a AUCUN projet :
+   * `tsconfig.app.json` n'inclut que `src`, `tsconfig.node.json` que `vite.config.ts`.
+   * Une faute de frappe dans une spec ne se revelait alors qu'a l'execution, soit
+   * douze minutes apres le lancement de la pile. `tsc -b` la signale desormais en
+   * quelques secondes, avant meme de demarrer PostgreSQL.
+   */
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.e2e.tsbuildinfo",
+    "target": "es2023",
+    "lib": ["ES2023", "DOM"],
+    "types": ["node"],
+    "skipLibCheck": true,
+
+    /* `bundler` et non `nodenext` : Playwright transpile lui-meme les specs et accepte
+       les imports sans extension (`./comptes`). Exiger `./comptes.js` ici ferait echouer
+       la verification de types sur du code qui s'execute parfaitement. */
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["e2e", "playwright.config.ts"]
+}
