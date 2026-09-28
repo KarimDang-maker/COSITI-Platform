@@ -1,4 +1,8 @@
 /* COSITI: import de `cn` recâblé sur `@/lib/utils` (le CLI shadcn récent génère un import du paquet publié `cn`, non utilisé ici — voir docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md). */
+/* COSITI: gabarit v1.1 — en-tête en petites capitales 12 px sur `surface-douce`
+   (texte `texte-doux-fort`, 5,73:1), cellules 16 × 20 px, séparateurs
+   `bordure`, survol `surface-survol`. Le conteneur (carte, bordure) est posé
+   par `TableauDonnees` ou `CarteSection`, pas ici. */
 "use client"
 
 import * as React from "react"
@@ -12,7 +16,7 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn("w-full caption-bottom border-collapse text-sm", className)}
         {...props}
       />
     </div>
@@ -23,7 +27,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      className={cn("bg-surface-douce [&_tr]:border-b [&_tr]:border-bordure [&_tr]:hover:bg-transparent", className)}
       {...props}
     />
   )
@@ -44,7 +48,7 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
     <tfoot
       data-slot="table-footer"
       className={cn(
-        "border-t bg-muted/50 font-medium [&>tr]:last:border-b-0",
+        "border-t border-bordure bg-surface-douce font-semibold [&>tr]:last:border-b-0",
         className
       )}
       {...props}
@@ -57,7 +61,7 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
     <tr
       data-slot="table-row"
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-b border-bordure transition-colors duration-(--duree-rapide) hover:bg-surface-survol/60 has-aria-expanded:bg-surface-survol data-[state=selected]:bg-primaire-doux",
         className
       )}
       {...props}
@@ -70,7 +74,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "h-11 px-5 text-left align-middle text-2xs font-bold tracking-capitale whitespace-nowrap text-texte-doux-fort uppercase [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props}
@@ -83,7 +87,7 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
     <td
       data-slot="table-cell"
       className={cn(
-        "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        "px-5 py-3.5 align-middle whitespace-nowrap text-texte [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
         className
       )}
       {...props}

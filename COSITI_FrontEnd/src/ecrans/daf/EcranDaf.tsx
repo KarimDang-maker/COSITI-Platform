@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
+import { ClipboardCheck } from "lucide-react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
+import { Pagination } from "@/components/cositi/pagination";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
@@ -187,12 +190,13 @@ export function EcranDaf() {
 
   return (
     <CoquilleApplication titre="DAF">
-      <div className="space-y-4">
-        <div>
-          <h1>Contrôle DAF</h1>
-          <p className="text-texte-doux">Paiements en attente de contrôle (statut « À contrôler »).</p>
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Contrôle DAF"
+          description="Paiements en attente de contrôle (statut « À contrôler »)."
+        />
 
+        {/* Barre hors du tableau : le filtre reste modifiable quand la file est vide ou en chargement. */}
         <BarreFiltres>
           <div className="space-y-1.5">
             <Label htmlFor="filtre-mode">Mode de paiement</Label>
@@ -229,36 +233,29 @@ export function EcranDaf() {
           <EtatVide
             titre="Aucun paiement à contrôler"
             description="Tous les paiements enregistrés ont déjà été confirmés ou font l'objet d'une incohérence signalée."
+            icone={ClipboardCheck}
           />
         )}
 
         {data && data.contenu.length > 0 && (
-          <>
-            <TableauDonnees
-              colonnes={colonnes}
-              lignes={data.contenu}
-              cleLigne={(p) => p.id}
-              tri={tri}
-              onChangerTri={setTri}
-              onActiverLigne={(p) => navigate(`/cotisations/${p.id}`)}
-              libelleLigne={(p) => `Ouvrir le paiement ${p.numeroRecu}`}
-            />
-
-            <div className="flex items-center justify-between text-sm text-texte-doux">
-              <p>{data.totalElements} paiements à contrôler</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 0} onClick={() => changerPage(page - 1)}>
-                  Précédent
-                </Button>
-                <span>
-                  Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                </span>
-                <Button variant="outline" size="sm" disabled={page + 1 >= data.totalPages} onClick={() => changerPage(page + 1)}>
-                  Suivant
-                </Button>
-              </div>
-            </div>
-          </>
+          <TableauDonnees
+            colonnes={colonnes}
+            lignes={data.contenu}
+            cleLigne={(p) => p.id}
+            tri={tri}
+            onChangerTri={setTri}
+            onActiverLigne={(p) => navigate(`/cotisations/${p.id}`)}
+            libelleLigne={(p) => `Ouvrir le paiement ${p.numeroRecu}`}
+            pied={
+              <Pagination
+                page={page}
+                totalPages={data.totalPages}
+                totalElements={data.totalElements}
+                libelleElements="paiements à contrôler"
+                onChangerPage={changerPage}
+              />
+            }
+          />
         )}
       </div>
     </CoquilleApplication>

@@ -2,11 +2,12 @@ import { useState } from "react";
 import { useParams } from "react-router";
 import { toast } from "sonner";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
 import { Alerte } from "@/components/cositi/alerte";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { DialogueConfirmation } from "@/components/cositi/dialogue-confirmation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth, usePermission } from "@/auth/ContexteAuth";
@@ -87,13 +88,91 @@ export function DetailPaiement() {
   return (
     <CoquilleApplication titre="Détail du paiement">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1>Paiement {paiement.numeroRecu}</h1>
-            <p className="text-texte-doux">{nomAdherent}</p>
-          </div>
-          <BadgeStatut domaine="paiement" code={paiement.statut} />
-        </div>
+        <EnTetePage
+          titre={<>Paiement {paiement.numeroRecu}</>}
+          description={nomAdherent}
+          statut={<BadgeStatut domaine="paiement" code={paiement.statut} />}
+          filAriane={[{ libelle: "Cotisations", chemin: "/cotisations" }, { libelle: "Détail du paiement" }]}
+          actions={
+            <>
+              {peutValider &&
+                (estCreateur ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button disabled>Valider</Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>Vous ne pouvez pas valider un paiement que vous avez vous-même saisi.</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    disabled={valider.isPending}
+                    onClick={() => {
+                      valider.mutate(paiement.id, {
+                        onSuccess: () => toast.success("Paiement validé."),
+                        onError: (e) => toast.error(estErreurApi(e) ? e.message : "La validation a échoué."),
+                      });
+                    }}
+                  >
+                    {valider.isPending ? "Validation en cours…" : "Valider"}
+                  </Button>
+                ))}
+
+              {peutCorriger && (
+                <Button variant="outline" onClick={() => setDialogueCorrectionOuvert(true)}>
+                  Corriger
+                </Button>
+              )}
+
+              {peutAnnuler && (
+                <Button variant="destructive" onClick={() => setDialogueAnnulationOuvert(true)}>
+                  Annuler
+                </Button>
+              )}
+
+              {peutSignalerIncoherence && (
+                <Button variant="destructive" onClick={() => setDialogueIncoherenceOuvert(true)}>
+                  Signaler une incohérence
+                </Button>
+              )}
+
+              {peutConfirmerChef &&
+                (paiement.confirmeParChefId || paiement.statut === "ANNULE" || paiement.statut === "INCOHERENCE" ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <Button variant="outline" disabled>
+                          Confirmer la collecte
+                        </Button>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {paiement.confirmeParChefId
+                        ? "Ce paiement a déjà été confirmé par un Chef."
+                        : "Un paiement annulé ou incohérent ne peut pas être confirmé par le Chef."}
+                    </TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    variant="outline"
+                    disabled={confirmerChef.isPending}
+                    onClick={() => {
+                      confirmerChef.mutate(
+                        { id: paiement.id },
+                        {
+                          onSuccess: () => toast.success("Collecte confirmée."),
+                          onError: (e) => toast.error(estErreurApi(e) ? e.message : "La confirmation a échoué."),
+                        },
+                      );
+                    }}
+                  >
+                    {confirmerChef.isPending ? "Confirmation en cours…" : "Confirmer la collecte"}
+                  </Button>
+                ))}
+            </>
+          }
+        />
 
         {paiement.statut === "INCOHERENCE" && paiement.motifIncoherence && (
           <Alerte teinte="danger" titre="Incohérence signalée par le DAF">
@@ -101,108 +180,26 @@ export function DetailPaiement() {
           </Alerte>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Informations</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <LigneChamp libelle="Montant" valeur={formaterMontant(paiement.montant)} />
-              <LigneChamp libelle="Date du paiement" valeur={formaterDate(paiement.datePaiement)} />
-              <div>
-                <dt className="text-xs font-semibold tracking-wide text-texte-doux-fort uppercase">Mode de paiement</dt>
-                <dd>
-                  <BadgeStatut domaine="modePaiement" code={paiement.modePaiement} />
-                </dd>
-              </div>
-              <LigneChamp libelle="Référence" valeur={paiement.referenceTransaction ?? "—"} />
-              <LigneChamp libelle="Adhérent" valeur={nomAdherent} />
-              <LigneChamp libelle="Téléphone" valeur={adherent ? formaterTelephone(adherent.telephonePrincipal) : "—"} />
-              <LigneChamp
-                libelle="Confirmation hiérarchique (Chef)"
-                valeur={paiement.confirmeLe ? `Confirmée le ${formaterDateHeure(paiement.confirmeLe)}` : "Non confirmée"}
-              />
-            </dl>
-          </CardContent>
-        </Card>
+        <CarteSection titre="Informations">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <LigneChamp libelle="Montant" valeur={formaterMontant(paiement.montant)} />
+            <LigneChamp libelle="Date du paiement" valeur={formaterDate(paiement.datePaiement)} />
+            <div>
+              <dt className="text-xs font-semibold tracking-wide text-texte-doux-fort uppercase">Mode de paiement</dt>
+              <dd>
+                <BadgeStatut domaine="modePaiement" code={paiement.modePaiement} />
+              </dd>
+            </div>
+            <LigneChamp libelle="Référence" valeur={paiement.referenceTransaction ?? "—"} />
+            <LigneChamp libelle="Adhérent" valeur={nomAdherent} />
+            <LigneChamp libelle="Téléphone" valeur={adherent ? formaterTelephone(adherent.telephonePrincipal) : "—"} />
+            <LigneChamp
+              libelle="Confirmation hiérarchique (Chef)"
+              valeur={paiement.confirmeLe ? `Confirmée le ${formaterDateHeure(paiement.confirmeLe)}` : "Non confirmée"}
+            />
+          </dl>
+        </CarteSection>
 
-        <div className="flex flex-wrap gap-3">
-          {peutValider &&
-            (estCreateur ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button disabled>Valider</Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>Vous ne pouvez pas valider un paiement que vous avez vous-même saisi.</TooltipContent>
-              </Tooltip>
-            ) : (
-              <Button
-                disabled={valider.isPending}
-                onClick={() => {
-                  valider.mutate(paiement.id, {
-                    onSuccess: () => toast.success("Paiement validé."),
-                    onError: (e) => toast.error(estErreurApi(e) ? e.message : "La validation a échoué."),
-                  });
-                }}
-              >
-                {valider.isPending ? "Validation en cours…" : "Valider"}
-              </Button>
-            ))}
-
-          {peutCorriger && (
-            <Button variant="outline" onClick={() => setDialogueCorrectionOuvert(true)}>
-              Corriger
-            </Button>
-          )}
-
-          {peutAnnuler && (
-            <Button variant="destructive" onClick={() => setDialogueAnnulationOuvert(true)}>
-              Annuler
-            </Button>
-          )}
-
-          {peutSignalerIncoherence && (
-            <Button variant="destructive" onClick={() => setDialogueIncoherenceOuvert(true)}>
-              Signaler une incohérence
-            </Button>
-          )}
-
-          {peutConfirmerChef &&
-            (paiement.confirmeParChefId || paiement.statut === "ANNULE" || paiement.statut === "INCOHERENCE" ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>
-                    <Button variant="outline" disabled>
-                      Confirmer la collecte
-                    </Button>
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {paiement.confirmeParChefId
-                    ? "Ce paiement a déjà été confirmé par un Chef."
-                    : "Un paiement annulé ou incohérent ne peut pas être confirmé par le Chef."}
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <Button
-                variant="outline"
-                disabled={confirmerChef.isPending}
-                onClick={() => {
-                  confirmerChef.mutate(
-                    { id: paiement.id },
-                    {
-                      onSuccess: () => toast.success("Collecte confirmée."),
-                      onError: (e) => toast.error(estErreurApi(e) ? e.message : "La confirmation a échoué."),
-                    },
-                  );
-                }}
-              >
-                {confirmerChef.isPending ? "Confirmation en cours…" : "Confirmer la collecte"}
-              </Button>
-            ))}
-        </div>
       </div>
 
       <DialogueCorrigerPaiement

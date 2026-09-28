@@ -7,6 +7,9 @@ import { z } from "zod";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { Pagination } from "@/components/cositi/pagination";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
@@ -22,12 +25,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useProduireRapportDaf, useRapportsDaf, useTransmettreRapportDaf } from "@/hooks/useRapportsDaf";
 import { useAuth } from "@/auth/ContexteAuth";
 import type { RapportDaf } from "@/api/rapportsDaf";
 import { estErreurApi } from "@/api/erreurs";
+import { ChampDate } from "@/components/cositi/champ-date";
 import { formaterDateHeure, formaterMontant, formaterNombre, formaterPeriode } from "@/lib/format";
 
 const TAILLE_PAGE = 25;
@@ -101,6 +104,12 @@ export function EcranRapportsDaf() {
     }
   }
 
+  function changerPage(prochaine: number) {
+    const suivants = new URLSearchParams(parametres);
+    suivants.set("page", String(prochaine));
+    definirParametres(suivants, { replace: true });
+  }
+
   const colonnes = useMemo<ColumnDef<RapportDaf>[]>(
     () => [
       { id: "titre", header: "Rapport", cell: ({ row }) => row.original.titre },
@@ -149,16 +158,12 @@ export function EcranRapportsDaf() {
 
   return (
     <CoquilleApplication titre="Rapports">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1>Rapports financiers</h1>
-            <p className="text-texte-doux">
-              Produits par le DAF à partir des données contrôlées, puis mis à disposition du PCA.
-            </p>
-          </div>
-          {peutProduire && <Button onClick={() => setProductionOuverte(true)}>Produire un rapport</Button>}
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Rapports financiers"
+          description="Produits par le DAF à partir des données contrôlées, puis mis à disposition du PCA."
+          actions={peutProduire && <Button onClick={() => setProductionOuverte(true)}>Produire un rapport</Button>}
+        />
 
         {isLoading && <SqueletteTableau colonnes={6} />}
 
@@ -180,41 +185,20 @@ export function EcranRapportsDaf() {
         )}
 
         {data && data.contenu.length > 0 && (
-          <>
-            <TableauDonnees colonnes={colonnes} lignes={data.contenu} cleLigne={(r) => r.id} />
-            <div className="flex items-center justify-between text-sm text-texte-doux">
-              <p>{data.totalElements} rapport(s)</p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 0}
-                  onClick={() => {
-                    const suivants = new URLSearchParams(parametres);
-                    suivants.set("page", String(page - 1));
-                    definirParametres(suivants, { replace: true });
-                  }}
-                >
-                  Précédent
-                </Button>
-                <span>
-                  Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page + 1 >= data.totalPages}
-                  onClick={() => {
-                    const suivants = new URLSearchParams(parametres);
-                    suivants.set("page", String(page + 1));
-                    definirParametres(suivants, { replace: true });
-                  }}
-                >
-                  Suivant
-                </Button>
-              </div>
-            </div>
-          </>
+          <TableauDonnees
+            colonnes={colonnes}
+            lignes={data.contenu}
+            cleLigne={(r) => r.id}
+            pied={
+              <Pagination
+                page={page}
+                totalPages={data.totalPages}
+                totalElements={data.totalElements}
+                libelleElements="rapports"
+                onChangerPage={changerPage}
+              />
+            }
+          />
         )}
       </div>
 
@@ -229,31 +213,23 @@ export function EcranRapportsDaf() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="titre-rapport">Titre</Label>
-                <Input id="titre-rapport" {...register("titre")} />
-                {errors.titre && <p className="text-sm text-danger-fort">{errors.titre.message}</p>}
+            <div className="space-y-5 py-4">
+              <ChampFormulaire id="titre-rapport" libelle="Titre" erreur={errors.titre?.message}>
+                {(attributs) => <Input {...attributs} {...register("titre")} />}
+              </ChampFormulaire>
+
+              <div className="grid gap-5 sm:grid-cols-2">
+                <ChampFormulaire id="rapport-debut" libelle="Du" erreur={errors.periodeDebut?.message}>
+                  {(attributs) => <ChampDate {...attributs} {...register("periodeDebut")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="rapport-fin" libelle="Au" erreur={errors.periodeFin?.message}>
+                  {(attributs) => <ChampDate {...attributs} {...register("periodeFin")} />}
+                </ChampFormulaire>
               </div>
 
-              <div className="flex flex-wrap gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="rapport-debut">Du</Label>
-                  <Input id="rapport-debut" type="date" className="w-44" {...register("periodeDebut")} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="rapport-fin">Au</Label>
-                  <Input id="rapport-fin" type="date" className="w-44" {...register("periodeFin")} />
-                  {errors.periodeFin && (
-                    <p className="text-sm text-danger-fort">{errors.periodeFin.message}</p>
-                  )}
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label htmlFor="rapport-commentaire">Commentaire</Label>
-                <Textarea id="rapport-commentaire" rows={3} {...register("commentaire")} />
-              </div>
+              <ChampFormulaire id="rapport-commentaire" libelle="Commentaire">
+                {(attributs) => <Textarea {...attributs} rows={3} {...register("commentaire")} />}
+              </ChampFormulaire>
             </div>
 
             <DialogFooter>

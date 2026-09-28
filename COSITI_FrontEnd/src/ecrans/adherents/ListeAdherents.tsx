@@ -1,17 +1,20 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { Plus, Search } from "lucide-react";
+import { Plus, Users } from "lucide-react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
+import { Pagination } from "@/components/cositi/pagination";
+import { ChampRecherche } from "@/components/cositi/champ-recherche";
+import { CelluleIdentite } from "@/components/cositi/cellule-identite";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
 import { AvertissementRegle } from "@/components/cositi/avertissement-regle";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermission } from "@/auth/ContexteAuth";
@@ -87,7 +90,7 @@ export function ListeAdherents() {
         // ni `prenoms`, et les lire ici affichait un tiret sur chaque ligne.
         accessorKey: "nomComplet",
         enableSorting: true,
-        cell: ({ row }) => row.original.nomComplet,
+        cell: ({ row }) => <CelluleIdentite nom={row.original.nomComplet} />,
       },
       {
         id: "telephonePrincipal",
@@ -116,44 +119,45 @@ export function ListeAdherents() {
 
   return (
     <CoquilleApplication titre="Adhérents">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1>Adhérents</h1>
-          <div className="flex gap-2">
-            {peutExporter && (
-              <Button
-                variant="outline"
-                disabled={lancerExport.isPending}
-                // Les filtres actifs sont repris : on exporte ce qu'on voit, pas la base entière.
-                onClick={() =>
-                  lancerExport.mutate({ type: "adherents", filtres: { statut: statut || undefined } })
-                }
-              >
-                {lancerExport.isPending ? "Export en cours…" : "Exporter (CSV)"}
-              </Button>
-            )}
-            {peutCreer && (
-              <Button onClick={() => navigate("/adherents/nouveau")}>
-                <Plus className="size-4" aria-hidden="true" />
-                Nouvel adhérent
-              </Button>
-            )}
-          </div>
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Adhérents"
+          actions={
+            <>
+              {peutExporter && (
+                <Button
+                  variant="outline"
+                  disabled={lancerExport.isPending}
+                  // Les filtres actifs sont repris : on exporte ce qu'on voit, pas la base entière.
+                  onClick={() =>
+                    lancerExport.mutate({ type: "adherents", filtres: { statut: statut || undefined } })
+                  }
+                >
+                  {lancerExport.isPending ? "Export en cours…" : "Exporter (CSV)"}
+                </Button>
+              )}
+              {peutCreer && (
+                <Button onClick={() => navigate("/adherents/nouveau")}>
+                  <Plus className="size-4" aria-hidden="true" />
+                  Nouvel adhérent
+                </Button>
+              )}
+            </>
+          }
+        />
 
+        {/* Barre hors du tableau : elle reste visible quand la liste est vide ou en chargement,
+            puisque l'état vide invite justement à modifier les filtres. */}
         <BarreFiltres>
           <div className="space-y-1.5">
             <Label htmlFor="filtre-recherche">Rechercher</Label>
-            <div className="relative">
-              <Search className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-texte-doux" aria-hidden="true" />
-              <Input
-                id="filtre-recherche"
-                placeholder="Matricule, nom, téléphone, CNI"
-                defaultValue={recherche}
-                className="w-72 pl-8"
-                onChange={(evenement) => mettreAJourParametre("recherche", evenement.target.value)}
-              />
-            </div>
+            <ChampRecherche
+              id="filtre-recherche"
+              placeholder="Matricule, nom, téléphone, CNI"
+              defaultValue={recherche}
+              className="sm:w-72"
+              onChange={(evenement) => mettreAJourParametre("recherche", evenement.target.value)}
+            />
           </div>
 
           <div className="space-y-1.5">
@@ -188,6 +192,7 @@ export function ListeAdherents() {
           <EtatVide
             titre="Aucun adhérent ne correspond à ces critères"
             description="Modifiez les filtres, ou créez un nouvel adhérent si c'est le premier de la liste."
+            icone={Users}
             action={
               peutCreer && (
                 <Button variant="outline" onClick={() => navigate("/adherents/nouveau")}>
@@ -199,37 +204,24 @@ export function ListeAdherents() {
         )}
 
         {data && data.contenu.length > 0 && (
-          <>
-            <TableauDonnees
-              colonnes={colonnes}
-              lignes={data.contenu}
-              cleLigne={(a) => a.id}
-              tri={tri}
-              onChangerTri={setTri}
-              onActiverLigne={(a) => navigate(`/adherents/${a.id}`)}
-              libelleLigne={(a) => `Ouvrir la fiche de ${a.nomComplet}`}
-            />
-
-            <div className="flex items-center justify-between text-sm text-texte-doux">
-              <p>{data.totalElements} adhérents</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 0} onClick={() => changerPage(page - 1)}>
-                  Précédent
-                </Button>
-                <span>
-                  Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page + 1 >= data.totalPages}
-                  onClick={() => changerPage(page + 1)}
-                >
-                  Suivant
-                </Button>
-              </div>
-            </div>
-          </>
+          <TableauDonnees
+            colonnes={colonnes}
+            lignes={data.contenu}
+            cleLigne={(a) => a.id}
+            tri={tri}
+            onChangerTri={setTri}
+            onActiverLigne={(a) => navigate(`/adherents/${a.id}`)}
+            libelleLigne={(a) => `Ouvrir la fiche de ${a.nomComplet}`}
+            pied={
+              <Pagination
+                page={page}
+                totalPages={data.totalPages}
+                totalElements={data.totalElements}
+                libelleElements="adhérents"
+                onChangerPage={changerPage}
+              />
+            }
+          />
         )}
       </div>
     </CoquilleApplication>

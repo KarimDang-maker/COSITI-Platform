@@ -3,7 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -11,7 +10,11 @@ import {
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { EtatVide } from "@/components/cositi/etat-vide";
 import { formaterMontant, formaterNombre, formaterPourcentage } from "@/lib/format";
+import { lireJeton } from "@/lib/jetons";
+import { cn } from "@/lib/utils";
 
 /** Forme exacte de `LigneZone` (backend, jalon J9). */
 export interface LigneZone {
@@ -24,19 +27,6 @@ export interface LigneZone {
   readonly cumulCollecte: number;
   readonly nbAgents: number;
 }
-
-/**
- * Couleur de série unique, reprise du jeton de marque `--cositi-vert` (#146b45).
- *
- * Recharts pose la couleur en attribut SVG et ne lit pas les variables CSS : c'est
- * le seul endroit du frontend où une valeur de couleur est écrite en clair, et
- * elle doit rester alignée sur `src/styles/tokens.css §1`. Une seule série, donc
- * une seule teinte : pas de palette catégorielle, pas de légende (le titre nomme
- * la mesure).
- */
-const COULEUR_SERIE = "#146b45";
-const COULEUR_GRILLE = "#e3e7e5";
-const COULEUR_AXE = "#6b7280";
 
 type Mesure = "activation" | "collecte" | "retard";
 
@@ -64,12 +54,14 @@ interface GraphiqueZonesProps {
 }
 
 /**
- * Comparaison des zones sur une mesure à la fois (J9).
+ * Comparaison des zones sur une mesure à la fois (J9), dans une carte du
+ * gabarit (« Revenue ») avec sélecteur de mesure segmenté.
  *
  * <p>Barres horizontales : les libellés de zone sont des mots, et un axe vertical
  * les rend lisibles sans rotation. Une seule mesure affichée à la fois — jamais
  * deux échelles sur un même graphique, qui ferait comparer des grandeurs sans
- * rapport.</p>
+ * rapport. Une seule série, donc une seule teinte (`--graphique-serie-1`) : pas de
+ * légende, le titre nomme la mesure.</p>
  *
  * <p>Le tableau des mêmes chiffres est accessible d'un bouton : il sert autant la
  * lecture au clavier et au lecteur d'écran que la vérification d'un montant
@@ -80,11 +72,7 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
   const [tableauVisible, setTableauVisible] = useState(false);
 
   if (zones.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed border-bordure-forte p-6 text-center text-texte-doux">
-        Aucune zone à comparer.
-      </p>
-    );
+    return <EtatVide titre="Aucune zone à comparer." description="Les zones apparaîtront ici dès leur création." />;
   }
 
   const definition = MESURES[mesure];
@@ -96,37 +84,44 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
     }))
     .sort((a, b) => b.valeur - a.valeur);
 
+  const couleurSerie = lireJeton("--graphique-serie-1");
+  const couleurGrille = lireJeton("--graphique-grille");
+  const couleurAxe = lireJeton("--graphique-axe");
+
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-titre">{definition.libelle} par zone</h2>
-        <div className="flex flex-wrap gap-2">
+    <CarteSection
+      titre={`${definition.libelle} par zone`}
+      description="Une mesure à la fois, zones classées de la plus forte à la plus faible."
+      actions={
+        <Button size="sm" variant="outline" onClick={() => setTableauVisible((v) => !v)}>
+          {tableauVisible ? "Masquer le tableau" : "Voir le tableau"}
+        </Button>
+      }
+    >
+      <div className="space-y-5">
+        <div className="inline-flex flex-wrap gap-1 rounded-lg bg-surface-survol p-1" role="group" aria-label="Mesure comparée">
           {(Object.keys(MESURES) as Mesure[]).map((cle) => (
             <Button
               key={cle}
               size="sm"
-              variant={cle === mesure ? "default" : "outline"}
+              variant="ghost"
               aria-pressed={cle === mesure}
               onClick={() => setMesure(cle)}
+              className={cn(cle === mesure && "bg-surface text-titre shadow-legere hover:bg-surface")}
             >
               {MESURES[cle].libelle}
             </Button>
           ))}
-          <Button size="sm" variant="outline" onClick={() => setTableauVisible((v) => !v)}>
-            {tableauVisible ? "Masquer le tableau" : "Voir le tableau"}
-          </Button>
         </div>
-      </div>
 
-      <div className="rounded-lg border border-bordure bg-surface p-4">
-        <ResponsiveContainer width="100%" height={Math.max(180, donnees.length * 44)}>
-          <BarChart data={donnees} layout="vertical" margin={{ top: 8, right: 24, bottom: 8, left: 8 }}>
+        <ResponsiveContainer width="100%" height={Math.max(180, donnees.length * 48)}>
+          <BarChart data={donnees} layout="vertical" margin={{ top: 4, right: 24, bottom: 4, left: 4 }}>
             {/* Grille discrète, sur l'axe des valeurs seulement : elle aide à lire, elle ne décore pas. */}
-            <CartesianGrid horizontal={false} stroke={COULEUR_GRILLE} />
+            <CartesianGrid horizontal={false} stroke={couleurGrille} strokeDasharray="4 4" />
             <XAxis
               type="number"
               tickFormatter={(valeur: number) => definition.format(valeur)}
-              stroke={COULEUR_AXE}
+              stroke={couleurAxe}
               tick={{ fontSize: 12 }}
               axisLine={false}
               tickLine={false}
@@ -135,57 +130,61 @@ export function GraphiqueZones({ zones }: GraphiqueZonesProps) {
               type="category"
               dataKey="libelle"
               width={140}
-              stroke={COULEUR_AXE}
+              stroke={couleurAxe}
               tick={{ fontSize: 12 }}
               axisLine={false}
               tickLine={false}
             />
             <Tooltip
-              cursor={{ fill: "rgba(20, 107, 69, 0.06)" }}
+              cursor={{ fill: lireJeton("--graphique-survol") }}
               // Recharts type la valeur en `ValueType | undefined` : on la ramène à un nombre plutôt que
               // de forcer le type, une valeur absente devant s'afficher comme un zéro et non planter.
               formatter={(valeur) => [definition.format(Number(valeur ?? 0)), definition.libelle]}
-              contentStyle={{ borderRadius: 8, border: "1px solid #e3e7e5", fontSize: 13 }}
+              // Style en ligne : les variables CSS y sont résolues, contrairement aux attributs SVG.
+              contentStyle={{
+                borderRadius: "var(--rayon-md)",
+                border: "1px solid var(--bordure)",
+                boxShadow: "var(--ombre-flottante)",
+                fontSize: "var(--taille-xs)",
+              }}
             />
-            <Bar dataKey="valeur" radius={[0, 4, 4, 0]} barSize={18}>
-              {donnees.map((ligne) => (
-                <Cell key={ligne.zone.zoneId} fill={COULEUR_SERIE} />
-              ))}
-            </Bar>
+            <Bar dataKey="valeur" fill={couleurSerie} radius={[0, 6, 6, 0]} barSize={18} />
           </BarChart>
         </ResponsiveContainer>
-      </div>
 
-      {tableauVisible && (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Zone</TableHead>
-              <TableHead>Adhérents</TableHead>
-              <TableHead>Ayant cotisé</TableHead>
-              <TableHead>Taux d'activation</TableHead>
-              <TableHead>En retard</TableHead>
-              <TableHead>Cumul collecté</TableHead>
-              <TableHead>Agents</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {donnees.map(({ zone }) => (
-              <TableRow key={zone.zoneId}>
-                <TableCell>{zone.libelle}</TableCell>
-                <TableCell className="chiffre">{formaterNombre(zone.nbAdherents)}</TableCell>
-                <TableCell className="chiffre">{formaterNombre(zone.nbActifs)}</TableCell>
-                <TableCell className="chiffre">
-                  {formaterPourcentage(zone.nbAdherents === 0 ? 0 : zone.nbActifs / zone.nbAdherents)}
-                </TableCell>
-                <TableCell className="chiffre">{formaterNombre(zone.nbEnRetard)}</TableCell>
-                <TableCell className="chiffre">{formaterMontant(zone.cumulCollecte)}</TableCell>
-                <TableCell className="chiffre">{formaterNombre(zone.nbAgents)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </section>
+        {tableauVisible && (
+          <div className="overflow-hidden rounded-xl border border-bordure">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Zone</TableHead>
+                  <TableHead>Adhérents</TableHead>
+                  <TableHead>Ayant cotisé</TableHead>
+                  <TableHead>Taux d'activation</TableHead>
+                  <TableHead>En retard</TableHead>
+                  <TableHead>Cumul collecté</TableHead>
+                  <TableHead>Agents</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {donnees.map(({ zone }) => (
+                  <TableRow key={zone.zoneId}>
+                    <TableCell className="font-semibold">{zone.libelle}</TableCell>
+                    <TableCell className="chiffre">{formaterNombre(zone.nbAdherents)}</TableCell>
+                    <TableCell className="chiffre">{formaterNombre(zone.nbActifs)}</TableCell>
+                    <TableCell className="chiffre">
+                      {formaterPourcentage(zone.nbAdherents === 0 ? 0 : zone.nbActifs / zone.nbAdherents)}
+                    </TableCell>
+                    <TableCell className="chiffre">{formaterNombre(zone.nbEnRetard)}</TableCell>
+                    <TableCell className="chiffre">{formaterMontant(zone.cumulCollecte)}</TableCell>
+                    <TableCell className="chiffre">{formaterNombre(zone.nbAgents)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+    </CarteSection>
   );
 }

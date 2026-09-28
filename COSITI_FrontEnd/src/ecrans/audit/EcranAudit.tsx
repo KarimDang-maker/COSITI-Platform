@@ -4,15 +4,17 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { Pagination } from "@/components/cositi/pagination";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAudit } from "@/hooks/useAudit";
 import type { LigneAudit } from "@/api/audit";
 import { estErreurApi } from "@/api/erreurs";
+import { ChampDate } from "@/components/cositi/champ-date";
 import { abregerIdentifiant, formaterDateHeure } from "@/lib/format";
 
 const TAILLE_PAGE = 50;
@@ -107,14 +109,11 @@ export function EcranAudit() {
 
   return (
     <CoquilleApplication titre="Audit">
-      <div className="space-y-4">
-        <div>
-          <h1>Journal d'audit</h1>
-          <p className="text-texte-doux">
-            Trace immuable des opérations. Aucune modification ni purge n'est possible depuis
-            l'application, quel que soit le rôle.
-          </p>
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Journal d'audit"
+          description="Trace immuable des opérations. Aucune modification ni purge n'est possible depuis l'application, quel que soit le rôle."
+        />
 
         <BarreFiltres>
           <div className="space-y-1.5">
@@ -139,9 +138,8 @@ export function EcranAudit() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="filtre-depuis">Depuis le</Label>
-            <Input
+            <ChampDate
               id="filtre-depuis"
-              type="date"
               className="w-44"
               defaultValue={depuis}
               onChange={(evenement) => mettreAJour("depuis", evenement.target.value || undefined)}
@@ -165,33 +163,20 @@ export function EcranAudit() {
         )}
 
         {data && data.contenu.length > 0 && (
-          <>
-            <TableauDonnees colonnes={colonnes} lignes={data.contenu} cleLigne={(l) => l.id} />
-            <div className="flex items-center justify-between text-sm text-texte-doux">
-              <p>{data.totalElements} opération(s)</p>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 0}
-                  onClick={() => mettreAJour("page", String(page - 1))}
-                >
-                  Précédent
-                </Button>
-                <span>
-                  Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={page + 1 >= data.totalPages}
-                  onClick={() => mettreAJour("page", String(page + 1))}
-                >
-                  Suivant
-                </Button>
-              </div>
-            </div>
-          </>
+          <TableauDonnees
+            colonnes={colonnes}
+            lignes={data.contenu}
+            cleLigne={(l) => l.id}
+            pied={
+              <Pagination
+                page={page}
+                totalPages={data.totalPages}
+                totalElements={data.totalElements}
+                libelleElements="opérations"
+                onChangerPage={(prochaine) => mettreAJour("page", String(prochaine))}
+              />
+            }
+          />
         )}
       </div>
     </CoquilleApplication>

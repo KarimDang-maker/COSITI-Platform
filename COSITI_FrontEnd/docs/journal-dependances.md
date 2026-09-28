@@ -123,6 +123,31 @@ pour l'utiliser de façon fiable dans le temps imparti à ce jalon.
 vulnérabilité. Décision à revisiter si une v9 stabilisée et documentée
 apparaît, hors périmètre de cette session.
 
+## 28/09/2026 — Police Plus Jakarta Sans (fichiers, pas de paquet npm)
+
+Décision du chef de projet : reprendre la police du gabarit « Spark Admin ».
+Aucun paquet npm ajouté ; quatre fichiers `woff2` sont versionnés dans
+`src/styles/polices/` avec leur licence.
+
+| Élément | Valeur |
+|---|---|
+| Police | Plus Jakarta Sans, variable 200–800, droit et italique, sous-ensembles latin et latin étendu |
+| Licence | SIL Open Font License 1.1 — `src/styles/polices/OFL.txt` (dépôt `tokotype/PlusJakartaSans`) |
+| Provenance | `fonts.gstatic.com/s/plusjakartasans/v12/…`, via la feuille Google Fonts du gabarit, téléchargés le 28/09/2026 |
+| `plus-jakarta-sans-latin.woff2` | SHA-256 `153fc85b70298beeb1d61a5f723331649e7f23bb77302a66e61cb3e2fbdb5e79` |
+| `plus-jakarta-sans-latin-ext.woff2` | SHA-256 `38e3b8fd8045048eb311d90170a4429ed2c8f405852dc3d91b5af8452758703f` |
+| `plus-jakarta-sans-italique-latin.woff2` | SHA-256 `bb113d8f5be89636a9a31ffa0966762126546b98be171d6fa81115abb2cd5352` |
+| `plus-jakarta-sans-italique-latin-ext.woff2` | SHA-256 `7524d4b5f829201192882f775b90d78dbd9f9b3014ea729cfb7a47f5261ec7cb` |
+
+Auto-hébergée plutôt que chargée depuis le CDN comme dans le gabarit :
+connectivité irrégulière des postes COSITI, et aucune requête vers un tiers
+depuis le back-office (CSP, `docs/04_SECURITE.md`).
+
+**flatpickr non ajouté.** Le calendrier du gabarit repose sur flatpickr ; il
+est réécrit en React sans dépendance (`src/components/cositi/calendrier.tsx`),
+avec le même rendu. Un sélecteur de dates ne justifie pas d'élargir la
+surface npm.
+
 ## Entretien de ce document
 
 Toute dépendance ajoutée, mise à jour en version majeure, ou retirée reçoit

@@ -3,11 +3,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useLocation, useNavigate, type Location } from "react-router";
+import { Lock, LogIn, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alerte } from "@/components/cositi/alerte";
-import { LogoCositi } from "@/components/cositi/logo-cositi";
+import { CadreAuthentification } from "@/components/cositi/cadre-authentification";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
+import { ChampIcone } from "@/components/cositi/champ-icone";
+import { ChampMotDePasse } from "@/components/cositi/champ-mot-de-passe";
 import { useAuth } from "@/auth/ContexteAuth";
 import { estErreurApi } from "@/api/erreurs";
 
@@ -65,58 +67,33 @@ export function EcranConnexion() {
   }
 
   return (
-    <div className="flex h-dvh items-center justify-center bg-fond p-6">
-      <div className="w-full max-w-sm space-y-6 rounded-lg border border-bordure bg-surface p-8 shadow-[var(--shadow-carte)]">
-        <div className="flex flex-col items-center gap-4">
-          <LogoCositi contexte="connexion-verticale" className="h-20 w-auto" />
-          <h1 className="text-center">Connexion</h1>
-        </div>
-
+    <CadreAuthentification titre="Connexion" sousTitre="Back-office de la coopérative COSITI COOP-CA.">
+      <div className="space-y-6">
         {erreur && (
           <Alerte teinte="danger">
             <p>{erreur}</p>
           </Alerte>
         )}
 
-        <form onSubmit={(event) => void handleSubmit(soumettre)(event)} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="identifiant">Identifiant</Label>
-            <Input
-              id="identifiant"
-              autoComplete="username"
-              aria-invalid={!!errors.identifiant}
-              aria-describedby={errors.identifiant ? "identifiant-erreur" : undefined}
-              {...register("identifiant")}
-            />
-            {errors.identifiant && (
-              <p id="identifiant-erreur" className="text-sm text-danger-fort">
-                {errors.identifiant.message}
-              </p>
+        <form onSubmit={(event) => void handleSubmit(soumettre)(event)} className="space-y-5" noValidate>
+          <ChampFormulaire id="identifiant" libelle="Identifiant" erreur={errors.identifiant?.message}>
+            {(attributs) => (
+              <ChampIcone icone={UserRound} autoComplete="username" {...attributs} {...register("identifiant")} />
             )}
-          </div>
+          </ChampFormulaire>
 
-          <div className="space-y-2">
-            <Label htmlFor="motDePasse">Mot de passe</Label>
-            <Input
-              id="motDePasse"
-              type="password"
-              autoComplete="current-password"
-              aria-invalid={!!errors.motDePasse}
-              aria-describedby={errors.motDePasse ? "mot-de-passe-erreur" : undefined}
-              {...register("motDePasse")}
-            />
-            {errors.motDePasse && (
-              <p id="mot-de-passe-erreur" className="text-sm text-danger-fort">
-                {errors.motDePasse.message}
-              </p>
+          <ChampFormulaire id="motDePasse" libelle="Mot de passe" erreur={errors.motDePasse?.message}>
+            {(attributs) => (
+              <ChampMotDePasse icone={Lock} autoComplete="current-password" {...attributs} {...register("motDePasse")} />
             )}
-          </div>
+          </ChampFormulaire>
 
-          <Button type="submit" className="w-full" disabled={enCours}>
+          <Button type="submit" size="lg" className="w-full" disabled={enCours}>
             {enCours ? "Connexion en cours…" : "Se connecter"}
+            {!enCours && <LogIn aria-hidden="true" />}
           </Button>
         </form>
       </div>
-    </div>
+    </CadreAuthentification>
   );
 }

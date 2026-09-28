@@ -10,10 +10,10 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alerte } from "@/components/cositi/alerte";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
 import { useModifierParametre } from "@/hooks/useAdministration";
 import type { ParametreAdmin } from "@/api/administration";
 import { estErreurApi } from "@/api/erreurs";
@@ -63,7 +63,7 @@ export function DialogueModifierParametre({ parametre, onFermer }: DialogueModif
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div className="flex items-center gap-2">
             <BadgeStatut domaine="validationParametre" code={parametre.statutValidation} />
             {parametre.statutValidation === "V" && (
@@ -74,26 +74,23 @@ export function DialogueModifierParametre({ parametre, onFermer }: DialogueModif
             )}
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="valeur-parametre">Valeur</Label>
-            <Input
-              id="valeur-parametre"
-              value={valeur}
-              onChange={(evenement) => setValeur(evenement.target.value)}
-            />
-            <p className="text-sm text-texte-doux">Valeur actuelle : {parametre.valeur}</p>
-          </div>
+          <ChampFormulaire id="valeur-parametre" libelle="Valeur" aide={<>Valeur actuelle : {parametre.valeur}</>}>
+            {(attributs) => (
+              <Input {...attributs} value={valeur} onChange={(evenement) => setValeur(evenement.target.value)} />
+            )}
+          </ChampFormulaire>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="motif-parametre">Motif (obligatoire)</Label>
-            <Textarea
-              id="motif-parametre"
-              rows={3}
-              value={motif}
-              onChange={(evenement) => setMotif(evenement.target.value)}
-              placeholder="Arbitrage du DAF du 23/09, réunion de direction…"
-            />
-          </div>
+          <ChampFormulaire id="motif-parametre" libelle="Motif (obligatoire)">
+            {(attributs) => (
+              <Textarea
+                {...attributs}
+                rows={3}
+                value={motif}
+                onChange={(evenement) => setMotif(evenement.target.value)}
+                placeholder="Arbitrage du DAF du 23/09, réunion de direction…"
+              />
+            )}
+          </ChampFormulaire>
 
           {erreur && (
             <Alerte teinte="danger" titre="Modification refusée">

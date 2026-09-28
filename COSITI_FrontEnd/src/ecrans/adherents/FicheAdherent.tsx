@@ -1,11 +1,12 @@
 import { Link, useParams } from "react-router";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
 import { Alerte } from "@/components/cositi/alerte";
 import { AvertissementRegle } from "@/components/cositi/avertissement-regle";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAdherent } from "@/hooks/useAdherents";
 import { useSituationDroits, usePeriodesDroits } from "@/hooks/useDroits";
@@ -44,7 +45,7 @@ export function FicheAdherent() {
   if (isLoading) {
     return (
       <CoquilleApplication titre="Fiche adhérent">
-        <div className="space-y-4">
+        <div className="space-y-6">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-40 w-full" />
         </div>
@@ -65,100 +66,87 @@ export function FicheAdherent() {
   return (
     <CoquilleApplication titre="Fiche adhérent">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1>{formaterNomComplet(adherent.nom, adherent.prenoms)}</h1>
-            <p className="ref text-texte-doux">{formaterMatricule(adherent.matricule)}</p>
-          </div>
-          <BadgeStatut domaine="adherent" code={adherent.statut} />
-        </div>
+        {/* Le dernier maillon reste générique : le nom est déjà porté par le titre, le répéter
+            dans le fil d'Ariane doublerait le texte pour les lecteurs d'écran. */}
+        <EnTetePage
+          titre={formaterNomComplet(adherent.nom, adherent.prenoms)}
+          description={<span className="ref">{formaterMatricule(adherent.matricule)}</span>}
+          statut={<BadgeStatut domaine="adherent" code={adherent.statut} />}
+          filAriane={[{ libelle: "Adhérents", chemin: "/adherents" }, { libelle: "Fiche adhérent" }]}
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Identité et coordonnées</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <LigneChamp libelle="Téléphone principal" valeur={formaterTelephone(adherent.telephonePrincipal)} />
-              <LigneChamp
-                libelle="Téléphone secondaire"
-                valeur={adherent.telephoneSecondaire ? formaterTelephone(adherent.telephoneSecondaire) : "—"}
-              />
-              <LigneChamp libelle="Numéro CNI" valeur={adherent.numeroCni ?? "—"} />
-              <LigneChamp libelle="Numéro CNPS" valeur={adherent.numeroCnps ?? "—"} />
-              <LigneChamp libelle="Localisation" valeur={adherent.localisation} />
-              <LigneChamp libelle="Zone" valeur={adherent.zoneLibelle ?? "—"} />
-              <LigneChamp libelle="Date d'adhésion" valeur={formaterDate(adherent.dateAdhesion)} />
-              <LigneChamp libelle="Agent référent" valeur={adherent.agentReferentNom ?? "Aucun agent référent"} />
-            </dl>
-          </CardContent>
-        </Card>
+        <CarteSection titre="Identité et coordonnées">
+          <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <LigneChamp libelle="Téléphone principal" valeur={formaterTelephone(adherent.telephonePrincipal)} />
+            <LigneChamp
+              libelle="Téléphone secondaire"
+              valeur={adherent.telephoneSecondaire ? formaterTelephone(adherent.telephoneSecondaire) : "—"}
+            />
+            <LigneChamp libelle="Numéro CNI" valeur={adherent.numeroCni ?? "—"} />
+            <LigneChamp libelle="Numéro CNPS" valeur={adherent.numeroCnps ?? "—"} />
+            <LigneChamp libelle="Localisation" valeur={adherent.localisation} />
+            <LigneChamp libelle="Zone" valeur={adherent.zoneLibelle ?? "—"} />
+            <LigneChamp libelle="Date d'adhésion" valeur={formaterDate(adherent.dateAdhesion)} />
+            <LigneChamp libelle="Agent référent" valeur={adherent.agentReferentNom ?? "Aucun agent référent"} />
+          </dl>
+        </CarteSection>
 
         {peutLireDroits && situation && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Situation de droits</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {situation.avertissements.length > 0 && <AvertissementRegle avertissements={situation.avertissements} />}
-              <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <LigneChamp libelle="Couvert jusqu'au" valeur={formaterDate(situation.couvertJusquAu)} />
-                <LigneChamp libelle="Jours couverts (cumul)" valeur={formaterNombre(situation.joursCouvertsTotal)} />
-                <LigneChamp libelle="Jours de retard" valeur={formaterNombre(situation.joursRetard)} />
-                <LigneChamp libelle="Cumul cotisé" valeur={formaterMontant(situation.cumulCotise)} />
-                <LigneChamp libelle="Éligible CNPS" valeur={situation.eligibleCnps ? "Oui" : "Non"} />
-                <div>
-                  <dt className="text-xs font-semibold tracking-wide text-texte-doux-fort uppercase">
-                    Statut de régularité
-                  </dt>
-                  <dd>
-                    <BadgeStatut domaine="regularite" code={situation.statut} />
-                  </dd>
-                </div>
-              </dl>
-            </CardContent>
-          </Card>
+          <CarteSection titre="Situation de droits" contenuClassName="space-y-4">
+            {situation.avertissements.length > 0 && <AvertissementRegle avertissements={situation.avertissements} />}
+            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <LigneChamp libelle="Couvert jusqu'au" valeur={formaterDate(situation.couvertJusquAu)} />
+              <LigneChamp libelle="Jours couverts (cumul)" valeur={formaterNombre(situation.joursCouvertsTotal)} />
+              <LigneChamp libelle="Jours de retard" valeur={formaterNombre(situation.joursRetard)} />
+              <LigneChamp libelle="Cumul cotisé" valeur={formaterMontant(situation.cumulCotise)} />
+              <LigneChamp libelle="Éligible CNPS" valeur={situation.eligibleCnps ? "Oui" : "Non"} />
+              <div>
+                <dt className="text-xs font-semibold tracking-wide text-texte-doux-fort uppercase">
+                  Statut de régularité
+                </dt>
+                <dd>
+                  <BadgeStatut domaine="regularite" code={situation.statut} />
+                </dd>
+              </div>
+            </dl>
+          </CarteSection>
         )}
 
         {peutLireDroits && periodes && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Périodes de droits</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {periodes.length === 0 ? (
-                <EtatVide
-                  titre="Aucune période de droits enregistrée"
-                  description="Aucun paiement n'a encore ouvert de période de couverture pour cet adhérent."
-                />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Période</TableHead>
-                      <TableHead>Jours couverts</TableHead>
-                      <TableHead>Montant imputé</TableHead>
-                      <TableHead>Statut</TableHead>
+          // Le tableau touche les bords de la carte ; l'état vide garde ses marges.
+          <CarteSection titre="Périodes de droits" contenuPleineLargeur={periodes.length > 0}>
+            {periodes.length === 0 ? (
+              <EtatVide
+                titre="Aucune période de droits enregistrée"
+                description="Aucun paiement n'a encore ouvert de période de couverture pour cet adhérent."
+              />
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Période</TableHead>
+                    <TableHead>Jours couverts</TableHead>
+                    <TableHead>Montant imputé</TableHead>
+                    <TableHead>Statut</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {periodes.map((periode) => (
+                    <TableRow key={periode.id}>
+                      <TableCell>
+                        {formaterDate(periode.dateDebut)} — {formaterDate(periode.dateFin)}
+                      </TableCell>
+                      <TableCell className="chiffre">{formaterNombre(periode.joursCouverts)}</TableCell>
+                      <TableCell className="chiffre">{formaterMontant(periode.montantImpute)}</TableCell>
+                      <TableCell>
+                        <BadgeStatut domaine="periodeDroits" code={periode.statut} />
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {periodes.map((periode) => (
-                      <TableRow key={periode.id}>
-                        <TableCell>
-                          {formaterDate(periode.dateDebut)} — {formaterDate(periode.dateFin)}
-                        </TableCell>
-                        <TableCell className="chiffre">{formaterNombre(periode.joursCouverts)}</TableCell>
-                        <TableCell className="chiffre">{formaterMontant(periode.montantImpute)}</TableCell>
-                        <TableCell>
-                          <BadgeStatut domaine="periodeDroits" code={periode.statut} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CarteSection>
         )}
 
         <p className="text-sm">

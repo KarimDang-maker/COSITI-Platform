@@ -5,13 +5,16 @@ import { z } from "zod";
 import { toast } from "sonner";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { Alerte } from "@/components/cositi/alerte";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
+import { ChampMontant } from "@/components/cositi/champ-montant";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useProduireCompteRendu } from "@/hooks/useComptesRendus";
 import { estErreurApi } from "@/api/erreurs";
+import { ChampDate } from "@/components/cositi/champ-date";
 import { formaterDateSaisie } from "@/lib/format";
 
 /**
@@ -99,95 +102,55 @@ export function NouveauCompteRendu() {
   return (
     <CoquilleApplication titre="Nouveau compte rendu">
       <form className="space-y-6" onSubmit={handleSubmit(soumettre)} noValidate>
-        <div>
-          <h1>Produire un compte rendu</h1>
-          <p className="text-texte-doux">
-            Résumez votre activité sur la période. Le compte rendu est d'abord enregistré en brouillon :
-            vous pourrez le relire avant de le transmettre au Gestionnaire des comptes.
-          </p>
-        </div>
+        <EnTetePage
+          titre="Produire un compte rendu"
+          filAriane={[{ libelle: "Comptes rendus", chemin: "/comptes-rendus" }, { libelle: "Produire un compte rendu" }]}
+          description="Résumez votre activité sur la période. Le compte rendu est d'abord enregistré en brouillon : vous pourrez le relire avant de le transmettre au Gestionnaire des comptes."
+        />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Période couverte</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="periodeDebut">Du</Label>
-              <Input id="periodeDebut" type="date" className="w-48" {...register("periodeDebut")} />
-              {errors.periodeDebut && (
-                <p className="text-sm text-danger-fort">{errors.periodeDebut.message}</p>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="periodeFin">Au</Label>
-              <Input id="periodeFin" type="date" className="w-48" {...register("periodeFin")} />
-              {errors.periodeFin && <p className="text-sm text-danger-fort">{errors.periodeFin.message}</p>}
-            </div>
-          </CardContent>
-        </Card>
+        <CarteSection titre="Période couverte" contenuClassName="flex flex-wrap gap-5">
+          <ChampFormulaire id="periodeDebut" libelle="Du" erreur={errors.periodeDebut?.message}>
+            {(attributs) => <ChampDate {...attributs} className="w-48" {...register("periodeDebut")} />}
+          </ChampFormulaire>
+          <ChampFormulaire id="periodeFin" libelle="Au" erreur={errors.periodeFin?.message}>
+            {(attributs) => <ChampDate {...attributs} className="w-48" {...register("periodeFin")} />}
+          </ChampFormulaire>
+        </CarteSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Activité de la période</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="nbVisites">Visites effectuées</Label>
-              <Input id="nbVisites" type="number" min="0" {...register("nbVisites")} />
-              {errors.nbVisites && <p className="text-sm text-danger-fort">{errors.nbVisites.message}</p>}
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="nbAdherentsRencontres">Adhérents rencontrés</Label>
-              <Input
-                id="nbAdherentsRencontres"
-                type="number"
-                min="0"
-                {...register("nbAdherentsRencontres")}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="nbAdherentsCrees">Nouveaux adhérents enregistrés</Label>
-              <Input id="nbAdherentsCrees" type="number" min="0" {...register("nbAdherentsCrees")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="nbPaiementsEnregistres">Paiements enregistrés</Label>
-              <Input
-                id="nbPaiementsEnregistres"
-                type="number"
-                min="0"
-                {...register("nbPaiementsEnregistres")}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="montantCollecte">Montant collecté (FCFA)</Label>
-              <Input id="montantCollecte" type="number" min="0" step="1" {...register("montantCollecte")} />
-              {errors.montantCollecte && (
-                <p className="text-sm text-danger-fort">{errors.montantCollecte.message}</p>
-              )}
-            </div>
-          </CardContent>
-        </Card>
+        <CarteSection titre="Activité de la période" contenuClassName="grid gap-5 sm:grid-cols-2">
+          <ChampFormulaire id="nbVisites" libelle="Visites effectuées" erreur={errors.nbVisites?.message}>
+            {(attributs) => <Input {...attributs} type="number" min="0" {...register("nbVisites")} />}
+          </ChampFormulaire>
+          <ChampFormulaire id="nbAdherentsRencontres" libelle="Adhérents rencontrés">
+            {(attributs) => <Input {...attributs} type="number" min="0" {...register("nbAdherentsRencontres")} />}
+          </ChampFormulaire>
+          <ChampFormulaire id="nbAdherentsCrees" libelle="Nouveaux adhérents enregistrés">
+            {(attributs) => <Input {...attributs} type="number" min="0" {...register("nbAdherentsCrees")} />}
+          </ChampFormulaire>
+          <ChampFormulaire id="nbPaiementsEnregistres" libelle="Paiements enregistrés">
+            {(attributs) => <Input {...attributs} type="number" min="0" {...register("nbPaiementsEnregistres")} />}
+          </ChampFormulaire>
+          <ChampFormulaire
+            id="montantCollecte"
+            libelle="Montant collecté (FCFA)"
+            erreur={errors.montantCollecte?.message}
+          >
+            {(attributs) => <ChampMontant {...attributs} {...register("montantCollecte")} />}
+          </ChampFormulaire>
+        </CarteSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Observations</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="synthese">Synthèse</Label>
-              <Textarea id="synthese" rows={3} {...register("synthese")} />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="difficultes">Difficultés rencontrées</Label>
-              <Textarea id="difficultes" rows={3} {...register("difficultes")} />
-              <p className="text-sm text-texte-doux">
-                Conservées telles quelles jusqu'à la DGA : elles ne sont pas réécrites lors de la
-                consolidation.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <CarteSection titre="Observations" contenuClassName="space-y-5">
+          <ChampFormulaire id="synthese" libelle="Synthèse">
+            {(attributs) => <Textarea {...attributs} rows={3} {...register("synthese")} />}
+          </ChampFormulaire>
+          <ChampFormulaire
+            id="difficultes"
+            libelle="Difficultés rencontrées"
+            aide="Conservées telles quelles jusqu'à la DGA : elles ne sont pas réécrites lors de la consolidation."
+          >
+            {(attributs) => <Textarea {...attributs} rows={3} {...register("difficultes")} />}
+          </ChampFormulaire>
+        </CarteSection>
 
         {produire.isError && (
           <Alerte teinte="danger" titre="Le compte rendu n'a pas pu être enregistré">

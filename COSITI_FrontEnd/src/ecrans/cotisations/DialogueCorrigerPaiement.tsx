@@ -10,12 +10,14 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alerte } from "@/components/cositi/alerte";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
+import { ChampMontant } from "@/components/cositi/champ-montant";
 import { useCorrigerPaiement } from "@/hooks/usePaiements";
 import { estErreurApi } from "@/api/erreurs";
 import type { Paiement } from "@/api/paiements";
+import { ChampDate } from "@/components/cositi/champ-date";
 import { formaterDateSaisie } from "@/lib/format";
 
 interface DialogueCorrigerPaiementProps {
@@ -76,31 +78,34 @@ export function DialogueCorrigerPaiement({ ouvert, onOuvertChange, paiement, nom
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="correction-montant">Montant (FCFA)</Label>
-              <Input id="correction-montant" type="number" min="0" value={montant} onChange={(e) => setMontant(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="correction-date">Date du paiement</Label>
-              <Input id="correction-date" type="date" value={datePaiement} onChange={(e) => setDatePaiement(e.target.value)} />
-            </div>
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <ChampFormulaire id="correction-montant" libelle="Montant (FCFA)">
+              {(attributs) => <ChampMontant {...attributs} value={montant} onChange={(e) => setMontant(e.target.value)} />}
+            </ChampFormulaire>
+            <ChampFormulaire id="correction-date" libelle="Date du paiement">
+              {(attributs) => (
+                <ChampDate {...attributs} value={datePaiement} onChange={(e) => setDatePaiement(e.target.value)} />
+              )}
+            </ChampFormulaire>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="correction-reference">Référence de transaction</Label>
-            <Input
-              id="correction-reference"
-              className="ref"
-              value={referenceTransaction}
-              onChange={(e) => setReferenceTransaction(e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={idMotif}>Motif de la correction</Label>
-            <Textarea id={idMotif} value={motif} onChange={(e) => setMotif(e.target.value)} aria-invalid={motifInvalide} required />
-            {motifInvalide && <p className="text-sm text-danger-fort">Le motif est obligatoire.</p>}
-          </div>
+          <ChampFormulaire id="correction-reference" libelle="Référence de transaction">
+            {(attributs) => (
+              <Input
+                className="ref"
+                {...attributs}
+                value={referenceTransaction}
+                onChange={(e) => setReferenceTransaction(e.target.value)}
+              />
+            )}
+          </ChampFormulaire>
+          <ChampFormulaire
+            id={idMotif}
+            libelle="Motif de la correction"
+            erreur={motifInvalide ? "Le motif est obligatoire." : undefined}
+          >
+            {(attributs) => <Textarea {...attributs} value={motif} onChange={(e) => setMotif(e.target.value)} required />}
+          </ChampFormulaire>
 
           {corriger.isError && (
             <Alerte teinte="danger">

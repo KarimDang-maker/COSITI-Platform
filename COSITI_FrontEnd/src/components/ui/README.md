@@ -35,6 +35,16 @@ ne sait pas ce qu'est un adhérent, une cotisation ou un dossier CNPS.
 | `tabs.tsx` · `separator.tsx` · `skeleton.tsx` · `scroll-area.tsx` | Structure |
 | `sonner.tsx` | Notifications transitoires |
 
+## Gabarit v1.1
+
+Les primitives portent la géométrie du gabarit « Spark Admin »
+(`docs/02_DESIGN_SYSTEM.md §2.1` et `§9.1`) : hauteur de contrôle 40 px,
+rayons `lg` (bouton, champ), `xl` (menu), `2xl` (carte, modale), ombres
+teintées, voile `voile` derrière les modales, libellés de fermeture en
+français. Chaque fichier modifié le signale par un commentaire
+`/* COSITI: gabarit v1.1 — … */` : à la régénération par la CLI, réappliquer
+ces classes.
+
 ## Variante `marque`
 
 Elle n'existe pas dans shadcn : on l'ajoute au `buttonVariants` de

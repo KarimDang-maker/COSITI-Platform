@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alerte } from "@/components/cositi/alerte";
 import { SelectRecherche } from "@/components/cositi/select-recherche";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
 import { useCreerUtilisateur, useRolesAdmin } from "@/hooks/useAdministration";
 import type { CodeRole } from "@/auth/types";
 import { estErreurApi } from "@/api/erreurs";
@@ -118,38 +118,33 @@ export function DialogueCreerUtilisateur({ ouvert, onOuvertChange }: DialogueCre
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="identifiant-compte">Identifiant de connexion</Label>
-                <Input id="identifiant-compte" {...register("identifiant")} />
-                {errors.identifiant && (
-                  <p className="text-sm text-danger-fort">{errors.identifiant.message}</p>
-                )}
-              </div>
+            <div className="space-y-5 py-4">
+              <ChampFormulaire id="identifiant-compte" libelle="Identifiant de connexion" erreur={errors.identifiant?.message}>
+                {(attributs) => <Input {...attributs} {...register("identifiant")} />}
+              </ChampFormulaire>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="nom-compte">Nom complet</Label>
-                <Input id="nom-compte" {...register("nomComplet")} />
-                {errors.nomComplet && (
-                  <p className="text-sm text-danger-fort">{errors.nomComplet.message}</p>
-                )}
-              </div>
+              <ChampFormulaire id="nom-compte" libelle="Nom complet" erreur={errors.nomComplet?.message}>
+                {(attributs) => <Input {...attributs} {...register("nomComplet")} />}
+              </ChampFormulaire>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="email-compte">Adresse électronique</Label>
-                <Input id="email-compte" type="email" {...register("email")} />
-                {errors.email && <p className="text-sm text-danger-fort">{errors.email.message}</p>}
-              </div>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <ChampFormulaire id="email-compte" libelle="Adresse électronique" erreur={errors.email?.message}>
+                  {(attributs) => <Input {...attributs} type="email" {...register("email")} />}
+                </ChampFormulaire>
 
-              <div className="space-y-1.5">
-                <Label htmlFor="role-compte">Rôle</Label>
-                <SelectRecherche
-                  id="role-compte"
-                  options={(roles ?? []).map((role) => ({ valeur: role.code, libelle: role.libelle }))}
-                  valeur={roleChoisi}
-                  onChange={(valeur) => setRoleChoisi(valeur as CodeRole | undefined)}
-                  placeholder="Choisir un rôle"
-                />
+                <ChampFormulaire id="role-compte" libelle="Rôle">
+                  {(attributs) => (
+                    <SelectRecherche
+                      id={attributs.id}
+                      ariaInvalid={attributs["aria-invalid"]}
+                      ariaDescribedBy={attributs["aria-describedby"]}
+                      options={(roles ?? []).map((role) => ({ valeur: role.code, libelle: role.libelle }))}
+                      valeur={roleChoisi}
+                      onChange={(valeur) => setRoleChoisi(valeur as CodeRole | undefined)}
+                      placeholder="Choisir un rôle"
+                    />
+                  )}
+                </ChampFormulaire>
               </div>
 
               {erreur && (

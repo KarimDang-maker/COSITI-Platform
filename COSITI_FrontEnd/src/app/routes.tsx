@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router";
 import { GardeRoute } from "@/app/GardeRoute";
 import { EcranConnexion } from "@/ecrans/connexion/EcranConnexion";
@@ -27,6 +28,19 @@ import { TableauBordSuperAdmin } from "@/ecrans/tableauxdebord/TableauBordSuperA
 import { EcranRapportsDaf } from "@/ecrans/rapports/EcranRapportsDaf";
 import { EcranAudit } from "@/ecrans/audit/EcranAudit";
 import { EcranAdministration } from "@/ecrans/administration/EcranAdministration";
+
+/**
+ * Catalogue du design system : outil de développement, pas un écran métier.
+ * `import.meta.env.DEV` est remplacé par `false` au build de production — la
+ * route et son module disparaissent du paquet livré.
+ */
+const CatalogueDesignSystem = import.meta.env.DEV
+  ? lazy(() =>
+      import("@/ecrans/designsystem/CatalogueDesignSystem").then((module) => ({
+        default: module.CatalogueDesignSystem,
+      })),
+    )
+  : null;
 
 /**
  * Déclaration des routes de l'application. Une route protégée est toujours
@@ -263,6 +277,19 @@ export function RoutesApplication() {
           </GardeRoute>
         }
       />
+
+      {CatalogueDesignSystem && (
+        <Route
+          path="/design-system"
+          element={
+            <GardeRoute>
+              <Suspense fallback={null}>
+                <CatalogueDesignSystem />
+              </Suspense>
+            </GardeRoute>
+          }
+        />
+      )}
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

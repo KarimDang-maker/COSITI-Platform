@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { Pagination } from "@/components/cositi/pagination";
+import { CarteSection } from "@/components/cositi/carte-section";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
@@ -71,6 +74,12 @@ export function ListeComptesRendus() {
     suivants.delete("page");
     definirParametres(suivants, { replace: true });
     setSelection([]);
+  }
+
+  function changerPage(nouvellePage: number) {
+    const suivants = new URLSearchParams(parametres);
+    suivants.set("page", String(nouvellePage));
+    definirParametres(suivants, { replace: true });
   }
 
   function basculerSelection(id: string) {
@@ -170,18 +179,16 @@ export function ListeComptesRendus() {
 
   return (
     <CoquilleApplication titre="Comptes rendus">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1>Comptes rendus</h1>
-            <p className="text-texte-doux">
-              Remontées du terrain vers le Gestionnaire des comptes, puis consolidation vers la DGA.
-            </p>
-          </div>
-          {peutProduire && (
-            <Button onClick={() => navigate("/comptes-rendus/nouveau")}>Produire un compte rendu</Button>
-          )}
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Comptes rendus"
+          description="Remontées du terrain vers le Gestionnaire des comptes, puis consolidation vers la DGA."
+          actions={
+            peutProduire && (
+              <Button onClick={() => navigate("/comptes-rendus/nouveau")}>Produire un compte rendu</Button>
+            )
+          }
+        />
 
         <Tabs value={onglet} onValueChange={changerOnglet}>
           <TabsList>
@@ -190,9 +197,9 @@ export function ListeComptesRendus() {
             {peutConsolider && <TabsTrigger value="a-consolider">À consolider</TabsTrigger>}
           </TabsList>
 
-          <TabsContent value={onglet} className="space-y-4">
+          <TabsContent value={onglet} className="space-y-6">
             {onglet === "a-consolider" && peutConsolider && (
-              <div className="flex items-center justify-between gap-3 rounded-lg border border-bordure p-3">
+              <CarteSection contenuClassName="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-texte-doux">
                   {selection.length === 0
                     ? "Sélectionnez les comptes rendus contrôlés à consolider."
@@ -201,7 +208,7 @@ export function ListeComptesRendus() {
                 <Button disabled={selection.length === 0} onClick={() => setConsolidationOuverte(true)}>
                   Consolider et préparer pour la DGA
                 </Button>
-              </div>
+              </CarteSection>
             )}
 
             {isLoading && <SqueletteTableau colonnes={5} />}
@@ -230,47 +237,22 @@ export function ListeComptesRendus() {
             )}
 
             {data && data.contenu.length > 0 && (
-              <>
-                <TableauDonnees
-                  colonnes={colonnes}
-                  lignes={data.contenu}
-                  cleLigne={(c) => c.id}
-                  onActiverLigne={(c) => navigate(`/comptes-rendus/${c.id}`)}
-                  libelleLigne={(c) => `Ouvrir le compte rendu du ${c.periodeDebut} au ${c.periodeFin}`}
-                />
-                <div className="flex items-center justify-between text-sm text-texte-doux">
-                  <p>{data.totalElements} comptes rendus</p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page <= 0}
-                      onClick={() => {
-                        const suivants = new URLSearchParams(parametres);
-                        suivants.set("page", String(page - 1));
-                        definirParametres(suivants, { replace: true });
-                      }}
-                    >
-                      Précédent
-                    </Button>
-                    <span>
-                      Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page + 1 >= data.totalPages}
-                      onClick={() => {
-                        const suivants = new URLSearchParams(parametres);
-                        suivants.set("page", String(page + 1));
-                        definirParametres(suivants, { replace: true });
-                      }}
-                    >
-                      Suivant
-                    </Button>
-                  </div>
-                </div>
-              </>
+              <TableauDonnees
+                colonnes={colonnes}
+                lignes={data.contenu}
+                cleLigne={(c) => c.id}
+                onActiverLigne={(c) => navigate(`/comptes-rendus/${c.id}`)}
+                libelleLigne={(c) => `Ouvrir le compte rendu du ${c.periodeDebut} au ${c.periodeFin}`}
+                pied={
+                  <Pagination
+                    page={page}
+                    totalPages={data.totalPages}
+                    totalElements={data.totalElements}
+                    libelleElements="comptes rendus"
+                    onChangerPage={changerPage}
+                  />
+                }
+              />
             )}
           </TabsContent>
         </Tabs>

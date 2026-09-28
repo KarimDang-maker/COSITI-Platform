@@ -11,8 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alerte } from "@/components/cositi/alerte";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
 import { useCreerCampagne } from "@/hooks/useRelances";
 import { estErreurApi } from "@/api/erreurs";
 
@@ -84,19 +85,19 @@ export function DialogueCreerCampagne({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="libelle-campagne">Nom de la campagne</Label>
-            <Input
-              id="libelle-campagne"
-              value={libelle}
-              onChange={(evenement) => setLibelle(evenement.target.value)}
-              placeholder="Retards de septembre — Douala Centre"
-            />
-          </div>
+        <div className="space-y-5">
+          <ChampFormulaire id="libelle-campagne" libelle="Nom de la campagne">
+            {(attributs) => (
+              <Input
+                {...attributs}
+                value={libelle}
+                onChange={(evenement) => setLibelle(evenement.target.value)}
+                placeholder="Retards de septembre — Douala Centre"
+              />
+            )}
+          </ChampFormulaire>
 
-          <div className="rounded-lg border border-bordure p-3 text-sm">
-            <p className="font-semibold">Critères enregistrés</p>
+          <CarteSection titre="Critères enregistrés" niveauTitre="h3" contenuClassName="space-y-2 text-sm">
             {criteresLisibles.length === 0 ? (
               <p className="text-texte-doux">Aucun filtre actif — la campagne couvre tous les retardataires.</p>
             ) : (
@@ -106,10 +107,10 @@ export function DialogueCreerCampagne({
                 ))}
               </ul>
             )}
-            <p className="mt-2 text-texte-doux">
+            <p className="text-texte-doux">
               {nbRetardataires} adhérent(s) correspondent à ces critères aujourd'hui.
             </p>
-          </div>
+          </CarteSection>
 
           {erreur && (
             <Alerte teinte="danger" titre="Création impossible">

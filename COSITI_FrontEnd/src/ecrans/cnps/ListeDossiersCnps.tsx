@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { Pagination } from "@/components/cositi/pagination";
+import { CelluleIdentite } from "@/components/cositi/cellule-identite";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
 import { EtatVide } from "@/components/cositi/etat-vide";
@@ -119,7 +122,7 @@ export function ListeDossiersCnps() {
         header: "Matricule",
         cell: ({ row }) => <span className="ref">{formaterMatricule(row.original.matricule)}</span>,
       },
-      { id: "nomComplet", header: "Adhérent", cell: ({ row }) => row.original.nomComplet },
+      { id: "nomComplet", header: "Adhérent", cell: ({ row }) => <CelluleIdentite nom={row.original.nomComplet} /> },
       { id: "packCode", header: "Pack", cell: ({ row }) => row.original.packCode },
       {
         id: "cumulCotise",
@@ -158,13 +161,11 @@ export function ListeDossiersCnps() {
 
   return (
     <CoquilleApplication titre="CNPS">
-      <div className="space-y-4">
-        <div>
-          <h1>Suivi CNPS</h1>
-          <p className="text-texte-doux">
-            Dossiers d'immatriculation, pièces et déclarations mensuelles.
-          </p>
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Suivi CNPS"
+          description="Dossiers d'immatriculation, pièces et déclarations mensuelles."
+        />
 
         <Tabs value={onglet} onValueChange={(valeur) => mettreAJourParametre("onglet", valeur)}>
           <TabsList>
@@ -172,7 +173,7 @@ export function ListeDossiersCnps() {
             <TabsTrigger value="eligibles">Éligibles non immatriculés</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dossiers" className="space-y-4">
+          <TabsContent value="dossiers" className="space-y-6">
             <BarreFiltres>
               <div className="space-y-1.5">
                 <Label htmlFor="filtre-statut-dossier">Statut</Label>
@@ -206,43 +207,26 @@ export function ListeDossiersCnps() {
             )}
 
             {data && data.contenu.length > 0 && (
-              <>
-                <TableauDonnees
-                  colonnes={colonnesDossiers}
-                  lignes={data.contenu}
-                  cleLigne={(d) => d.id}
-                  onActiverLigne={(d) => navigate(`/cnps/${d.id}`)}
-                  libelleLigne={(d) => `Ouvrir le dossier CNPS ${d.id}`}
-                />
-                <div className="flex items-center justify-between text-sm text-texte-doux">
-                  <p>{data.totalElements} dossiers</p>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page <= 0}
-                      onClick={() => mettreAJourParametre("page", String(page - 1))}
-                    >
-                      Précédent
-                    </Button>
-                    <span>
-                      Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page + 1 >= data.totalPages}
-                      onClick={() => mettreAJourParametre("page", String(page + 1))}
-                    >
-                      Suivant
-                    </Button>
-                  </div>
-                </div>
-              </>
+              <TableauDonnees
+                colonnes={colonnesDossiers}
+                lignes={data.contenu}
+                cleLigne={(d) => d.id}
+                onActiverLigne={(d) => navigate(`/cnps/${d.id}`)}
+                libelleLigne={(d) => `Ouvrir le dossier CNPS ${d.id}`}
+                pied={
+                  <Pagination
+                    page={page}
+                    totalPages={data.totalPages}
+                    totalElements={data.totalElements}
+                    libelleElements="dossiers"
+                    onChangerPage={(nouvellePage) => mettreAJourParametre("page", String(nouvellePage))}
+                  />
+                }
+              />
             )}
           </TabsContent>
 
-          <TabsContent value="eligibles" className="space-y-4">
+          <TabsContent value="eligibles" className="space-y-6">
             <p className="text-sm text-texte-doux">
               Adhérents dont le cumul cotisé a franchi le seuil d'éligibilité de leur propre pack, et
               qui n'ont pas encore de numéro d'immatriculation CNPS.

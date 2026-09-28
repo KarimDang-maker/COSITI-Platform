@@ -1,4 +1,5 @@
 /* COSITI: import de `cn` recâblé sur `@/lib/utils` (le CLI shadcn récent génère un import du paquet publié `cn`, non utilisé ici — voir docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md). */
+/* COSITI: gabarit v1.1 — mêmes bordure, rayon, focus et erreur que `input.tsx`. */
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
@@ -7,7 +8,7 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
     <textarea
       data-slot="textarea"
       className={cn(
-        "flex field-sizing-content min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:aria-invalid:ring-destructive/40",
+        "flex field-sizing-content min-h-24 w-full rounded-lg border border-input bg-surface px-3.5 py-2.5 text-base text-texte shadow-xs transition-[color,border-color,box-shadow] duration-(--duree-rapide) ease-cositi outline-none placeholder:text-texte-doux focus-visible:border-anneau focus-visible:ring-[3px] focus-visible:ring-anneau-halo disabled:cursor-not-allowed disabled:bg-surface-douce disabled:text-texte-doux aria-invalid:border-danger-fort aria-invalid:focus-visible:ring-anneau-danger-halo md:text-sm",
         className
       )}
       {...props}

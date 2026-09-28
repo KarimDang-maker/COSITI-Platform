@@ -2,6 +2,9 @@ import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { Pagination } from "@/components/cositi/pagination";
+import { CelluleIdentite } from "@/components/cositi/cellule-identite";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
 import { EtatVide } from "@/components/cositi/etat-vide";
@@ -89,7 +92,7 @@ export function EcranDroits() {
   const colonnes = useMemo<ColumnDef<Retardataire>[]>(
     () => [
       { id: "matricule", header: "Matricule", cell: ({ row }) => <span className="ref">{row.original.matricule}</span> },
-      { id: "nomComplet", header: "Adhérent", cell: ({ row }) => row.original.nomComplet },
+      { id: "nomComplet", header: "Adhérent", cell: ({ row }) => <CelluleIdentite nom={row.original.nomComplet} /> },
       { id: "couvertJusquAu", header: "Couvert jusqu'au", cell: ({ row }) => formaterDate(row.original.couvertJusquAu) },
       {
         id: "joursRetard",
@@ -102,17 +105,16 @@ export function EcranDroits() {
 
   return (
     <CoquilleApplication titre="Droits">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h1>Droits et régularité</h1>
-            <p className="text-texte-doux">Retardataires, triés par retard décroissant (tri serveur fixe).</p>
-          </div>
-
-          {peutCreerCampagne && (
-            <Button onClick={() => setCampagneOuverte(true)}>Créer une campagne de relance</Button>
-          )}
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Droits et régularité"
+          description="Retardataires, triés par retard décroissant (tri serveur fixe)."
+          actions={
+            peutCreerCampagne && (
+              <Button onClick={() => setCampagneOuverte(true)}>Créer une campagne de relance</Button>
+            )
+          }
+        />
 
         <BarreFiltres>
           <div className="space-y-1.5">
@@ -168,30 +170,22 @@ export function EcranDroits() {
         )}
 
         {data && data.contenu.length > 0 && (
-          <>
-            <TableauDonnees
-              colonnes={colonnes}
-              lignes={data.contenu}
-              cleLigne={(r) => r.adherentId}
-              onActiverLigne={(r) => navigate(`/adherents/${r.adherentId}`)}
-              libelleLigne={(r) => `Ouvrir la fiche de ${r.nomComplet}`}
-            />
-
-            <div className="flex items-center justify-between text-sm text-texte-doux">
-              <p>{data.totalElements} retardataires</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 0} onClick={() => changerPage(page - 1)}>
-                  Précédent
-                </Button>
-                <span>
-                  Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                </span>
-                <Button variant="outline" size="sm" disabled={page + 1 >= data.totalPages} onClick={() => changerPage(page + 1)}>
-                  Suivant
-                </Button>
-              </div>
-            </div>
-          </>
+          <TableauDonnees
+            colonnes={colonnes}
+            lignes={data.contenu}
+            cleLigne={(r) => r.adherentId}
+            onActiverLigne={(r) => navigate(`/adherents/${r.adherentId}`)}
+            libelleLigne={(r) => `Ouvrir la fiche de ${r.nomComplet}`}
+            pied={
+              <Pagination
+                page={page}
+                totalPages={data.totalPages}
+                totalElements={data.totalElements}
+                libelleElements="retardataires"
+                onChangerPage={changerPage}
+              />
+            }
+          />
         )}
       </div>
 

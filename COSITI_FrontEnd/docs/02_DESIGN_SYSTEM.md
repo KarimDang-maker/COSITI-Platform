@@ -1,7 +1,9 @@
 # 02 — Design system COSITI
 
-Version 1.0 — 21/09/2026
+Version 1.1 — 28/09/2026 (gabarit visuel « Spark Admin » intégré, §2.1)
 Destinataire : **l'agent de code qui développe le frontend COSITI**.
+
+Catalogue vivant : route `/design-system`, en développement uniquement (§18).
 
 Ce document est la référence unique du design de la plateforme. En cas d'écart
 entre ce document et un écran existant, c'est ce document qui fait foi. En cas
@@ -55,6 +57,36 @@ sont clairs pour réduire la fatigue visuelle sur de longues sessions de saisie.
 Pas de dégradé, pas d'ombre décorative, pas d'animation d'agrément, pas
 d'emoji, pas de mode sombre en V1.
 
+### 2.1 Gabarit visuel : Spark Admin, traduit dans l'identité COSITI [A]
+
+Depuis la v1.1, la **structure** de l'interface reprend le gabarit Bootstrap
+« Spark Admin » (coquille, densité, rayons, ombres, cartes, tableaux,
+formulaires). Son **identité** est remplacée par celle de la charte. Règle
+d'arbitrage : la charte gagne sur tout ce qu'elle fixe (couleurs, typographie,
+logo) ; le gabarit gagne sur tout ce qu'elle ne fixe pas (géométrie, densité,
+mise en page) ; l'accessibilité (§14) gagne sur les deux.
+
+| Élément du gabarit | Traduction COSITI |
+|---|---|
+| Vert forêt `#051C12` de la navigation | `--nav-fond` = vert foncé de la charte |
+| Vert forêt `#072F1F` des boutons | `--primaire` = vert principal (bouton), `--surface-inversee` = vert foncé (carte mise en avant) |
+| Accent lime `#B4F105` (liseré actif, icône active, lien sur carte sombre) | `--marque` = orange de la charte — jamais en texte courant |
+| Rouge / vert / orange système | Les teintes d'état §4.4 |
+| Plus Jakarta Sans, graisse 500, interlettrage −0,01 em | Reprise telle quelle, auto-hébergée (§6) ; tailles de la charte (16 px de texte courant) |
+| Sélecteur de période et calendrier flatpickr | `SelecteurPeriode`, `Calendrier`, `ChampDate` — même rendu, sans dépendance |
+| Rayons 6 → 24 px, ombres très diffuses | Repris tels quels, ombres teintées vert foncé (§7) |
+| Navigation 280 / 80 px, en-tête collant translucide | Repris (§8) |
+| Carte « alerte verte » en tête de tableau de bord | Carte de l'indicateur principal (taux d'activation, §11) |
+| Liste « Transaction » | `ListeElements` |
+| « Product Overview » (barres) | `BarreProgression` |
+| Tableau, barre d'outils, pagination numérotée | `TableauDonnees` + `BarreFiltres` + `Pagination` |
+
+**Non repris, délibérément** : la recherche globale (aucun écran ne la
+spécifie — `AGENTS.md` règle 10), le bouton plein écran, la bannière
+promotionnelle, l'astérisque décoratif et toutes les animations
+d'agrément (rotation, pulsation, battement), la connexion par réseaux sociaux,
+les dégradés de fond de la page de connexion.
+
 ---
 
 ## 3. Arborescence
@@ -70,11 +102,14 @@ COSITI_FrontEnd/
     │   └── globals.css              pont Tailwind v4 + styles de base
     ├── lib/
     │   ├── utils.ts                 cn()
-    │   ├── statuts.ts               statut API → libellé + teinte
-    │   └── format.ts                montants, dates, matricules, téléphones
-    └── components/
-        ├── ui/                      primitives shadcn, techniques, en anglais
-        └── cositi/                  composants métier, en français
+    │   ├── statuts.ts               statut API → libellé + teinte (+ pastilles, remplissages)
+    │   ├── format.ts                montants, dates, matricules, téléphones, évolutions
+    │   ├── roles.ts                 code de rôle → libellé en toutes lettres
+    │   └── jetons.ts                lecture des jetons CSS depuis JS (graphiques)
+    ├── components/
+    │   ├── ui/                      primitives shadcn, techniques, en anglais
+    │   └── cositi/                  composants métier, en français
+    └── ecrans/designsystem/         catalogue vivant (développement uniquement)
 ```
 
 La séparation `ui/` ↔ `cositi/` est structurante : `ui/` est régénérable par la
@@ -117,6 +152,7 @@ l'environnement final ». Vérification faite, sur blanc :
 | Orange foncé `#C9680B` | 3,84 | Bordures, icônes, grand texte seulement |
 | **Orange `#F28C18`** | **2,46** | **Jamais du texte. Jamais de blanc dessus.** |
 | **Avertissement `#D99A18`** | **2,45** | **Jamais du texte sur fond clair.** |
+| Orange sur vert foncé | 4,25 | Icône, liseré, grand texte — jamais un texte courant (v1.1) |
 
 Trois décisions en découlent, toutes appliquées dans `tokens.css` :
 
@@ -141,13 +177,20 @@ Les composants n'utilisent **que** cette couche. Elle est définie dans
 
 | Famille | Jetons | Utilitaires Tailwind |
 |---|---|---|
-| Surfaces | `--fond`, `--surface`, `--surface-douce`, `--surface-survol` | `bg-fond`, `bg-surface`, … |
+| Surfaces | `--fond`, `--surface`, `--surface-douce` (en-tête de tableau, `#F8FAF9`), `--surface-survol` | `bg-fond`, `bg-surface`, … |
+| Surface inversée | `--surface-inversee`, `-contenu`, `-doux`, `-trait`, `-accent` | `bg-surface-inversee` — indicateur principal, pastille d'identité |
 | Traits | `--bordure`, `--bordure-forte` | `border-bordure` |
 | Texte | `--texte`, `--texte-doux`, `--texte-doux-fort`, `--texte-inactif`, `--titre` | `text-texte-doux` |
 | Action principale | `--primaire`, `--primaire-survol`, `--primaire-contenu`, `--primaire-doux` | `bg-primaire text-primaire-contenu` |
 | Marque | `--marque`, `--marque-survol`, `--marque-contenu`, `--marque-trait` | `bg-marque text-marque-contenu` |
-| Navigation | `--nav-fond`, `--nav-contenu`, `--nav-contenu-doux`, `--nav-actif-fond`, `--nav-actif-trait` | `bg-nav-fond` |
-| Focus | `--anneau`, `--anneau-halo`, `--anneau-danger` | `ring-ring` |
+| Navigation | `--nav-fond`, `--nav-contenu`, `--nav-contenu-doux`, `--nav-survol-fond`, `--nav-actif-fond`, `--nav-actif-trait`, `--nav-trait` | `bg-nav-fond` |
+| Coquille | `--entete-fond` (en-tête translucide), `--voile` (fond de modale et de tiroir) | `bg-entete-fond`, `bg-voile` |
+| Graphiques | `--graphique-serie-1..3`, `--graphique-grille`, `--graphique-axe`, `--graphique-survol` | lus par `lib/jetons.ts` |
+| Focus | `--anneau`, `--anneau-halo`, `--anneau-danger`, `--anneau-danger-halo` | `ring-anneau`, `ring-anneau-halo` |
+
+Focus : les boutons, liens et interrupteurs portent un anneau plein
+`ring-2 ring-anneau` décalé de 2 px ; les champs passent leur bordure en vert
+et ajoutent un halo `anneau-halo` de 3 px (la bordure seule assure le 3:1).
 
 > **Piège shadcn.** Dans shadcn, le jeton `accent` désigne la surface de survol
 > neutre des menus, pas un accent de marque. `globals.css` mappe donc
@@ -200,10 +243,18 @@ Trois points d'attention :
 
 ## 6. Typographie
 
-Charte §3 : police sans empattement, **Noto Sans** ou **DejaVu Sans**. Noto Sans
-est auto-hébergée en `woff2` (400 / 600 / 700, sous-ensemble latin étendu) —
-pas de CDN de polices : les postes COSITI travaillent avec une connectivité
-irrégulière et une police distante qui ne charge pas décale toute la page. [A]
+Charte §3 : police sans empattement, « **DejaVu Sans**, **Noto Sans** ou une
+équivalence ». Décision du 28/09/2026 : la plateforme utilise **Plus Jakarta
+Sans**, la police du gabarit Spark — Noto Sans et DejaVu Sans restent en repli
+dans `--police-base`. Elle est **auto-hébergée** (`src/styles/polices/`,
+variable 200–800, latin et latin étendu, licence OFL, provenance dans
+`docs/journal-dependances.md`) — pas de CDN de polices : les postes COSITI
+travaillent avec une connectivité irrégulière et une police distante qui ne
+charge pas décale toute la page.
+
+Comme dans le gabarit : texte courant en graisse 500, interlettrage −0,01 em ;
+titres en 700, −0,025 em. Les **tailles** restent celles de la charte (16 px
+de texte courant, 32 / 22 px de titres).
 
 Le lettrage du logo a son propre dessin : il n'est **jamais** reconstitué avec
 une police système.
@@ -216,6 +267,15 @@ une police système.
 | Texte courant | 16 px | texte principal | 400 | `p`, cellules |
 | Libellé de champ | 14 px | texte principal | 600 | `label` |
 | Légende et aide | 13 px | texte secondaire | 400 | aide, métadonnée |
+| Titre de carte [A] | 18 px | vert foncé | 700 | `h2` de `CarteSection` |
+| Valeur d'indicateur | 32 px | texte principal | 800 | `CarteIndicateur` |
+| Valeur de l'indicateur principal | 40 px | blanc sur vert foncé | 800 | `CarteIndicateur principal` |
+| Petites capitales | 12 px, +0,06 em | texte secondaire fort | 700 | en-tête de tableau, section de navigation, groupe de menu |
+
+Titre de carte : le gabarit titre ses cartes en 18 px ; la charte fixe 22 px
+pour le titre de section. Arbitrage [A] : le `h2` **hors carte** garde les
+22 px vert principal de la charte ; le titre **d'une carte** (`CarteSection`)
+est un `h2` en 18 px vert foncé. À confirmer par la COSITI.
 
 Les styles de `h1`, `h2`, `h3` sont appliqués dans `globals.css` : le niveau
 sémantique porte le style, un agent n'a pas à réappliquer taille et couleur.
@@ -234,12 +294,32 @@ tabulaires (classe `.chiffre`) pour toute colonne de montants.
 Échelle d'espacement : `4 · 8 · 12 · 16 · 24 · 32 · 48 · 64`. Aucune valeur
 intermédiaire.
 
-Rayons : `4` badge · `6` bouton et champ · `10` carte et modale · plein pour
-pastilles et avatars.
+Rayons (v1.1, échelle du gabarit) — plus l'objet est grand, plus il est
+arrondi :
+
+| Jeton | Valeur | Utilitaire | Objets |
+|---|---:|---|---|
+| `--rayon-sm` | 6 px | `rounded-sm` | case à cocher, puce |
+| `--rayon-md` | 10 px | `rounded-md` | item de menu, bouton compact, action de ligne, lien de navigation |
+| `--rayon-lg` | 14 px | `rounded-lg` | bouton, champ, élément de liste, avatar, alerte |
+| `--rayon-xl` | 18 px | `rounded-xl` | menu déroulant, sélecteur, tableau, carte profil |
+| `--rayon-2xl` | 24 px | `rounded-2xl` | carte, carte d'indicateur, modale, carte de connexion |
+| `--rayon-plein` | — | `rounded-full` | badge de statut, pastille d'icône, barre de progression |
 
 Ombres : uniquement sur les cartes et les surfaces flottantes. Elles sont
 teintées vert foncé — une ombre grise neutre paraît sale sur le fond
-légèrement vert de l'interface.
+légèrement vert de l'interface. Les cartes n'ont **pas de bordure** : l'ombre
+`carte` suffit à les détacher du fond.
+
+| Jeton | Utilitaire | Usage |
+|---|---|---|
+| `--ombre-legere` | `shadow-legere` | bouton d'en-tête, onglet actif, poignée d'interrupteur |
+| `--ombre-carte` | `shadow-carte` | carte, tableau, barre de filtres |
+| `--ombre-flottante` | `shadow-flottante` | menu, sélecteur, infobulle, carte principale, carte de connexion |
+| `--ombre-modale` | `shadow-modale` | modale, tiroir |
+
+Les utilitaires shadcn `shadow-xs/sm/md/lg` sont remappés sur ces ombres dans
+`globals.css` : une primitive régénérée hérite des ombres COSITI.
 
 Mouvement : `120 ms` pour le survol et le focus, `180 ms` pour l'ouverture
 d'un panneau ou d'une modale. Rien d'autre n'est animé.
@@ -249,25 +329,44 @@ d'un panneau ou d'une modale. Rien d'autre n'est animé.
 
 ## 8. Gabarit
 
-Coquille fixe, identique pour les six tableaux de bord :
+Coquille fixe (`CoquilleApplication`), identique pour tous les écrans
+internes, calquée sur le gabarit :
 
 ```
 ┌────────────┬──────────────────────────────────────────────┐
-│            │  En-tête 56 px — fil d'Ariane · recherche    │
-│ Navigation │  globale · notifications · menu utilisateur  │
-│  latérale  ├──────────────────────────────────────────────┤
-│   248 px   │                                              │
-│ fond vert  │  Contenu — largeur max 1440 px               │
-│   foncé    │  fond #F5F7F6, cartes blanches               │
+│ Logo       │  En-tête collant 72 px, fond translucide     │
+│ inversé    │  [replier] [Créer ▾]      [cloche] [profil ▾]│
+│            ├──────────────────────────────────────────────┤
+│ PILOTAGE   │  Fil d'Ariane                                │
+│ ▌Tableau…  │  Titre h1                        [actions]   │
+│ ADHÉRENTS  │  Sous-titre                                  │
+│  Adhérents │                                              │
+│  …         │  Contenu — largeur max 1440 px, marges 40 px │
+│            │  fond #F5F7F6, cartes blanches               │
+│ [profil]   │  ─────────────── pied de page ────────────── │
 └────────────┴──────────────────────────────────────────────┘
+  280 px (replié : 80 px)
 ```
 
-- Navigation : `248 px`, repliable à `64 px`, repliée d'office sous `1024 px`.
-  Fond vert foncé, logo **inversé**, item actif sur fond vert principal avec un
-  liseré orange de 3 px à gauche.
+- Navigation : `280 px`, repliable à `80 px` au-delà de `1024 px` (préférence
+  mémorisée dans le navigateur — préférence d'affichage, jamais une donnée) ;
+  sous `1024 px`, elle devient un **tiroir** ouvert depuis l'en-tête. Fond vert
+  foncé, logo **inversé** (icône seule une fois repliée). Entrées regroupées
+  en sections titrées en petites capitales (Pilotage, Adhérents, Terrain,
+  Finances, Système). Item actif : voile blanc léger, **liseré orange de 4 px
+  collé au bord du panneau**, icône orange. Repliée : libellés en infobulle et
+  toujours présents pour le lecteur d'écran. Carte profil (nom, rôle) en pied.
 - Les entrées de navigation sont filtrées par les permissions renvoyées par
   `GET /auth/moi`. Une entrée sans permission n'est pas affichée grisée : elle
-  n'est pas affichée.
+  n'est pas affichée. Une section vide disparaît.
+- En-tête : bouton de repli (tiroir en écran étroit), menu **« Créer »**
+  (raccourcis vers les seuls écrans de saisie existants, filtrés par
+  permission, absent si aucun), notifications, menu utilisateur (nom, rôle en
+  toutes lettres, changement de mot de passe, déconnexion). Le menu « Créer »
+  est en vert foncé de navigation : ce n'est pas l'action primaire de l'écran.
+- En-tête de page (`EnTetePage`) : fil d'Ariane, `h1`, sous-titre à gauche,
+  actions de l'écran à droite.
+- L'onglet du navigateur reprend le titre de l'écran : « Adhérents — COSITI ».
 - Grille de formulaire : une colonne sous `768 px`, deux colonnes au-delà. Les
   champs liés restent groupés (téléphone principal et secondaire côte à côte,
   jamais séparés par une rupture de colonne).
@@ -279,20 +378,57 @@ Coquille fixe, identique pour les six tableaux de bord :
 
 ### 9.1 Contrats
 
-| Composant | Emplacement | Points d'attention |
-|---|---|---|
-| `Button` | `ui/` | Variantes `default` (vert), `marque` (orange, texte sombre), `outline`, `ghost`, `destructive`, `link`. Un seul `default` par écran. État de chargement **bloquant** — sur `POST /paiements`, le double envoi est une écriture financière en double, même si l'API impose `Idempotency-Key` |
-| `BadgeStatut` | `cositi/` | `domaine` + `code`. Seul composant autorisé à afficher un statut |
-| Champs | `ui/` + `cositi/` | Libellé toujours visible — jamais un simple texte indicatif. Aide sous le champ. Erreur reliée par `aria-describedby`. Le champ montant est en chasse fixe et aligné à droite |
-| `Select` avec recherche | `cositi/` | Recherche obligatoire au-delà de 10 options : listes d'adhérents, d'agents, de zones |
-| `TableauDonnees` | `cositi/` | En-tête collant, tri et pagination **serveur** (`?page=&taille=&tri=`), ligne activable au clavier, total réel affiché (« 172 adhérents ») |
-| `Alerte` | `cositi/` | Bandeau persistant, quatre teintes. Pour les messages transitoires, utiliser les notifications |
-| `AvertissementRegle` | `cositi/` | Bandeau `attention` pour toute règle `[V]`. Voir §10 |
-| `DialogueConfirmation` | `ui/` + `cositi/` | Rappelle les valeurs concernées dans le texte. Motif obligatoire pour une annulation ou une correction — le champ motif est dans le dialogue, pas après |
-| `EtatVide` | `cositi/` | Message explicite + action possible. Jamais un tableau vide sans explication |
-| `Squelette` | `cositi/` | Préféré au spinner plein écran |
-| `CarteIndicateur` | `cositi/` | Valeur, libellé, période de référence, évolution. La période est obligatoire : un chiffre sans période n'est pas un indicateur |
-| `LigneAudit` | `cositi/` | Horodatage, auteur, action, cible — les quatre, toujours |
+Primitives (`ui/`) — hauteurs et géométrie du gabarit :
+
+| Composant | Points d'attention |
+|---|---|
+| `Button` | Variantes `default` (vert), `marque` (orange, texte sombre), `outline`, `secondary` (clair), `ghost`, `destructive`, `link`. Tailles `xs` 28 · `sm` 32 · `default` 40 · `lg` 48 px, icônes carrées assorties. Rayon `lg`, graisse 600. Un seul `default` par écran. État de chargement **bloquant** — sur `POST /paiements`, le double envoi est une écriture financière en double, même si l'API impose `Idempotency-Key` |
+| `Input`, `Textarea`, `SelectTrigger` | 40 px, rayon `lg`, fond blanc, bordure `bordure-forte` ; focus bordure verte + halo ; erreur (`aria-invalid`) bordure danger ; désactivé et lecture seule sur `surface-douce` |
+| `Checkbox`, `RadioGroupItem`, `Switch` | 18 px ; interrupteur 40 × 22 px. Toujours dans un `Label` cliquable |
+| `Card` | Sans bordure, rayon `2xl`, `shadow-carte`, marges 24 px. Ne s'utilise pas directement dans un écran : passer par `CarteSection` |
+| `Table` | En-tête en petites capitales sur `surface-douce`, cellules 14 × 20 px, survol `surface-survol` |
+| `DropdownMenu`, `Select`, `Popover` | Rayon `xl`, `shadow-flottante`, items en rayon `md` ; libellé de groupe en petites capitales |
+| `Dialog`, `AlertDialog`, `Sheet` | Voile vert foncé `voile`, rayon `2xl`, `shadow-modale`, fermeture libellée « Fermer » |
+| `Tabs` | Pastille `surface-survol`, onglet actif blanc, texte vert foncé |
+
+Composants COSITI (`cositi/`) :
+
+| Composant | Rôle et points d'attention |
+|---|---|
+| `CoquilleApplication` | Coquille §8. `titre` alimente l'onglet du navigateur |
+| `NavigationLaterale` | Sections, repli, tiroir, carte profil — filtrée par permission |
+| `EnteteApplication`, `BoutonEntete`, `MenuCreation`, `MenuUtilisateur`, `ClocheNotifications` | En-tête §8. Bouton d'en-tête : icône seule, `aria-label` obligatoire. Nombre de notifications écrit, jamais une pastille seule |
+| `PiedPage` | Nom de la coopérative en texte, jamais une reconstitution du logo |
+| `EnTetePage` | Fil d'Ariane, unique `h1`, sous-titre, `statut`, actions. Tout écran interne commence par lui |
+| `FilAriane` | Dernier maillon `aria-current="page"` ; un niveau sans écran n'est pas un lien |
+| `CarteSection` | Seule manière de poser une carte : titre (`h2` 18 px), description, actions, pied, `contenuPleineLargeur` pour un tableau ou une liste collés aux bords |
+| `MenuActions` | Menu « … » d'une carte ou d'une ligne, `libelle` accessible explicite, actions destructives en fin de menu |
+| `CarteIndicateur`, `RangeeIndicateurs`, `Tendance` | Valeur, libellé, période de référence, évolution. La période est obligatoire dès que l'API la fournit : un chiffre sans période n'est pas un indicateur. `principal` = carte vert foncé, réservée au taux d'activation. L'évolution est **renvoyée par l'API**, son signe toujours écrit |
+| `ListeElements` | Lignes riches : pastille d'icône (teinte d'état ou identité), titre, sous-titre, valeur, complément. Lien seulement vers un écran accessible |
+| `ListeAlertes` | Points nécessitant attention, niveau écrit sous le libellé |
+| `BarreProgression` | Libellé + valeur écrite + barre ; `role="progressbar"` |
+| `TableauDonnees` | Carte du gabarit ; `barreOutils` (filtres, recherche, export) et `pied` (pagination). En-tête collant, tri et pagination **serveur** (`?page=&taille=&tri=`), ligne activable au clavier |
+| `Pagination` | Total réel (« 172 adhérents »), « Page 1 sur 7 », Précédent / numéros / Suivant |
+| `BarreFiltres` | Filtres alignés sur les paramètres de l'API ; `integree` dans `TableauDonnees` |
+| `CelluleIdentite` | Avatar à initiales + nom + précision, pour toute colonne « personne » |
+| `ChampFormulaire` | Libellé visible, aide, erreur reliée par `aria-describedby` et annoncée (région live). Le contrôle reçoit ses attributs par fonction enfant |
+| `ChampMontant` | Chasse fixe, aligné à droite, unité « FCFA » accolée |
+| `ChampMotDePasse` | Bouton afficher / masquer, `aria-pressed` |
+| `ChampRecherche`, `ChampIcone` | Icône décorative dans le champ (loupe, identifiant) ; libellé toujours fourni |
+| `Calendrier` | Calendrier du gabarit (thème flatpickr) sans dépendance : pastilles de 38 px, extrémités vert foncé, bande vert clair, mois voisins atténués, point orange sur aujourd'hui, lundi en tête. Clavier complet (flèches, Début/Fin, Page préc./suiv.) |
+| `SelecteurPeriode` | Pastille du gabarit + calendrier en mode période. Sans période, rien n'est envoyé et le libellé dit ce que l'API applique (« Mois en cours ») ; la période vit dans l'URL (`?du=&au=`) via `usePeriodeTableauBord` |
+| `ChampDate` | Vrai `<input type="date">` (saisie clavier, `register`) + bouton ouvrant le calendrier. Remplace tout champ date natif |
+| `SelectRecherche` | Recherche obligatoire au-delà de 10 options : listes d'adhérents, d'agents, de zones |
+| `BadgeStatut` | `domaine` + `code`. Seul composant autorisé à afficher un statut. Pastille arrondie précédée d'un point : le libellé reste écrit |
+| `Alerte` | Bandeau persistant, quatre teintes, `action` facultative. Pour les messages transitoires, utiliser les notifications |
+| `AvertissementRegle` | Bandeau `attention` pour toute règle `[V]`. Voir §10 |
+| `DialogueConfirmation` | Rappelle les valeurs concernées dans le texte. Motif obligatoire pour une annulation ou une correction — le champ motif est dans le dialogue, pas après |
+| `EtatVide` | Icône du domaine, message explicite + action possible. Jamais un tableau vide sans explication |
+| `SqueletteTableau` | Préféré au spinner plein écran |
+| `CadreAuthentification` | Écrans hors coquille (connexion, mot de passe) : carte centrée, logo vertical |
+| `PageErreur` | Code en grand, titre, explication, actions de sortie (accès refusé) |
+| `AvatarUtilisateur` | Initiales, rayon `lg`, `taille` sm/md/lg, `fond` claire/inversee |
+| `LigneAudit` | Horodatage, auteur, action, cible — les quatre, toujours |
 
 ### 9.2 Ce qui n'existe pas et ne doit pas être créé
 
@@ -332,15 +468,28 @@ n'ont pas de tableau de bord dédié — ne pas en créer.
   première carte, en haut à gauche, avec son effectif de référence et sa
   période. C'est l'indicateur central du projet ; il ne doit pas être noyé dans
   une grille de douze cartes équivalentes.
+  Elle prend la forme de la carte vert foncé du gabarit (`CarteIndicateur
+  principal`), quel que soit l'ordre de la réponse de l'API.
 - Six cartes d'indicateurs au maximum au-dessus de la ligne de flottaison.
+- Période : les cinq tableaux de bord métier portent le `SelecteurPeriode` du
+  gabarit à droite du titre (paramètres `du`/`au` de l'API). Sans choix, le
+  serveur applique le mois civil en cours — le client ne le recalcule pas. Le
+  tableau de bord Super Administrateur n'a pas de chiffre daté : pas de
+  sélecteur.
+- Disposition (`CadreTableauBord`) : en-tête de page, rangée d'indicateurs,
+  puis une grille — contenu propre au rôle à gauche, carte « Points
+  nécessitant attention » à droite (colonne de 352 px, collante au-delà de
+  1280 px ; elle repasse sous le contenu en écran étroit).
 - Chaque tableau de bord ne montre que le périmètre de données de l'utilisateur.
   Un agent ne voit que son portefeuille — c'est l'API qui filtre, l'écran ne
   fait que ne pas prétendre le contraire.
 
 Graphiques : trois séries au maximum, pas d'effet 3D, pas de dégradé, pas
 d'ombre, axes légendés avec leur unité, palette limitée aux teintes
-fonctionnelles, et toujours une alternative textuelle ou un tableau accessible
-sous le graphique.
+fonctionnelles (`--graphique-serie-1..3` : vert, orange, bleu information),
+et toujours une alternative textuelle ou un tableau accessible sous le
+graphique. Recharts ne résout pas `var(--…)` dans ses attributs SVG : les
+couleurs sont lues à l'exécution par `lib/jetons.ts`, jamais recopiées.
 
 Les rôles ne sont **pas** distingués par une couleur. Un rôle s'affiche par son
 libellé et, si nécessaire, une icône. Introduire huit couleurs de rôle
@@ -497,6 +646,10 @@ Avant de proposer un écran, vérifier :
 - [ ] Avertissement affiché si une règle `[V]` est en jeu
 - [ ] Parcours clavier complet, focus visible
 - [ ] Aucun terme technique dans un message utilisateur
+- [ ] L'écran commence par `EnTetePage`, ses blocs sont des `CarteSection`
+- [ ] Aucune carte, pagination, recherche ou champ assemblés à la main : les
+      composants du §9.1 existent pour cela
+- [ ] Le composant nouveau ou modifié figure dans le catalogue `/design-system`
 
 ---
 
@@ -509,3 +662,18 @@ fait prendre de mauvaises décisions avec assurance.
 
 Si une information manque, écrire `TODO [V] : question` et signaler — ne pas
 inventer une règle de marque.
+
+---
+
+## 18. Catalogue vivant
+
+`src/ecrans/designsystem/CatalogueDesignSystem.tsx`, route `/design-system`,
+accessible depuis le menu utilisateur **en développement uniquement**
+(`import.meta.env.DEV` : la route et son module sont absents du build de
+production). Quatre onglets — Fondations, Actions et retours, Formulaires,
+Données — rendent chaque jeton et chaque composant par le code réel ; les
+valeurs des jetons sont lues à l'exécution, jamais recopiées. Les données
+affichées sont fictives et marquées comme telles.
+
+Un composant ajouté ou modifié l'est dans le catalogue **dans le même lot de
+travail** (§16).

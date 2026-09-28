@@ -2,10 +2,15 @@ import type { ReactNode } from "react";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { Alerte } from "@/components/cositi/alerte";
 import { AvertissementRegle } from "@/components/cositi/avertissement-regle";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { EnTetePage } from "@/components/cositi/entete-page";
 import { RangeeIndicateurs, type IndicateurCle } from "@/components/cositi/carte-indicateur";
 import { ListeAlertes, type AlerteTableauBord } from "@/components/cositi/liste-alertes";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SelecteurPeriode } from "@/components/cositi/selecteur-periode";
 import { estErreurApi } from "@/api/erreurs";
+import { formaterDateSaisie } from "@/lib/format";
+import type { usePeriodeTableauBord } from "@/hooks/usePeriodeTableauBord";
 
 interface CadreTableauBordProps {
   titre: string;
@@ -18,12 +23,24 @@ interface CadreTableauBordProps {
   clePrincipale?: string;
   alertes?: readonly AlerteTableauBord[];
   avertissements?: readonly string[];
+  /** Actions de l'en-tête de page (raccourci vers l'écran de traitement). */
+  actions?: ReactNode;
+  /** Blocs larges (tableau à plusieurs colonnes) affichés sous la grille, sur toute la largeur. */
+  pleineLargeur?: ReactNode;
+  /** Période filtrée (`usePeriodeTableauBord`) ; absente = pas de sélecteur de période. */
+  periode?: ReturnType<typeof usePeriodeTableauBord>;
   children?: ReactNode;
 }
 
 /**
- * Gabarit commun aux six tableaux de bord (J9) : en-tête, indicateurs clés,
- * alertes, puis le contenu propre à chaque rôle.
+ * Gabarit commun aux six tableaux de bord (J9), calqué sur le tableau de bord
+ * du gabarit Spark :
+ *
+ * 1. en-tête de page ;
+ * 2. rangée d'indicateurs, l'indicateur principal en carte vert foncé, en
+ *    haut à gauche (`docs/02 §11`) ;
+ * 3. grille : contenu propre au rôle à gauche, colonne « Points nécessitant
+ *    attention » à droite (repasse sous le contenu en écran étroit).
  *
  * Les `avertissements` renvoyés par l'API sont toujours affichés — ils portent
  * notamment la fraîcheur des vues de synthèse. Un dashboard qui montre des
@@ -39,25 +56,48 @@ export function CadreTableauBord({
   clePrincipale,
   alertes,
   avertissements,
+  actions,
+  pleineLargeur,
+  periode,
   children,
 }: CadreTableauBordProps) {
+  const avecColonneAlertes = alertes !== undefined;
+
   return (
     <CoquilleApplication titre={titre}>
-      <div className="space-y-6">
-        <div>
-          <h1>{titre}</h1>
-          <p className="text-texte-doux">{sousTitre}</p>
-        </div>
+      <div className="space-y-8">
+        <EnTetePage
+          titre={titre}
+          description={sousTitre}
+          actions={
+            (periode || actions) && (
+              <>
+                {periode && (
+                  <SelecteurPeriode
+                    periode={periode.periode}
+                    onChange={periode.changer}
+                    libelleParDefaut="Mois en cours"
+                    max={formaterDateSaisie(new Date())}
+                  />
+                )}
+                {actions}
+              </>
+            )
+          }
+        />
 
         {chargement && (
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
-              <Skeleton className="h-24" />
+          <div className="space-y-6" role="status" aria-label="Chargement du tableau de bord">
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              <Skeleton className="h-40 rounded-2xl" />
+              <Skeleton className="h-40 rounded-2xl" />
+              <Skeleton className="h-40 rounded-2xl" />
+              <Skeleton className="h-40 rounded-2xl" />
             </div>
-            <Skeleton className="h-64 w-full" />
+            <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+              <Skeleton className="h-80 rounded-2xl" />
+              <Skeleton className="h-80 rounded-2xl" />
+            </div>
           </div>
         )}
 
@@ -75,14 +115,17 @@ export function CadreTableauBord({
 
             {indicateurs && <RangeeIndicateurs indicateurs={indicateurs} clePrincipale={clePrincipale} />}
 
-            {alertes && (
-              <section className="space-y-3">
-                <h2 className="text-lg font-semibold text-titre">Points nécessitant attention</h2>
-                <ListeAlertes alertes={alertes} />
-              </section>
-            )}
+            <div className={avecColonneAlertes ? "grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]" : undefined}>
+              <div className="min-w-0 space-y-6">{children}</div>
 
-            {children}
+              {avecColonneAlertes && (
+                <CarteSection titre="Points nécessitant attention" className="xl:sticky xl:top-[calc(var(--hauteur-entete)+var(--espace-6))]">
+                  <ListeAlertes alertes={alertes} />
+                </CarteSection>
+              )}
+            </div>
+
+            {pleineLargeur}
           </>
         )}
       </div>

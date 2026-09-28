@@ -5,12 +5,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
 import { Alerte } from "@/components/cositi/alerte";
 import { DialogueConfirmation } from "@/components/cositi/dialogue-confirmation";
 import { SelectRecherche } from "@/components/cositi/select-recherche";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -22,6 +24,7 @@ import { useZones } from "@/hooks/useOrganisation";
 import { useActivites, useCreerAdherent, usePacks, useVerifierDoublon } from "@/hooks/useAdherents";
 import type { CandidatDoublon } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
+import { ChampDate } from "@/components/cositi/champ-date";
 import { formaterNomComplet, masquerTelephone } from "@/lib/format";
 
 const schema = z.object({
@@ -137,7 +140,10 @@ export function NouvelAdherent() {
   return (
     <CoquilleApplication titre="Nouvel adhérent">
       <div className="mx-auto max-w-3xl space-y-6">
-        <h1>Nouvel adhérent</h1>
+        <EnTetePage
+          titre="Nouvel adhérent"
+          filAriane={[{ libelle: "Adhérents", chemin: "/adherents" }, { libelle: "Nouvel adhérent" }]}
+        />
 
         <ol className="flex gap-4 text-sm">
           {TITRES_ETAPE.map((titre, index) => (
@@ -151,209 +157,208 @@ export function NouvelAdherent() {
           onSubmit={(e) => {
             e.preventDefault();
           }}
-          className="space-y-6"
           noValidate
         >
-          {etape === 0 && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="nom">Nom</Label>
-                <Input id="nom" aria-invalid={!!errors.nom} {...register("nom")} />
-                {errors.nom && <p className="text-sm text-danger-fort">{errors.nom.message}</p>}
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="prenoms">Prénoms</Label>
-                <Input id="prenoms" {...register("prenoms")} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dateNaissance">Date de naissance</Label>
-                <Input id="dateNaissance" type="date" {...register("dateNaissance")} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="sexe">Sexe</Label>
-                <Controller
-                  control={control}
-                  name="sexe"
-                  render={({ field }) => (
-                    <Select value={field.value ?? ""} onValueChange={field.onChange}>
-                      <SelectTrigger id="sexe">
-                        <SelectValue placeholder="Non renseigné" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="M">Masculin</SelectItem>
-                        <SelectItem value="F">Féminin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="numeroCni">Numéro CNI</Label>
-                <Input id="numeroCni" {...register("numeroCni")} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="numeroCnps">Numéro CNPS</Label>
-                <Input id="numeroCnps" {...register("numeroCnps")} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="telephonePrincipal">Téléphone principal</Label>
-                <Input
-                  id="telephonePrincipal"
-                  aria-invalid={!!errors.telephonePrincipal}
-                  aria-describedby={errors.telephonePrincipal ? "telephonePrincipal-erreur" : undefined}
-                  {...register("telephonePrincipal")}
-                />
-                {errors.telephonePrincipal && (
-                  <p id="telephonePrincipal-erreur" className="text-sm text-danger-fort">
-                    {errors.telephonePrincipal.message}
-                  </p>
+          {/* La carte enveloppe tout le formulaire : les boutons de navigation, posés dans son
+              pied, restent ainsi à l'intérieur du `<form>`. */}
+          <CarteSection
+            titre={TITRES_ETAPE[etape]}
+            pied={
+              <div className="flex w-full justify-between">
+                <Button type="button" variant="outline" onClick={etapePrecedente} disabled={etape === 0}>
+                  Précédent
+                </Button>
+                {etape < TITRES_ETAPE.length - 1 ? (
+                  <Button type="button" onClick={() => void etapeSuivante()}>
+                    Suivant
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => void handleSubmit(() => soumettre(false))()}
+                    disabled={creerAdherent.isPending}
+                  >
+                    {creerAdherent.isPending ? "Création en cours…" : "Créer l'adhérent"}
+                  </Button>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="telephoneSecondaire">Téléphone secondaire</Label>
-                <Input id="telephoneSecondaire" {...register("telephoneSecondaire")} />
-              </div>
-            </div>
-          )}
-
-          {etape === 1 && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="zoneId">Zone</Label>
-                <Controller
-                  control={control}
-                  name="zoneId"
-                  render={({ field }) => (
-                    <SelectRecherche
-                      id="zoneId"
-                      options={(zones ?? []).map((z) => ({ valeur: z.id, libelle: z.libelle }))}
-                      valeur={field.value}
-                      onChange={field.onChange}
-                      ariaInvalid={!!errors.zoneId}
-                      placeholder="Sélectionner une zone"
+            }
+          >
+            {etape === 0 && (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <ChampFormulaire id="nom" libelle="Nom" erreur={errors.nom?.message} className="sm:col-span-2">
+                  {(attributs) => <Input {...attributs} {...register("nom")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="prenoms" libelle="Prénoms" className="sm:col-span-2">
+                  {(attributs) => <Input {...attributs} {...register("prenoms")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="dateNaissance" libelle="Date de naissance">
+                  {(attributs) => <ChampDate {...attributs} {...register("dateNaissance")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="sexe" libelle="Sexe">
+                  {(attributs) => (
+                    <Controller
+                      control={control}
+                      name="sexe"
+                      render={({ field }) => (
+                        <Select value={field.value ?? ""} onValueChange={field.onChange}>
+                          <SelectTrigger {...attributs}>
+                            <SelectValue placeholder="Non renseigné" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="M">Masculin</SelectItem>
+                            <SelectItem value="F">Féminin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      )}
                     />
                   )}
-                />
-                {errors.zoneId && <p className="text-sm text-danger-fort">{errors.zoneId.message}</p>}
+                </ChampFormulaire>
+                <ChampFormulaire id="numeroCni" libelle="Numéro CNI">
+                  {(attributs) => <Input {...attributs} {...register("numeroCni")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="numeroCnps" libelle="Numéro CNPS">
+                  {(attributs) => <Input {...attributs} {...register("numeroCnps")} />}
+                </ChampFormulaire>
+                <ChampFormulaire
+                  id="telephonePrincipal"
+                  libelle="Téléphone principal"
+                  erreur={errors.telephonePrincipal?.message}
+                >
+                  {(attributs) => <Input {...attributs} {...register("telephonePrincipal")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="telephoneSecondaire" libelle="Téléphone secondaire">
+                  {(attributs) => <Input {...attributs} {...register("telephoneSecondaire")} />}
+                </ChampFormulaire>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="activiteId">Activité</Label>
-                <Controller
-                  control={control}
-                  name="activiteId"
-                  render={({ field }) => (
-                    <SelectRecherche
-                      id="activiteId"
-                      options={(activites ?? []).map((a) => ({ valeur: a.id, libelle: a.libelle }))}
-                      valeur={field.value}
-                      onChange={field.onChange}
-                      ariaInvalid={!!errors.activiteId}
-                      placeholder="Sélectionner une activité"
-                    />
-                  )}
-                />
-                {errors.activiteId && <p className="text-sm text-danger-fort">{errors.activiteId.message}</p>}
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="localisation">Localisation</Label>
-                <Input id="localisation" aria-invalid={!!errors.localisation} {...register("localisation")} />
-                {errors.localisation && <p className="text-sm text-danger-fort">{errors.localisation.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="quartier">Quartier</Label>
-                <Input id="quartier" {...register("quartier")} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ville">Ville</Label>
-                <Input id="ville" {...register("ville")} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="dateAdhesion">Date d'adhésion</Label>
-                <Input id="dateAdhesion" type="date" aria-invalid={!!errors.dateAdhesion} {...register("dateAdhesion")} />
-                {errors.dateAdhesion && <p className="text-sm text-danger-fort">{errors.dateAdhesion.message}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="packId">Pack de cotisation</Label>
-                <Controller
-                  control={control}
-                  name="packId"
-                  render={({ field }) => (
-                    <SelectRecherche
-                      id="packId"
-                      /* Seuls les packs actifs sont proposables : un pack retiré du catalogue
-                         reste renvoyé par l'API pour l'affichage des adhérents existants, mais
-                         il ne doit plus être souscrit. */
-                      options={(packs ?? [])
-                        .filter((p) => p.actif)
-                        .map((p) => ({ valeur: p.id, libelle: p.libelle }))}
-                      valeur={field.value}
-                      onChange={field.onChange}
-                      ariaInvalid={!!errors.packId}
-                      placeholder="Sélectionner un pack"
-                    />
-                  )}
-                />
-                {errors.packId && <p className="text-sm text-danger-fort">{errors.packId.message}</p>}
-              </div>
-            </div>
-          )}
-
-          {etape === 2 && (
-            <div className="space-y-4">
-              {verifierDoublon.data && verifierDoublon.data.candidats.length > 0 && (
-                <Alerte teinte="attention" titre="Doublons potentiels détectés">
-                  <p className="mb-2">
-                    Ces résultats sont informatifs : vérifiez qu'il ne s'agit pas de la même personne avant de
-                    continuer. La création reste possible.
-                  </p>
-                  <ul className="space-y-1">
-                    {verifierDoublon.data.candidats.map((candidat) => (
-                      <li key={candidat.adherentId} className="ref">
-                        {candidat.matricule} — {candidat.nomComplet} — {candidat.telephone} (
-                        {candidat.motifCorrespondance})
-                      </li>
-                    ))}
-                  </ul>
-                </Alerte>
-              )}
-
-              <dl className="grid grid-cols-1 gap-3 rounded-lg border border-bordure bg-surface p-4 sm:grid-cols-2">
-                <div>
-                  <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Adhérent</dt>
-                  <dd>{formaterNomComplet(getValues("nom"), getValues("prenoms"))}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Téléphone</dt>
-                  <dd className="ref">{masquerTelephone(getValues("telephonePrincipal"))}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Localisation</dt>
-                  <dd>{getValues("localisation")}</dd>
-                </div>
-              </dl>
-
-              {creerAdherent.isError && !candidatsIgnores && (
-                <Alerte teinte="danger">
-                  <p>{estErreurApi(creerAdherent.error) ? creerAdherent.error.message : "La création a échoué."}</p>
-                </Alerte>
-              )}
-            </div>
-          )}
-
-          <div className="flex justify-between border-t border-bordure pt-4">
-            <Button type="button" variant="outline" onClick={etapePrecedente} disabled={etape === 0}>
-              Précédent
-            </Button>
-            {etape < TITRES_ETAPE.length - 1 ? (
-              <Button type="button" onClick={() => void etapeSuivante()}>
-                Suivant
-              </Button>
-            ) : (
-              <Button type="button" onClick={() => void handleSubmit(() => soumettre(false))()} disabled={creerAdherent.isPending}>
-                {creerAdherent.isPending ? "Création en cours…" : "Créer l'adhérent"}
-              </Button>
             )}
-          </div>
+
+            {etape === 1 && (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <ChampFormulaire id="zoneId" libelle="Zone" erreur={errors.zoneId?.message}>
+                  {(attributs) => (
+                    <Controller
+                      control={control}
+                      name="zoneId"
+                      render={({ field }) => (
+                        <SelectRecherche
+                          id={attributs.id}
+                          options={(zones ?? []).map((z) => ({ valeur: z.id, libelle: z.libelle }))}
+                          valeur={field.value}
+                          onChange={field.onChange}
+                          ariaInvalid={attributs["aria-invalid"]}
+                          ariaDescribedBy={attributs["aria-describedby"]}
+                          placeholder="Sélectionner une zone"
+                        />
+                      )}
+                    />
+                  )}
+                </ChampFormulaire>
+                <ChampFormulaire id="activiteId" libelle="Activité" erreur={errors.activiteId?.message}>
+                  {(attributs) => (
+                    <Controller
+                      control={control}
+                      name="activiteId"
+                      render={({ field }) => (
+                        <SelectRecherche
+                          id={attributs.id}
+                          options={(activites ?? []).map((a) => ({ valeur: a.id, libelle: a.libelle }))}
+                          valeur={field.value}
+                          onChange={field.onChange}
+                          ariaInvalid={attributs["aria-invalid"]}
+                          ariaDescribedBy={attributs["aria-describedby"]}
+                          placeholder="Sélectionner une activité"
+                        />
+                      )}
+                    />
+                  )}
+                </ChampFormulaire>
+                <ChampFormulaire
+                  id="localisation"
+                  libelle="Localisation"
+                  erreur={errors.localisation?.message}
+                  className="sm:col-span-2"
+                >
+                  {(attributs) => <Input {...attributs} {...register("localisation")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="quartier" libelle="Quartier">
+                  {(attributs) => <Input {...attributs} {...register("quartier")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="ville" libelle="Ville">
+                  {(attributs) => <Input {...attributs} {...register("ville")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="dateAdhesion" libelle="Date d'adhésion" erreur={errors.dateAdhesion?.message}>
+                  {(attributs) => <ChampDate {...attributs} {...register("dateAdhesion")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="packId" libelle="Pack de cotisation" erreur={errors.packId?.message}>
+                  {(attributs) => (
+                    <Controller
+                      control={control}
+                      name="packId"
+                      render={({ field }) => (
+                        <SelectRecherche
+                          id={attributs.id}
+                          /* Seuls les packs actifs sont proposables : un pack retiré du catalogue
+                             reste renvoyé par l'API pour l'affichage des adhérents existants, mais
+                             il ne doit plus être souscrit. */
+                          options={(packs ?? [])
+                            .filter((p) => p.actif)
+                            .map((p) => ({ valeur: p.id, libelle: p.libelle }))}
+                          valeur={field.value}
+                          onChange={field.onChange}
+                          ariaInvalid={attributs["aria-invalid"]}
+                          ariaDescribedBy={attributs["aria-describedby"]}
+                          placeholder="Sélectionner un pack"
+                        />
+                      )}
+                    />
+                  )}
+                </ChampFormulaire>
+              </div>
+            )}
+
+            {etape === 2 && (
+              <div className="space-y-4">
+                {verifierDoublon.data && verifierDoublon.data.candidats.length > 0 && (
+                  <Alerte teinte="attention" titre="Doublons potentiels détectés">
+                    <p className="mb-2">
+                      Ces résultats sont informatifs : vérifiez qu'il ne s'agit pas de la même personne avant de
+                      continuer. La création reste possible.
+                    </p>
+                    <ul className="space-y-1">
+                      {verifierDoublon.data.candidats.map((candidat) => (
+                        <li key={candidat.adherentId} className="ref">
+                          {candidat.matricule} — {candidat.nomComplet} — {candidat.telephone} (
+                          {candidat.motifCorrespondance})
+                        </li>
+                      ))}
+                    </ul>
+                  </Alerte>
+                )}
+
+                <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Adhérent</dt>
+                    <dd>{formaterNomComplet(getValues("nom"), getValues("prenoms"))}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Téléphone</dt>
+                    <dd className="ref">{masquerTelephone(getValues("telephonePrincipal"))}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Localisation</dt>
+                    <dd>{getValues("localisation")}</dd>
+                  </div>
+                </dl>
+
+                {creerAdherent.isError && !candidatsIgnores && (
+                  <Alerte teinte="danger">
+                    <p>{estErreurApi(creerAdherent.error) ? creerAdherent.error.message : "La création a échoué."}</p>
+                  </Alerte>
+                )}
+              </div>
+            )}
+          </CarteSection>
         </form>
       </div>
 

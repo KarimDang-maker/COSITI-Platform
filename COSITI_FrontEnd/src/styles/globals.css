@@ -3,19 +3,16 @@
    ----------------------------------------------------------------------------
    Rôle : importer Tailwind, importer les jetons, et exposer ces jetons à
    Tailwind sous forme d'utilitaires (`bg-primaire`, `text-titre`,
-   `border-succes-trait`, …).
+   `border-succes-trait`, `rounded-2xl`, `shadow-carte`, …).
 
    Ce fichier ne contient AUCUNE valeur brute : il ne fait que relier
    `tokens.css` au moteur Tailwind. Toute couleur, taille ou rayon nouveau se
    déclare d'abord dans `tokens.css`.
-
-   Activation : ce fichier ne compile qu'une fois Tailwind v4 installé.
-   Voir docs/02_DESIGN_SYSTEM.md §11 « Activation ». Tant que ce n'est pas fait,
-   `src/main.tsx` importe `./styles/tokens.css` seul.
    ========================================================================== */
 
 @import "tailwindcss";
 @import "./tokens.css";
+@import "./polices/polices.css";
 
 /* COSITI : aucun mode sombre en V1 (docs/02_DESIGN_SYSTEM.md §2 et §17). Par
    défaut, Tailwind v4 active `dark:` selon `prefers-color-scheme`, ce qui
@@ -43,6 +40,12 @@
   --color-texte-inactif: var(--texte-inactif);
   --color-titre: var(--titre);
 
+  --color-surface-inversee: var(--surface-inversee);
+  --color-surface-inversee-contenu: var(--surface-inversee-contenu);
+  --color-surface-inversee-doux: var(--surface-inversee-doux);
+  --color-surface-inversee-trait: var(--surface-inversee-trait);
+  --color-surface-inversee-accent: var(--surface-inversee-accent);
+
   --color-primaire: var(--primaire);
   --color-primaire-survol: var(--primaire-survol);
   --color-primaire-contenu: var(--primaire-contenu);
@@ -56,8 +59,16 @@
   --color-nav-fond: var(--nav-fond);
   --color-nav-contenu: var(--nav-contenu);
   --color-nav-contenu-doux: var(--nav-contenu-doux);
+  --color-nav-survol-fond: var(--nav-survol-fond);
   --color-nav-actif-fond: var(--nav-actif-fond);
   --color-nav-actif-trait: var(--nav-actif-trait);
+  --color-nav-trait: var(--nav-trait);
+
+  --color-entete-fond: var(--entete-fond);
+  --color-voile: var(--voile);
+  --color-anneau: var(--anneau);
+  --color-anneau-halo: var(--anneau-halo);
+  --color-anneau-danger-halo: var(--anneau-danger-halo);
 
   /* Teintes d'état — voir src/lib/statuts.ts, seul endroit qui décide
      quelle teinte porte quel statut métier. */
@@ -97,7 +108,7 @@
   --color-primary: var(--primaire);
   --color-primary-foreground: var(--primaire-contenu);
   --color-secondary: var(--surface-douce);
-  --color-secondary-foreground: var(--texte);
+  --color-secondary-foreground: var(--titre);
   --color-muted: var(--surface-douce);
   --color-muted-foreground: var(--texte-doux-fort);
   --color-accent: var(--surface-survol);
@@ -123,15 +134,35 @@
   --text-xl: var(--taille-xl);
   --text-2xl: var(--taille-2xl);
   --text-3xl: var(--taille-3xl);
+  --text-4xl: var(--taille-4xl);
+  --text-affiche: var(--taille-affiche);
+
+  --font-weight-extrabold: var(--graisse-extra);
+
+  --tracking-titre: var(--interlettre-titre);
+  --tracking-valeur: var(--interlettre-valeur);
+  --tracking-capitale: var(--interlettre-capitale);
 
   --radius-sm: var(--rayon-sm);
   --radius-md: var(--rayon-md);
   --radius-lg: var(--rayon-lg);
+  --radius-xl: var(--rayon-xl);
+  --radius-2xl: var(--rayon-2xl);
   --radius-full: var(--rayon-plein);
 
+  --shadow-legere: var(--ombre-legere);
   --shadow-carte: var(--ombre-carte);
   --shadow-flottante: var(--ombre-flottante);
   --shadow-modale: var(--ombre-modale);
+  --shadow-selection: var(--ombre-selection);
+  /* Les primitives shadcn posent `shadow-xs`/`shadow-sm`/`shadow-md`/`shadow-lg` :
+     elles reçoivent les ombres teintées COSITI plutôt que le gris de Tailwind. */
+  --shadow-xs: var(--ombre-legere);
+  --shadow-sm: var(--ombre-legere);
+  --shadow-md: var(--ombre-flottante);
+  --shadow-lg: var(--ombre-modale);
+
+  --ease-cositi: var(--courbe);
 
   --breakpoint-2xl: 1440px;
 }
@@ -147,6 +178,9 @@
     color: var(--texte);
     font-family: var(--police-base);
     font-size: var(--taille-base);
+    /* Gabarit : graisse 500 et interlettrage resserré pour le texte courant. */
+    font-weight: var(--graisse-moyenne);
+    letter-spacing: var(--interlettre-texte);
     line-height: var(--interligne-base);
     -webkit-font-smoothing: antialiased;
   }
@@ -166,6 +200,7 @@
     font-size: var(--taille-xl);
     font-weight: var(--graisse-forte);
     line-height: var(--interligne-serre);
+    letter-spacing: var(--interlettre-titre);
   }
 
   h3 {
@@ -180,12 +215,18 @@
   :focus-visible {
     outline: 2px solid var(--anneau);
     outline-offset: 2px;
-    border-radius: var(--rayon-sm);
   }
 
   ::selection {
     background-color: var(--primaire-doux);
     color: var(--titre);
+  }
+
+  /* Barres de défilement fines, comme le gabarit — sur la couleur de trait,
+     jamais un gris neutre. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--bordure-forte) transparent;
   }
 
   /* Matricules, références de transaction, identifiants : chasse fixe et

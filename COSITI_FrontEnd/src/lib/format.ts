@@ -87,6 +87,22 @@ export function formaterPourcentage(
   }).format(ratio);
 }
 
+/**
+ * Évolution d'un indicateur entre deux périodes, **telle que renvoyée par
+ * l'API** (ratio signé). Le signe est toujours écrit : la couleur n'est jamais
+ * le seul indicateur du sens.
+ * `0.125` -> `+12,5 %` · `-0.04` -> `-4,0 %`
+ */
+export function formaterEvolution(ratio: number | null | undefined, decimales = 1): string {
+  if (ratio === null || ratio === undefined || Number.isNaN(ratio)) return "—";
+  return new Intl.NumberFormat(LOCALE, {
+    style: "percent",
+    signDisplay: "exceptZero",
+    minimumFractionDigits: decimales,
+    maximumFractionDigits: decimales,
+  }).format(ratio);
+}
+
 /* ==========================================================================
    2. Dates
    ======================================================================== */
@@ -126,6 +142,14 @@ const MOIS_ANNEE = new Intl.DateTimeFormat(LOCALE, {
   month: "long",
   year: "numeric",
 });
+
+const ANNEE = new Intl.DateTimeFormat(LOCALE, { timeZone: FUSEAU, year: "numeric" });
+
+/** `2026` — mention de copyright, en-tête de rapport annuel. */
+export function formaterAnnee(valeur: string | Date | null | undefined): string {
+  const date = analyserDate(valeur);
+  return date ? ANNEE.format(date) : "—";
+}
 
 /** `16/09/2026` — colonnes de tableau, formulaires. */
 export function formaterDate(valeur: string | Date | null | undefined): string {

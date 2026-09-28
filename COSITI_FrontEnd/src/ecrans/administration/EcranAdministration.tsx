@@ -9,11 +9,12 @@ import { Alerte } from "@/components/cositi/alerte";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { DialogueConfirmation } from "@/components/cositi/dialogue-confirmation";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { ChampRecherche } from "@/components/cositi/champ-recherche";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DialogueCreerUtilisateur } from "@/ecrans/administration/DialogueCreerUtilisateur";
 import { DialogueModifierParametre } from "@/ecrans/administration/DialogueModifierParametre";
 import {
@@ -103,20 +104,64 @@ export function EcranAdministration() {
     [],
   );
 
+  const colonnesParametres = useMemo<ColumnDef<ParametreAdmin>[]>(
+    () => [
+      {
+        id: "regle",
+        header: "Règle",
+        cell: ({ row }) => (
+          <>
+            <span className="ref block text-xs text-texte-doux">{row.original.cle}</span>
+            {row.original.libelle}
+          </>
+        ),
+      },
+      {
+        id: "valeur",
+        header: "Valeur",
+        cell: ({ row }) => <span className="chiffre">{row.original.valeur}</span>,
+      },
+      {
+        id: "statut",
+        header: "Statut",
+        cell: ({ row }) => <BadgeStatut domaine="validationParametre" code={row.original.statutValidation} />,
+      },
+      {
+        id: "modification",
+        header: "Dernière modification",
+        cell: ({ row }) => (
+          <span className="text-sm text-texte-doux">
+            {row.original.modifiePar
+              ? `${row.original.modifiePar} — ${formaterDateHeure(row.original.modifieLe)}`
+              : "Valeur d'origine"}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button variant="outline" size="sm" onClick={() => setParametreEnCours(row.original)}>
+              Modifier
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
     <CoquilleApplication titre="Administration">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1>Administration</h1>
-            <p className="text-texte-doux">
-              Comptes, rôles et règles de paramétrage. Toutes les actions sont auditées.
-            </p>
-          </div>
-          {onglet === "utilisateurs" && (
-            <Button onClick={() => setCreationOuverte(true)}>Créer un compte</Button>
-          )}
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Administration"
+          description="Comptes, rôles et règles de paramétrage. Toutes les actions sont auditées."
+          actions={
+            onglet === "utilisateurs" && <Button onClick={() => setCreationOuverte(true)}>Créer un compte</Button>
+          }
+        />
 
         <Tabs value={onglet} onValueChange={(valeur) => mettreAJour("onglet", valeur)}>
           <TabsList>
@@ -125,13 +170,12 @@ export function EcranAdministration() {
             <TabsTrigger value="parametres">Paramètres</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="utilisateurs" className="space-y-4">
+          <TabsContent value="utilisateurs" className="space-y-6">
             <BarreFiltres>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label htmlFor="recherche-compte">Rechercher</Label>
-                <Input
+                <ChampRecherche
                   id="recherche-compte"
-                  className="w-64"
                   placeholder="identifiant ou nom"
                   defaultValue={recherche}
                   onChange={(evenement) => mettreAJour("recherche", evenement.target.value || undefined)}
@@ -158,20 +202,24 @@ export function EcranAdministration() {
             )}
           </TabsContent>
 
-          <TabsContent value="roles" className="space-y-4">
+          <TabsContent value="roles" className="space-y-6">
             <p className="text-sm text-texte-doux">
               Les huit rôles de la V1 sont <strong>fermés</strong> : ils ne se créent ni ne se suppriment.
               Cet onglet montre leurs permissions effectives, telles que le serveur les applique.
             </p>
             {roles.data && (
-              <div className="space-y-3">
+              <div className="grid gap-6 lg:grid-cols-2">
                 {roles.data.map((role) => (
-                  <div key={role.code} className="rounded-lg border border-bordure bg-surface p-4">
-                    <p className="font-semibold">
-                      {role.libelle} <span className="ref text-texte-doux">{role.code}</span>
-                    </p>
-                    {role.description && <p className="text-sm text-texte-doux">{role.description}</p>}
-                    <p className="mt-2 flex flex-wrap gap-1">
+                  <CarteSection
+                    key={role.code}
+                    titre={
+                      <>
+                        {role.libelle} <span className="ref text-texte-doux">{role.code}</span>
+                      </>
+                    }
+                    description={role.description ?? undefined}
+                  >
+                    <p className="flex flex-wrap gap-1">
                       {role.permissions.map((permission) => (
                         <span
                           key={permission}
@@ -181,13 +229,13 @@ export function EcranAdministration() {
                         </span>
                       ))}
                     </p>
-                  </div>
+                  </CarteSection>
                 ))}
               </div>
             )}
           </TabsContent>
 
-          <TabsContent value="parametres" className="space-y-4">
+          <TabsContent value="parametres" className="space-y-6">
             <Alerte teinte="info" titre="Ce que signifient les statuts">
               <p>
                 <strong>Confirmé</strong> : la règle est validée par la COSITI. <strong>À analyser</strong> :
@@ -197,41 +245,11 @@ export function EcranAdministration() {
             </Alerte>
 
             {parametres.data && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Règle</TableHead>
-                    <TableHead>Valeur</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Dernière modification</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {parametres.data.map((parametre) => (
-                    <TableRow key={parametre.cle}>
-                      <TableCell>
-                        <span className="ref block text-xs text-texte-doux">{parametre.cle}</span>
-                        {parametre.libelle}
-                      </TableCell>
-                      <TableCell className="chiffre">{parametre.valeur}</TableCell>
-                      <TableCell>
-                        <BadgeStatut domaine="validationParametre" code={parametre.statutValidation} />
-                      </TableCell>
-                      <TableCell className="text-sm text-texte-doux">
-                        {parametre.modifiePar
-                          ? `${parametre.modifiePar} — ${formaterDateHeure(parametre.modifieLe)}`
-                          : "Valeur d'origine"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => setParametreEnCours(parametre)}>
-                          Modifier
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <TableauDonnees
+                colonnes={colonnesParametres}
+                lignes={parametres.data}
+                cleLigne={(parametre) => parametre.cle}
+              />
             )}
           </TabsContent>
         </Tabs>

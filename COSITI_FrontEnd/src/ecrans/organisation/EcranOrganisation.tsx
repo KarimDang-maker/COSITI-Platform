@@ -4,8 +4,12 @@ import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { Alerte } from "@/components/cositi/alerte";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SelectRecherche } from "@/components/cositi/select-recherche";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
+import { CelluleIdentite } from "@/components/cositi/cellule-identite";
+import { ListeElements } from "@/components/cositi/liste-elements";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -52,21 +56,21 @@ function DialoguePortefeuilleAgent({ agent, onFermer, onTransferer }: DialoguePo
           <DialogTitle>Portefeuille de {agent?.nomComplet}</DialogTitle>
         </DialogHeader>
         {isLoading && <Skeleton className="h-24 w-full" />}
-        {portefeuille && portefeuille.length === 0 && <EtatVide titre="Portefeuille vide" />}
+        {portefeuille && portefeuille.length === 0 && <EtatVide titre="Portefeuille vide" icone={Users} />}
         {portefeuille && portefeuille.length > 0 && (
-          <ul className="max-h-80 space-y-2 overflow-y-auto">
-            {portefeuille.map((adherent) => (
-              <li key={adherent.id} className="flex items-center justify-between rounded-md border border-bordure p-2">
-                <span>
-                  <span className="ref mr-2">{adherent.matricule}</span>
-                  {adherent.nomComplet}
-                </span>
+          <ListeElements
+            className="max-h-80 overflow-y-auto"
+            elements={portefeuille.map((adherent) => ({
+              cle: adherent.id,
+              titre: adherent.nomComplet,
+              sousTitre: <span className="ref">{adherent.matricule}</span>,
+              complement: (
                 <Button size="sm" variant="outline" onClick={() => onTransferer(adherent, agent?.nomComplet ?? "")}>
                   Transférer
                 </Button>
-              </li>
-            ))}
-          </ul>
+              ),
+            }))}
+          />
         )}
       </DialogContent>
     </Dialog>
@@ -100,15 +104,18 @@ export function EcranOrganisation() {
   return (
     <CoquilleApplication titre="Organisation terrain">
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h1>Organisation terrain</h1>
-          {peutGerer && (
-            <Button onClick={() => setDialogueAjouterOuvert(true)}>
-              <Plus className="size-4" aria-hidden="true" />
-              Ajouter un agent
-            </Button>
-          )}
-        </div>
+        <EnTetePage
+          titre="Organisation terrain"
+          description="Agents de terrain, zones et portefeuilles d'adhérents."
+          actions={
+            peutGerer && (
+              <Button onClick={() => setDialogueAjouterOuvert(true)}>
+                <Plus className="size-4" aria-hidden="true" />
+                Ajouter un agent
+              </Button>
+            )
+          }
+        />
 
         {isError && (
           <Alerte teinte="danger" titre="Impossible de charger les agents">
@@ -116,155 +123,160 @@ export function EcranOrganisation() {
           </Alerte>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Agents</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {agentsEnCours && <Skeleton className="h-32 w-full" />}
-            {agents && agents.length === 0 && <EtatVide titre="Aucun agent enregistré" />}
-            {agents && agents.length > 0 && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Agent</TableHead>
-                    <TableHead>Téléphone</TableHead>
-                    <TableHead>Zone</TableHead>
-                    <TableHead>Portefeuille (mois courant)</TableHead>
-                    <TableHead>Statut</TableHead>
-                    {(peutDesignerChef || peutAffecter) && <TableHead>Actions</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {agents.map((agent) => (
-                    <TableRow key={agent.id}>
-                      <TableCell className="ref">{agent.codeAgent}</TableCell>
-                      <TableCell>{agent.nomComplet}</TableCell>
-                      <TableCell className="ref">{formaterTelephone(agent.telephone)}</TableCell>
-                      <TableCell>{libelleZone(agent.zoneId)}</TableCell>
-                      <TableCell>
-                        <LignePortefeuilleAgent agent={agent} />
-                      </TableCell>
-                      <TableCell>{agent.actif ? "Actif" : "Inactif"}</TableCell>
-                      {(peutDesignerChef || peutAffecter) && (
-                        <TableCell className="space-x-2">
-                          {peutDesignerChef && (
-                            <Button variant="outline" size="sm" onClick={() => setCandidatChef(agent)}>
-                              <UserCog className="size-4" aria-hidden="true" />
-                              Désigner Chef
-                            </Button>
-                          )}
-                          {peutAffecter && (
-                            <Button variant="outline" size="sm" onClick={() => setAgentPortefeuilleOuvert(agent)}>
-                              <Users className="size-4" aria-hidden="true" />
-                              Portefeuille
-                            </Button>
-                          )}
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            <p className="mt-2 text-xs text-texte-doux">
+        <CarteSection
+          titre="Agents"
+          contenuPleineLargeur
+          pied={
+            <p className="text-xs text-texte-doux">
               TODO [V] : le taux de retard par agent n'est pas encore exposé par l'API (calcul de régularité prévu au
               jalon J6) — colonne volontairement absente plutôt qu'inventée.
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Zones</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {zonesEnCours && <Skeleton className="h-24 w-full" />}
-            {zones && (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Libellé</TableHead>
-                    <TableHead>Ville</TableHead>
-                    <TableHead>Région</TableHead>
-                    <TableHead>Statut</TableHead>
+          }
+        >
+          {/* Carte pleine largeur pour le tableau : les états de chargement et vide reprennent les marges. */}
+          {agentsEnCours && (
+            <div className="px-6 pb-6">
+              <Skeleton className="h-32 w-full" />
+            </div>
+          )}
+          {agents && agents.length === 0 && (
+            <div className="px-6 pb-6">
+              <EtatVide titre="Aucun agent enregistré" icone={Users} />
+            </div>
+          )}
+          {agents && agents.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Agent</TableHead>
+                  <TableHead>Téléphone</TableHead>
+                  <TableHead>Zone</TableHead>
+                  <TableHead>Portefeuille (mois courant)</TableHead>
+                  <TableHead>Statut</TableHead>
+                  {(peutDesignerChef || peutAffecter) && <TableHead>Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {agents.map((agent) => (
+                  <TableRow key={agent.id}>
+                    <TableCell className="ref">{agent.codeAgent}</TableCell>
+                    <TableCell>
+                      <CelluleIdentite nom={agent.nomComplet} />
+                    </TableCell>
+                    <TableCell className="ref">{formaterTelephone(agent.telephone)}</TableCell>
+                    <TableCell>{libelleZone(agent.zoneId)}</TableCell>
+                    <TableCell>
+                      <LignePortefeuilleAgent agent={agent} />
+                    </TableCell>
+                    <TableCell>{agent.actif ? "Actif" : "Inactif"}</TableCell>
+                    {(peutDesignerChef || peutAffecter) && (
+                      <TableCell className="space-x-2">
+                        {peutDesignerChef && (
+                          <Button variant="outline" size="sm" onClick={() => setCandidatChef(agent)}>
+                            <UserCog className="size-4" aria-hidden="true" />
+                            Désigner Chef
+                          </Button>
+                        )}
+                        {peutAffecter && (
+                          <Button variant="outline" size="sm" onClick={() => setAgentPortefeuilleOuvert(agent)}>
+                            <Users className="size-4" aria-hidden="true" />
+                            Portefeuille
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {zones.map((zone) => (
-                    <TableRow key={zone.id}>
-                      <TableCell className="ref">{zone.code}</TableCell>
-                      <TableCell>{zone.libelle}</TableCell>
-                      <TableCell>{zone.ville ?? "—"}</TableCell>
-                      <TableCell>{zone.region ?? "—"}</TableCell>
-                      <TableCell>{zone.active ? "Active" : "Inactive"}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CarteSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Portefeuilles par zone</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="max-w-sm space-y-2">
-              <label htmlFor="zone-portefeuille" className="text-sm font-semibold">
-                Zone
-              </label>
+        <CarteSection titre="Zones" contenuPleineLargeur>
+          {zonesEnCours && (
+            <div className="px-6 pb-6">
+              <Skeleton className="h-24 w-full" />
+            </div>
+          )}
+          {zones && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Libellé</TableHead>
+                  <TableHead>Ville</TableHead>
+                  <TableHead>Région</TableHead>
+                  <TableHead>Statut</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {zones.map((zone) => (
+                  <TableRow key={zone.id}>
+                    <TableCell className="ref">{zone.code}</TableCell>
+                    <TableCell>{zone.libelle}</TableCell>
+                    <TableCell>{zone.ville ?? "—"}</TableCell>
+                    <TableCell>{zone.region ?? "—"}</TableCell>
+                    <TableCell>{zone.active ? "Active" : "Inactive"}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CarteSection>
+
+        <CarteSection titre="Portefeuilles par zone" contenuClassName="space-y-6">
+          <ChampFormulaire id="zone-portefeuille" libelle="Zone" className="max-w-sm">
+            {(attributs) => (
               <SelectRecherche
-                id="zone-portefeuille"
+                id={attributs.id}
+                ariaInvalid={attributs["aria-invalid"]}
+                ariaDescribedBy={attributs["aria-describedby"]}
                 options={optionsZones}
                 valeur={zoneSelectionnee}
                 onChange={setZoneSelectionnee}
                 placeholder="Choisir une zone"
               />
-            </div>
-
-            {zoneSelectionnee && (
-              <div className="space-y-2 rounded-lg border border-bordure p-4">
-                <p className="text-sm font-semibold text-texte-doux-fort uppercase">Chef actuel</p>
-                {chefDeLaZoneSelectionnee === undefined && <Skeleton className="h-5 w-40" />}
-                {chefDeLaZoneSelectionnee === null && <p className="text-texte-doux">Aucun Chef désigné pour cette zone.</p>}
-                {chefDeLaZoneSelectionnee && <p>{chefDeLaZoneSelectionnee.nomComplet}</p>}
-              </div>
             )}
+          </ChampFormulaire>
 
-            {zoneSelectionnee && (
-              <div>
-                <p className="mb-2 text-sm font-semibold text-texte-doux-fort uppercase">
-                  Adhérents sans agent référent
-                </p>
-                {!sansAgent && <Skeleton className="h-16 w-full" />}
-                {sansAgent && sansAgent.length === 0 && (
-                  <p className="text-texte-doux">Tous les adhérents de cette zone ont un agent référent.</p>
-                )}
-                {sansAgent && sansAgent.length > 0 && (
-                  <ul className="space-y-2">
-                    {sansAgent.map((adherent) => (
-                      <li key={adherent.id} className="flex items-center justify-between rounded-md border border-bordure p-2">
-                        <span>
-                          <span className="ref mr-2">{adherent.matricule}</span>
-                          {adherent.nomComplet}
-                        </span>
-                        {peutAffecter && (
-                          <Button size="sm" variant="outline" onClick={() => setMouvement({ mode: "affecter", adherent })}>
-                            Affecter un agent
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {zoneSelectionnee && (
+            <section className="space-y-3">
+              <h3>Chef actuel</h3>
+              {chefDeLaZoneSelectionnee === undefined && <Skeleton className="h-5 w-40" />}
+              {chefDeLaZoneSelectionnee === null && <p className="text-texte-doux">Aucun Chef désigné pour cette zone.</p>}
+              {chefDeLaZoneSelectionnee && (
+                <ListeElements
+                  elements={[{ cle: chefDeLaZoneSelectionnee.id, titre: chefDeLaZoneSelectionnee.nomComplet, icone: UserCog }]}
+                />
+              )}
+            </section>
+          )}
+
+          {zoneSelectionnee && (
+            <section className="space-y-3">
+              <h3>Adhérents sans agent référent</h3>
+              {!sansAgent && <Skeleton className="h-16 w-full" />}
+              {sansAgent && sansAgent.length === 0 && (
+                <p className="text-texte-doux">Tous les adhérents de cette zone ont un agent référent.</p>
+              )}
+              {sansAgent && sansAgent.length > 0 && (
+                <ListeElements
+                  elements={sansAgent.map((adherent) => ({
+                    cle: adherent.id,
+                    titre: adherent.nomComplet,
+                    sousTitre: <span className="ref">{adherent.matricule}</span>,
+                    complement: peutAffecter ? (
+                      <Button size="sm" variant="outline" onClick={() => setMouvement({ mode: "affecter", adherent })}>
+                        Affecter un agent
+                      </Button>
+                    ) : undefined,
+                  }))}
+                />
+              )}
+            </section>
+          )}
+        </CarteSection>
       </div>
 
       <DialogueAjouterAgent ouvert={dialogueAjouterOuvert} onOuvertChange={setDialogueAjouterOuvert} />

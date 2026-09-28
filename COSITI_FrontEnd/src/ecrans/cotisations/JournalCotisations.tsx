@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { Plus } from "lucide-react";
+import { Plus, Wallet } from "lucide-react";
 import type { SortingState } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
+import { Pagination } from "@/components/cositi/pagination";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
@@ -71,16 +73,18 @@ export function JournalCotisations() {
 
   return (
     <CoquilleApplication titre="Cotisations">
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h1>Cotisations</h1>
-          {peutCreer && (
-            <Button onClick={() => navigate("/cotisations/nouveau")}>
-              <Plus className="size-4" aria-hidden="true" />
-              Nouveau paiement
-            </Button>
-          )}
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Cotisations"
+          actions={
+            peutCreer && (
+              <Button onClick={() => navigate("/cotisations/nouveau")}>
+                <Plus className="size-4" aria-hidden="true" />
+                Nouveau paiement
+              </Button>
+            )
+          }
+        />
 
         {adherentId && (
           <Alerte teinte="info">
@@ -93,6 +97,8 @@ export function JournalCotisations() {
           </Alerte>
         )}
 
+        {/* Barre hors du tableau : elle reste visible quand le journal est vide ou en chargement,
+            puisque l'état vide invite justement à modifier les filtres. */}
         <BarreFiltres>
           <div className="space-y-1.5">
             <Label htmlFor="filtre-statut">Statut</Label>
@@ -146,36 +152,29 @@ export function JournalCotisations() {
           <EtatVide
             titre="Aucun paiement ne correspond à ces critères"
             description="Modifiez les filtres, ou enregistrez un nouveau paiement."
+            icone={Wallet}
           />
         )}
 
         {data && data.contenu.length > 0 && (
-          <>
-            <TableauDonnees
-              colonnes={colonnes}
-              lignes={data.contenu}
-              cleLigne={(p) => p.id}
-              tri={tri}
-              onChangerTri={setTri}
-              onActiverLigne={(p) => navigate(`/cotisations/${p.id}`)}
-              libelleLigne={(p) => `Ouvrir le paiement ${p.numeroRecu}`}
-            />
-
-            <div className="flex items-center justify-between text-sm text-texte-doux">
-              <p>{data.totalElements} paiements</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={page <= 0} onClick={() => changerPage(page - 1)}>
-                  Précédent
-                </Button>
-                <span>
-                  Page {page + 1} sur {Math.max(data.totalPages, 1)}
-                </span>
-                <Button variant="outline" size="sm" disabled={page + 1 >= data.totalPages} onClick={() => changerPage(page + 1)}>
-                  Suivant
-                </Button>
-              </div>
-            </div>
-          </>
+          <TableauDonnees
+            colonnes={colonnes}
+            lignes={data.contenu}
+            cleLigne={(p) => p.id}
+            tri={tri}
+            onChangerTri={setTri}
+            onActiverLigne={(p) => navigate(`/cotisations/${p.id}`)}
+            libelleLigne={(p) => `Ouvrir le paiement ${p.numeroRecu}`}
+            pied={
+              <Pagination
+                page={page}
+                totalPages={data.totalPages}
+                totalElements={data.totalElements}
+                libelleElements="paiements"
+                onChangerPage={changerPage}
+              />
+            }
+          />
         )}
       </div>
     </CoquilleApplication>

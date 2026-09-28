@@ -1,27 +1,53 @@
-import { Link } from "react-router";
+import { Clock, FileHeart, FileText, ClipboardCheck, UserCheck } from "lucide-react";
 import { CadreTableauBord } from "@/ecrans/tableauxdebord/CadreTableauBord";
+import { CarteSection } from "@/components/cositi/carte-section";
+import { ListeElements, type ElementListe } from "@/components/cositi/liste-elements";
 import { useTableauBordGestionnaire } from "@/hooks/useTableauxDeBord";
+import { usePeriodeTableauBord } from "@/hooks/usePeriodeTableauBord";
 import { formaterNombre } from "@/lib/format";
 
 /** `/tableaux-de-bord/gestionnaire` — Adhérents, CNPS et remontées terrain (UC-GC-01). */
 export function TableauBordGestionnaire() {
-  const { data, isLoading, isError, error } = useTableauBordGestionnaire();
+  const periode = usePeriodeTableauBord();
+  const { data, isLoading, isError, error } = useTableauBordGestionnaire(periode.filtres);
 
-  const raccourcis = data
+  const raccourcis: ElementListe[] = data
     ? [
-        { libelle: "Dossiers CNPS incomplets", valeur: data.dossiersCnpsIncomplets, chemin: "/cnps" },
         {
-          libelle: "Éligibles non immatriculés",
-          valeur: data.eligiblesNonImmatricules,
+          cle: "cnps-incomplets",
+          icone: FileHeart,
+          titre: "Dossiers CNPS incomplets",
+          valeur: formaterNombre(data.dossiersCnpsIncomplets),
+          chemin: "/cnps",
+        },
+        {
+          cle: "eligibles",
+          icone: UserCheck,
+          titre: "Éligibles non immatriculés",
+          valeur: formaterNombre(data.eligiblesNonImmatricules),
           chemin: "/cnps?onglet=eligibles",
         },
-        { libelle: "Déclarations à produire", valeur: data.declarationsAProduire, chemin: "/cnps" },
         {
-          libelle: "Comptes rendus à contrôler",
-          valeur: data.comptesRendusAControler,
+          cle: "declarations",
+          icone: FileText,
+          titre: "Déclarations à produire",
+          valeur: formaterNombre(data.declarationsAProduire),
+          chemin: "/cnps",
+        },
+        {
+          cle: "comptes-rendus",
+          icone: ClipboardCheck,
+          titre: "Comptes rendus à contrôler",
+          valeur: formaterNombre(data.comptesRendusAControler),
           chemin: "/comptes-rendus",
         },
-        { libelle: "Adhérents en retard", valeur: data.adherentsEnRetard, chemin: "/droits" },
+        {
+          cle: "retards",
+          icone: Clock,
+          titre: "Adhérents en retard",
+          valeur: formaterNombre(data.adherentsEnRetard),
+          chemin: "/droits",
+        },
       ]
     : [];
 
@@ -36,23 +62,12 @@ export function TableauBordGestionnaire() {
       clePrincipale="tauxActivation"
       alertes={data?.alertes}
       avertissements={data?.avertissements}
+      periode={periode}
     >
       {data && (
-        <section className="space-y-3">
-          <h2 className="text-lg font-semibold text-titre">Mon travail en attente</h2>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {raccourcis.map((raccourci) => (
-              <Link
-                key={raccourci.libelle}
-                to={raccourci.chemin}
-                className="rounded-lg border border-bordure bg-surface p-4 outline-none hover:bg-surface-survol focus-visible:ring-2 focus-visible:ring-anneau"
-              >
-                <p className="text-sm text-texte-doux">{raccourci.libelle}</p>
-                <p className="chiffre text-2xl font-semibold">{formaterNombre(raccourci.valeur)}</p>
-              </Link>
-            ))}
-          </div>
-        </section>
+        <CarteSection titre="Mon travail en attente" description="Chaque ligne ouvre l'écran qui traite le sujet.">
+          <ListeElements libelle="Mon travail en attente" elements={raccourcis} />
+        </CarteSection>
       )}
     </CadreTableauBord>
   );

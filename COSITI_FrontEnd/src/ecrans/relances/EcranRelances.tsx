@@ -3,6 +3,9 @@ import { useSearchParams } from "react-router";
 import { toast } from "sonner";
 import type { ColumnDef } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { Pagination } from "@/components/cositi/pagination";
+import { CarteSection } from "@/components/cositi/carte-section";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
 import { EtatVide } from "@/components/cositi/etat-vide";
 import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
@@ -145,18 +148,33 @@ export function EcranRelances() {
     [],
   );
 
-  const donnees = onglet === "campagnes" ? campagnes : relances;
+  function changerPage(nouvellePage: number) {
+    const suivants = new URLSearchParams(parametres);
+    suivants.set("page", String(nouvellePage));
+    definirParametres(suivants, { replace: true });
+  }
+
+  /** Pied de pagination, affiché seulement quand la liste tient sur plusieurs pages. */
+  function pied(totalPages: number, totalElements: number, libelleElements: string) {
+    if (totalPages <= 1) return undefined;
+    return (
+      <Pagination
+        page={page}
+        totalPages={totalPages}
+        totalElements={totalElements}
+        libelleElements={libelleElements}
+        onChangerPage={changerPage}
+      />
+    );
+  }
 
   return (
     <CoquilleApplication titre="Relances">
-      <div className="space-y-4">
-        <div>
-          <h1>Relances</h1>
-          <p className="text-texte-doux">
-            Campagnes et contacts effectués auprès des adhérents en retard. Aucune relance n'est envoyée
-            automatiquement : ce journal consigne des actions humaines.
-          </p>
-        </div>
+      <div className="space-y-6">
+        <EnTetePage
+          titre="Relances"
+          description="Campagnes et contacts effectués auprès des adhérents en retard. Aucune relance n'est envoyée automatiquement : ce journal consigne des actions humaines."
+        />
 
         <Tabs value={onglet} onValueChange={changerOnglet}>
           <TabsList>
@@ -164,7 +182,7 @@ export function EcranRelances() {
             <TabsTrigger value="relances">Relances effectuées</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="campagnes" className="space-y-4">
+          <TabsContent value="campagnes" className="space-y-6">
             {campagnes.isLoading && <SqueletteTableau colonnes={6} />}
             {campagnes.isError && (
               <Alerte teinte="danger" titre="Impossible de charger les campagnes">
@@ -186,13 +204,14 @@ export function EcranRelances() {
                 colonnes={colonnesCampagnes}
                 lignes={campagnes.data.contenu}
                 cleLigne={(c) => c.id}
+                pied={pied(campagnes.data.totalPages, campagnes.data.totalElements, "campagnes")}
               />
             )}
           </TabsContent>
 
-          <TabsContent value="relances" className="space-y-4">
+          <TabsContent value="relances" className="space-y-6">
             {campagneId && (
-              <div className="flex items-center justify-between rounded-lg border border-bordure p-3">
+              <CarteSection contenuClassName="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm text-texte-doux">Relances d'une campagne précise.</p>
                 <Button
                   variant="outline"
@@ -205,7 +224,7 @@ export function EcranRelances() {
                 >
                   Voir toutes les relances
                 </Button>
-              </div>
+              </CarteSection>
             )}
 
             {relances.isLoading && <SqueletteTableau colonnes={5} />}
@@ -229,45 +248,12 @@ export function EcranRelances() {
                 colonnes={colonnesRelances}
                 lignes={relances.data.contenu}
                 cleLigne={(r) => r.id}
+                pied={pied(relances.data.totalPages, relances.data.totalElements, "relances")}
               />
             )}
           </TabsContent>
         </Tabs>
 
-        {donnees.data && donnees.data.totalPages > 1 && (
-          <div className="flex items-center justify-between text-sm text-texte-doux">
-            <p>{donnees.data.totalElements} éléments</p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page <= 0}
-                onClick={() => {
-                  const suivants = new URLSearchParams(parametres);
-                  suivants.set("page", String(page - 1));
-                  definirParametres(suivants, { replace: true });
-                }}
-              >
-                Précédent
-              </Button>
-              <span>
-                Page {page + 1} sur {Math.max(donnees.data.totalPages, 1)}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page + 1 >= donnees.data.totalPages}
-                onClick={() => {
-                  const suivants = new URLSearchParams(parametres);
-                  suivants.set("page", String(page + 1));
-                  definirParametres(suivants, { replace: true });
-                }}
-              >
-                Suivant
-              </Button>
-            </div>
-          </div>
-        )}
       </div>
 
       <DialogueConfirmation

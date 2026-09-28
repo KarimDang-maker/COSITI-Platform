@@ -4,9 +4,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alerte } from "@/components/cositi/alerte";
+import { CadreAuthentification } from "@/components/cositi/cadre-authentification";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
+import { ChampMotDePasse } from "@/components/cositi/champ-mot-de-passe";
 import { client } from "@/api/client";
 import { estErreurApi } from "@/api/erreurs";
 import { useAuth } from "@/auth/ContexteAuth";
@@ -63,10 +64,8 @@ export function EcranChangerMotDePasse() {
   }
 
   return (
-    <div className="flex h-dvh items-center justify-center bg-fond p-6">
-      <div className="w-full max-w-sm space-y-6 rounded-lg border border-bordure bg-surface p-8 shadow-[var(--shadow-carte)]">
-        <h1 className="text-center">Changer de mot de passe</h1>
-
+    <CadreAuthentification titre="Changer de mot de passe">
+      <div className="space-y-6">
         {erreur && (
           <Alerte teinte="danger">
             <p>{erreur}</p>
@@ -78,63 +77,42 @@ export function EcranChangerMotDePasse() {
           </Alerte>
         )}
 
-        <form onSubmit={(event) => void handleSubmit(soumettre)(event)} className="space-y-4" noValidate>
-          <div className="space-y-2">
-            <Label htmlFor="ancienMotDePasse">Mot de passe actuel</Label>
-            <Input
-              id="ancienMotDePasse"
-              type="password"
-              autoComplete="current-password"
-              aria-invalid={!!errors.ancienMotDePasse}
-              aria-describedby={errors.ancienMotDePasse ? "ancien-erreur" : undefined}
-              {...register("ancienMotDePasse")}
-            />
-            {errors.ancienMotDePasse && (
-              <p id="ancien-erreur" className="text-sm text-danger-fort">
-                {errors.ancienMotDePasse.message}
-              </p>
+        <form onSubmit={(event) => void handleSubmit(soumettre)(event)} className="space-y-5" noValidate>
+          <ChampFormulaire
+            id="ancienMotDePasse"
+            libelle="Mot de passe actuel"
+            erreur={errors.ancienMotDePasse?.message}
+          >
+            {(attributs) => (
+              <ChampMotDePasse autoComplete="current-password" {...attributs} {...register("ancienMotDePasse")} />
             )}
-          </div>
+          </ChampFormulaire>
 
-          <div className="space-y-2">
-            <Label htmlFor="nouveauMotDePasse">Nouveau mot de passe</Label>
-            <Input
-              id="nouveauMotDePasse"
-              type="password"
-              autoComplete="new-password"
-              aria-invalid={!!errors.nouveauMotDePasse}
-              aria-describedby={errors.nouveauMotDePasse ? "nouveau-erreur" : undefined}
-              {...register("nouveauMotDePasse")}
-            />
-            {errors.nouveauMotDePasse && (
-              <p id="nouveau-erreur" className="text-sm text-danger-fort">
-                {errors.nouveauMotDePasse.message}
-              </p>
+          <ChampFormulaire
+            id="nouveauMotDePasse"
+            libelle="Nouveau mot de passe"
+            erreur={errors.nouveauMotDePasse?.message}
+          >
+            {(attributs) => (
+              <ChampMotDePasse autoComplete="new-password" {...attributs} {...register("nouveauMotDePasse")} />
             )}
-          </div>
+          </ChampFormulaire>
 
-          <div className="space-y-2">
-            <Label htmlFor="confirmation">Confirmer le nouveau mot de passe</Label>
-            <Input
-              id="confirmation"
-              type="password"
-              autoComplete="new-password"
-              aria-invalid={!!errors.confirmation}
-              aria-describedby={errors.confirmation ? "confirmation-erreur" : undefined}
-              {...register("confirmation")}
-            />
-            {errors.confirmation && (
-              <p id="confirmation-erreur" className="text-sm text-danger-fort">
-                {errors.confirmation.message}
-              </p>
+          <ChampFormulaire
+            id="confirmation"
+            libelle="Confirmer le nouveau mot de passe"
+            erreur={errors.confirmation?.message}
+          >
+            {(attributs) => (
+              <ChampMotDePasse autoComplete="new-password" {...attributs} {...register("confirmation")} />
             )}
-          </div>
+          </ChampFormulaire>
 
-          <Button type="submit" className="w-full" disabled={enCours}>
+          <Button type="submit" size="lg" className="w-full" disabled={enCours}>
             {enCours ? "Envoi en cours…" : "Valider"}
           </Button>
         </form>
       </div>
-    </div>
+    </CadreAuthentification>
   );
 }

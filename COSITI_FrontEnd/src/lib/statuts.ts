@@ -252,3 +252,30 @@ export const CLASSES_TEINTE: Readonly<Record<Teinte, string>> = {
   // Aplat de marque : réservé à l'action prioritaire, jamais à un état métier.
   marque: "bg-marque text-marque-contenu border-transparent",
 };
+
+/**
+ * Pastille d'icône (cercle d'une ligne de liste, d'une notification) : surface
+ * douce + encre forte, sans bordure. `identite` = pastille de marque du gabarit —
+ * fond vert foncé, icône orange —, qui ne porte aucun état.
+ */
+export const CLASSES_PASTILLE_TEINTE: Readonly<Record<Teinte | "identite", string>> = {
+  neutre: "bg-neutre-doux text-neutre-fort",
+  info: "bg-info-doux text-info-fort",
+  succes: "bg-succes-doux text-succes-fort",
+  attention: "bg-attention-doux text-attention-fort",
+  danger: "bg-danger-doux text-danger-fort",
+  marque: "bg-marque text-marque-contenu",
+  identite: "bg-surface-inversee text-surface-inversee-accent",
+};
+
+/**
+ * Remplissage d'une barre de progression. `primaire` (vert) par défaut ;
+ * `marque` pour la mesure prioritaire. Une barre ne porte jamais seule sa
+ * valeur : `BarreProgression` écrit toujours le chiffre.
+ */
+export const CLASSES_REMPLISSAGE: Readonly<Record<"primaire" | "marque" | "info" | "danger", string>> = {
+  primaire: "bg-primaire",
+  marque: "bg-marque",
+  info: "bg-info-fort",
+  danger: "bg-danger-fort",
+};

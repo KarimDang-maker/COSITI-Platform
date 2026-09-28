@@ -1,7 +1,8 @@
-import { Link } from "react-router";
 import { AlertTriangle, Info, OctagonAlert } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Alerte } from "@/components/cositi/alerte";
+import { ListeElements } from "@/components/cositi/liste-elements";
 import { formaterNombre } from "@/lib/format";
+import type { Teinte } from "@/lib/statuts";
 
 /** Forme exacte de `Alerte` (backend, jalon J9). */
 export interface AlerteTableauBord {
@@ -14,20 +15,12 @@ export interface AlerteTableauBord {
 
 /**
  * Les couleurs d'état ne sont jamais seules porteuses de l'information : chaque
- * alerte a son icône et son libellé écrit (`docs/02_DESIGN_SYSTEM.md`).
+ * alerte a son icône et son niveau écrit (`docs/02_DESIGN_SYSTEM.md`).
  */
-const STYLES: Readonly<Record<string, { classe: string; icone: typeof Info; libelleNiveau: string }>> = {
-  INFO: { classe: "bg-info-doux text-info-fort border-info-trait", icone: Info, libelleNiveau: "Information" },
-  ATTENTION: {
-    classe: "bg-attention-doux text-attention-fort border-attention-trait",
-    icone: AlertTriangle,
-    libelleNiveau: "À traiter",
-  },
-  CRITIQUE: {
-    classe: "bg-danger-doux text-danger-fort border-danger-trait",
-    icone: OctagonAlert,
-    libelleNiveau: "Critique",
-  },
+const NIVEAUX: Readonly<Record<string, { teinte: Teinte; icone: typeof Info; libelleNiveau: string }>> = {
+  INFO: { teinte: "info", icone: Info, libelleNiveau: "Information" },
+  ATTENTION: { teinte: "attention", icone: AlertTriangle, libelleNiveau: "À traiter" },
+  CRITIQUE: { teinte: "danger", icone: OctagonAlert, libelleNiveau: "Critique" },
 };
 
 interface ListeAlertesProps {
@@ -36,7 +29,7 @@ interface ListeAlertesProps {
 
 /**
  * Points nécessitant attention d'un tableau de bord (UC-PCA-06, UC-DG-08,
- * UC-DGA-11, UC-GC-16).
+ * UC-DGA-11, UC-GC-16), au format des lignes riches du gabarit.
  *
  * Une alerte sans écran pour la traiter ne devient pas un lien : un lien mort
  * vaut moins qu'un simple constat.
@@ -44,46 +37,28 @@ interface ListeAlertesProps {
 export function ListeAlertes({ alertes }: ListeAlertesProps) {
   if (alertes.length === 0) {
     return (
-      <p className="rounded-lg border border-succes-trait bg-succes-doux p-4 text-succes-fort">
-        Aucun point nécessitant attention.
-      </p>
+      <Alerte teinte="succes">
+        <p>Aucun point nécessitant attention.</p>
+      </Alerte>
     );
   }
 
   return (
-    <ul className="space-y-2">
-      {alertes.map((alerte) => {
-        const style = STYLES[alerte.niveau] ?? STYLES.INFO!;
-        const Icone = style.icone;
-        const contenu = (
-          <span className="flex items-center gap-3">
-            <Icone className="size-5 shrink-0" aria-hidden="true" />
-            <span className="flex-1">
-              <span className="font-semibold">{alerte.libelle}</span>
-              <span className="sr-only"> — {style.libelleNiveau}</span>
-            </span>
-            <span className="chiffre text-lg font-semibold">{formaterNombre(alerte.nombre)}</span>
-          </span>
-        );
-
-        return (
-          <li key={alerte.code}>
-            {alerte.chemin ? (
-              <Link
-                to={alerte.chemin}
-                className={cn(
-                  "block rounded-lg border p-3 outline-none hover:brightness-95 focus-visible:ring-2 focus-visible:ring-anneau",
-                  style.classe,
-                )}
-              >
-                {contenu}
-              </Link>
-            ) : (
-              <div className={cn("rounded-lg border p-3", style.classe)}>{contenu}</div>
-            )}
-          </li>
-        );
+    <ListeElements
+      libelle="Points nécessitant attention"
+      elements={alertes.map((alerte) => {
+        const niveau = NIVEAUX[alerte.niveau] ?? NIVEAUX.INFO!;
+        return {
+          cle: alerte.code,
+          icone: niveau.icone,
+          teinte: niveau.teinte,
+          titre: alerte.libelle,
+          // Niveau écrit en toutes lettres sous le libellé : la teinte de la pastille n'est qu'un renfort.
+          sousTitre: niveau.libelleNiveau,
+          valeur: formaterNombre(alerte.nombre),
+          chemin: alerte.chemin ?? undefined,
+        };
       })}
-    </ul>
+    />
   );
 }

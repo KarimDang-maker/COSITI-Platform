@@ -6,10 +6,11 @@ import { Alerte } from "@/components/cositi/alerte";
 import { AvertissementRegle } from "@/components/cositi/avertissement-regle";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { EtatVide } from "@/components/cositi/etat-vide";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
 import { DialogueTeleverserDocument } from "@/components/cositi/dialogue-televerser-document";
 import { DialogueConfirmation } from "@/components/cositi/dialogue-confirmation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,7 +87,7 @@ export function FicheDossierCnps() {
   if (isLoading) {
     return (
       <CoquilleApplication titre="Dossier CNPS">
-        <div className="space-y-4">
+        <div className="space-y-6">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-48 w-full" />
         </div>
@@ -128,32 +129,32 @@ export function FicheDossierCnps() {
   return (
     <CoquilleApplication titre="Dossier CNPS">
       <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <h1>Dossier CNPS</h1>
-            <div className="flex items-center gap-2">
+        <EnTetePage
+          titre="Dossier CNPS"
+          filAriane={[{ libelle: "Suivi CNPS", chemin: "/cnps" }, { libelle: "Dossier CNPS" }]}
+          statut={
+            <>
               <BadgeStatut domaine="dossierCnps" code={dossier.statut} />
               {dossier.numeroImmatriculation && (
                 <span className="ref text-sm">{dossier.numeroImmatriculation}</span>
               )}
-            </div>
-          </div>
-
-          {peutChangerStatut && transitionsPossibles.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {transitionsPossibles.map((cible) => (
-                <Button
-                  key={cible}
-                  variant={cible === "REJETE" ? "outline" : "default"}
-                  size="sm"
-                  onClick={() => setTransitionEnCours(cible)}
-                >
-                  {LIBELLES_TRANSITION[cible]}
-                </Button>
-              ))}
-            </div>
-          )}
-        </div>
+            </>
+          }
+          actions={
+            peutChangerStatut &&
+            transitionsPossibles.length > 0 &&
+            transitionsPossibles.map((cible) => (
+              <Button
+                key={cible}
+                variant={cible === "REJETE" ? "outline" : "default"}
+                size="sm"
+                onClick={() => setTransitionEnCours(cible)}
+              >
+                {LIBELLES_TRANSITION[cible]}
+              </Button>
+            ))
+          }
+        />
 
         <AvertissementRegle avertissements={dossier.avertissements} />
 
@@ -163,11 +164,7 @@ export function FicheDossierCnps() {
           </Alerte>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Pièces du dossier</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <CarteSection titre="Pièces du dossier" contenuClassName="space-y-4">
             {dossier.piecesManquantes.length > 0 && (
               <Alerte teinte="attention" titre="Pièces obligatoires manquantes">
                 <ul className="list-disc space-y-1 pl-4">
@@ -224,17 +221,12 @@ export function FicheDossierCnps() {
                 ))}
               </TableBody>
             </Table>
-          </CardContent>
-        </Card>
+        </CarteSection>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Déclarations mensuelles</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <CarteSection titre="Déclarations mensuelles" contenuClassName="space-y-4">
             {peutDeclarer && (
               <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <Label htmlFor="periode-declaration">Période</Label>
                   <Input
                     id="periode-declaration"
@@ -322,8 +314,7 @@ export function FicheDossierCnps() {
                 </TableBody>
               </Table>
             )}
-          </CardContent>
-        </Card>
+        </CarteSection>
       </div>
 
       {pieceEnCours && (

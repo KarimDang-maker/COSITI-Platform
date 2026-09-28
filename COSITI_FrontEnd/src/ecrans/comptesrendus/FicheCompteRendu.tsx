@@ -4,9 +4,10 @@ import { toast } from "sonner";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { Alerte } from "@/components/cositi/alerte";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
+import { EnTetePage } from "@/components/cositi/entete-page";
+import { CarteSection } from "@/components/cositi/carte-section";
 import { DialogueConfirmation } from "@/components/cositi/dialogue-confirmation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompteRendu, useControlerCompteRendu, useTransmettreCompteRendu } from "@/hooks/useComptesRendus";
 import { useAuth } from "@/auth/ContexteAuth";
@@ -34,7 +35,7 @@ export function FicheCompteRendu() {
   if (isLoading) {
     return (
       <CoquilleApplication titre="Compte rendu">
-        <div className="space-y-4">
+        <div className="space-y-6">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-48 w-full" />
         </div>
@@ -64,33 +65,37 @@ export function FicheCompteRendu() {
   // suivent tous un « à », et « à le Gestionnaire » s'affichait tel quel à l'écran.
   const destinataire = compteRendu.type === "CONSOLIDE" ? "à la DGA" : "au Gestionnaire des comptes";
 
+  const titre = compteRendu.type === "CONSOLIDE" ? "Compte rendu consolidé" : "Compte rendu terrain";
+
   return (
     <CoquilleApplication titre="Compte rendu">
       <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1">
-            <h1>
-              {compteRendu.type === "CONSOLIDE" ? "Compte rendu consolidé" : "Compte rendu terrain"}
-            </h1>
-            <div className="flex items-center gap-2">
+        <EnTetePage
+          titre={titre}
+          filAriane={[{ libelle: "Comptes rendus", chemin: "/comptes-rendus" }, { libelle: titre }]}
+          statut={
+            <>
               <BadgeStatut domaine="compteRendu" code={compteRendu.statut} />
               <span className="text-texte-doux">
                 {formaterPeriode(compteRendu.periodeDebut, compteRendu.periodeFin)}
               </span>
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            {peutTransmettre && (
-              <Button onClick={() => setTransmissionOuverte(true)}>Transmettre {destinataire}</Button>
-            )}
-            {peutControler && (
-              <Button variant="outline" onClick={() => setControleOuvert(true)}>
-                Contrôler
-              </Button>
-            )}
-          </div>
-        </div>
+            </>
+          }
+          actions={
+            (peutTransmettre || peutControler) && (
+              <>
+                {peutTransmettre && (
+                  <Button onClick={() => setTransmissionOuverte(true)}>Transmettre {destinataire}</Button>
+                )}
+                {peutControler && (
+                  <Button variant="outline" onClick={() => setControleOuvert(true)}>
+                    Contrôler
+                  </Button>
+                )}
+              </>
+            )
+          }
+        />
 
         {estAuteur && compteRendu.statut === "BROUILLON" && (
           <Alerte teinte="info" titre="Brouillon non transmis">
@@ -101,11 +106,7 @@ export function FicheCompteRendu() {
           </Alerte>
         )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Activité déclarée</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <CarteSection titre="Activité déclarée" contenuClassName="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             <Indicateur libelle="Visites" valeur={formaterNombre(compteRendu.nbVisites)} />
             <Indicateur
               libelle="Adhérents rencontrés"
@@ -123,15 +124,10 @@ export function FicheCompteRendu() {
               libelle="Montant collecté"
               valeur={formaterMontant(compteRendu.montantCollecte)}
             />
-          </CardContent>
-        </Card>
+        </CarteSection>
 
         {(compteRendu.synthese || compteRendu.difficultes) && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Observations</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <CarteSection titre="Observations" contenuClassName="space-y-4">
               {compteRendu.synthese && (
                 <div>
                   <p className="text-sm font-semibold">Synthèse</p>
@@ -144,30 +140,20 @@ export function FicheCompteRendu() {
                   <p className="whitespace-pre-line text-texte-doux">{compteRendu.difficultes}</p>
                 </div>
               )}
-            </CardContent>
-          </Card>
+          </CarteSection>
         )}
 
         {compteRendu.controleLe && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Contrôle du Gestionnaire des comptes</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <CarteSection titre="Contrôle du Gestionnaire des comptes" contenuClassName="space-y-2">
               <p className="whitespace-pre-line">{compteRendu.observationControle ?? "Sans observation."}</p>
               <p className="text-sm text-texte-doux">
                 Contrôlé par {compteRendu.controlePar} le {formaterDateHeure(compteRendu.controleLe)}
               </p>
-            </CardContent>
-          </Card>
+          </CarteSection>
         )}
 
         {compteRendu.sourceIds.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Comptes rendus consolidés</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <CarteSection titre="Comptes rendus consolidés">
               <p className="mb-2 text-sm text-texte-doux">
                 Les totaux ci-dessus sont la somme de ces {compteRendu.sourceIds.length} comptes rendus
                 terrain, consultables un par un.
@@ -181,8 +167,7 @@ export function FicheCompteRendu() {
                   </li>
                 ))}
               </ul>
-            </CardContent>
-          </Card>
+          </CarteSection>
         )}
       </div>
 

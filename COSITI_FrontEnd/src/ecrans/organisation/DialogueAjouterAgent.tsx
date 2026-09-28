@@ -13,9 +13,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Alerte } from "@/components/cositi/alerte";
 import { SelectRecherche } from "@/components/cositi/select-recherche";
+import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
 import { useCreerAgent, useZones } from "@/hooks/useOrganisation";
 import { estErreurApi } from "@/api/erreurs";
 
@@ -92,44 +92,44 @@ export function DialogueAjouterAgent({ ouvert, onOuvertChange }: DialogueAjouter
             </DialogFooter>
           </div>
         ) : (
-          <form onSubmit={(e) => void handleSubmit(soumettre)(e)} className="space-y-4" noValidate>
-            <div className="space-y-2">
-              <Label htmlFor="identifiantConnexion">Identifiant de connexion</Label>
-              <Input id="identifiantConnexion" aria-invalid={!!errors.identifiantConnexion} {...register("identifiantConnexion")} />
-              {errors.identifiantConnexion && <p className="text-sm text-danger-fort">{errors.identifiantConnexion.message}</p>}
+          <form onSubmit={(e) => void handleSubmit(soumettre)(e)} className="space-y-5" noValidate>
+            <ChampFormulaire
+              id="identifiantConnexion"
+              libelle="Identifiant de connexion"
+              erreur={errors.identifiantConnexion?.message}
+            >
+              {(attributs) => <Input {...attributs} {...register("identifiantConnexion")} />}
+            </ChampFormulaire>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <ChampFormulaire id="nomComplet" libelle="Nom complet" erreur={errors.nomComplet?.message}>
+                {(attributs) => <Input {...attributs} {...register("nomComplet")} />}
+              </ChampFormulaire>
+              <ChampFormulaire id="telephone" libelle="Téléphone" erreur={errors.telephone?.message}>
+                {(attributs) => <Input {...attributs} {...register("telephone")} />}
+              </ChampFormulaire>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="nomComplet">Nom complet</Label>
-              <Input id="nomComplet" aria-invalid={!!errors.nomComplet} {...register("nomComplet")} />
-              {errors.nomComplet && <p className="text-sm text-danger-fort">{errors.nomComplet.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="telephone">Téléphone</Label>
-              <Input id="telephone" aria-invalid={!!errors.telephone} {...register("telephone")} />
-              {errors.telephone && <p className="text-sm text-danger-fort">{errors.telephone.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="zoneId">Zone</Label>
-              <Controller
-                control={control as Control<Valeurs>}
-                name="zoneId"
-                render={({ field }) => (
-                  <SelectRecherche
-                    id="zoneId"
-                    options={(zones ?? []).map((z) => ({ valeur: z.id, libelle: z.libelle }))}
-                    valeur={field.value}
-                    onChange={field.onChange}
-                    ariaInvalid={!!errors.zoneId}
-                    placeholder="Sélectionner une zone"
-                  />
-                )}
-              />
-              {errors.zoneId && <p className="text-sm text-danger-fort">{errors.zoneId.message}</p>}
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="objectifCollecteMensuel">Objectif de collecte mensuel (FCFA, facultatif)</Label>
-              <Input id="objectifCollecteMensuel" type="number" min="0" {...register("objectifCollecteMensuel")} />
-            </div>
+            <ChampFormulaire id="zoneId" libelle="Zone" erreur={errors.zoneId?.message}>
+              {(attributs) => (
+                <Controller
+                  control={control as Control<Valeurs>}
+                  name="zoneId"
+                  render={({ field }) => (
+                    <SelectRecherche
+                      id={attributs.id}
+                      ariaInvalid={attributs["aria-invalid"]}
+                      ariaDescribedBy={attributs["aria-describedby"]}
+                      options={(zones ?? []).map((z) => ({ valeur: z.id, libelle: z.libelle }))}
+                      valeur={field.value}
+                      onChange={field.onChange}
+                      placeholder="Sélectionner une zone"
+                    />
+                  )}
+                />
+              )}
+            </ChampFormulaire>
+            <ChampFormulaire id="objectifCollecteMensuel" libelle="Objectif de collecte mensuel (FCFA, facultatif)">
+              {(attributs) => <Input {...attributs} type="number" min="0" {...register("objectifCollecteMensuel")} />}
+            </ChampFormulaire>
 
             {creerAgent.isError && (
               <Alerte teinte="danger">

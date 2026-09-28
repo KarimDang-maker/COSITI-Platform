@@ -1,84 +1,82 @@
-import { KeyRound, LogOut } from "lucide-react";
-import { useNavigate } from "react-router";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useEffect, useState } from "react";
+import { Maximize, Menu, Minimize, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useAuth } from "@/auth/ContexteAuth";
-import { AvatarUtilisateur } from "@/components/cositi/avatar-utilisateur";
+import { BoutonEntete } from "@/components/cositi/bouton-entete";
 import { ClocheNotifications } from "@/components/cositi/cloche-notifications";
+import { MenuCreation } from "@/components/cositi/menu-creation";
+import { MenuUtilisateur } from "@/components/cositi/menu-utilisateur";
 
-const LIBELLES_ROLE: Readonly<Record<string, string>> = {
-  PCA: "PCA",
-  DG: "Directeur général",
-  DGA: "Directeur général adjoint",
-  DAF: "Directeur administratif et financier",
-  GESTIONNAIRE_COMPTE: "Gestionnaire des comptes",
-  CHEF_AGENT_TERRAIN: "Chef des agents de terrain",
-  AGENT_TERRAIN: "Agent de terrain",
-  SUPER_ADMIN: "Super Administrateur",
-};
+/**
+ * Plein écran (gabarit : `btn-fullscreen`) — fonction du navigateur, sans
+ * donnée. Masqué sur écran étroit et quand le navigateur ne la propose pas.
+ */
+function BoutonPleinEcran() {
+  const [actif, setActif] = useState(false);
+  useEffect(() => {
+    const suivre = () => setActif(document.fullscreenElement !== null);
+    document.addEventListener("fullscreenchange", suivre);
+    return () => document.removeEventListener("fullscreenchange", suivre);
+  }, []);
+  if (typeof document === "undefined" || !document.fullscreenEnabled) return null;
+
+  return (
+    <BoutonEntete
+      aria-label={actif ? "Quitter le plein écran" : "Passer en plein écran"}
+      aria-pressed={actif}
+      className="hidden md:inline-flex"
+      onClick={() => {
+        if (document.fullscreenElement) void document.exitFullscreen();
+        else void document.documentElement.requestFullscreen();
+      }}
+    >
+      {actif ? <Minimize aria-hidden="true" /> : <Maximize aria-hidden="true" />}
+    </BoutonEntete>
+  );
+}
 
 interface EnteteApplicationProps {
-  titre: string;
+  navigationRepliee: boolean;
+  /** Replie ou déplie la navigation fixe (écran large). */
+  onBasculerNavigation: () => void;
+  /** Ouvre le tiroir de navigation (écran étroit). */
+  onOuvrirTiroir: () => void;
 }
 
 /**
- * En-tête de la coquille applicative : titre de l'écran courant et menu
- * utilisateur avec rappel du rôle (`docs/02_DESIGN_SYSTEM.md §8`).
+ * En-tête collant de la coquille (gabarit : `navbar-custom`) — fond de page
+ * translucide ; à gauche, repli de la navigation et menu « Créer » ; à
+ * droite, notifications et menu utilisateur avec rappel du rôle.
  *
- * Les notifications sont branchées depuis le jalon J8 (`ClocheNotifications`),
- * le domaine `notification` existant désormais côté API. La recherche globale
- * reste non construite : aucun écran de `docs/03_SPECIFICATIONS_ECRANS.md` ne
- * la spécifie (`AGENTS.md` règle 10 — ne pas inventer un écran).
+ * La recherche globale du gabarit n'est pas reprise : aucun écran de
+ * `docs/03_SPECIFICATIONS_ECRANS.md` ne la spécifie (`AGENTS.md` règle 10 —
+ * ne pas inventer un écran). Le titre de l'écran n'est pas répété ici : il vit
+ * dans le `h1` de `EnTetePage`.
  */
-export function EnteteApplication({ titre }: EnteteApplicationProps) {
-  const { utilisateur, deconnecter } = useAuth();
-  const navigate = useNavigate();
-
+export function EnteteApplication({ navigationRepliee, onBasculerNavigation, onOuvrirTiroir }: EnteteApplicationProps) {
+  const { utilisateur } = useAuth();
   if (!utilisateur) return null;
-  const libelleRole = utilisateur.roles[0] ? (LIBELLES_ROLE[utilisateur.roles[0]] ?? utilisateur.roles[0]) : "";
 
   return (
-    <header className="flex h-(--hauteur-entete) shrink-0 items-center justify-between border-b border-bordure bg-surface px-6">
-      {/* Pas un `h1` : le titre sémantique de la page vit dans le contenu de
-          l'écran (`docs/02_DESIGN_SYSTEM.md §6` — un seul `h1` par écran). Ce
-          libellé n'est qu'un repère de navigation dans l'en-tête. */}
-      <p className="text-lg font-semibold text-titre">{titre}</p>
+    <header className="sticky top-0 z-(--z-entete) flex h-(--hauteur-entete) shrink-0 items-center justify-between gap-4 border-b border-bordure/70 bg-entete-fond px-(--marge-page-compacte) backdrop-blur-md xl:px-(--marge-page)">
+      <div className="flex items-center gap-3">
+        <BoutonEntete aria-label="Ouvrir la navigation" className="lg:hidden" onClick={onOuvrirTiroir}>
+          <Menu aria-hidden="true" />
+        </BoutonEntete>
+        <BoutonEntete
+          aria-label={navigationRepliee ? "Déplier la navigation" : "Replier la navigation"}
+          aria-expanded={!navigationRepliee}
+          className="hidden lg:inline-flex"
+          onClick={onBasculerNavigation}
+        >
+          {navigationRepliee ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}
+        </BoutonEntete>
+        <MenuCreation />
+      </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
+        <BoutonPleinEcran />
         <ClocheNotifications />
-
-        <DropdownMenu>
-        <DropdownMenuTrigger className="flex items-center gap-2 rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-anneau">
-          <AvatarUtilisateur nomComplet={utilisateur.nomComplet} />
-          <span className="text-left text-sm">
-            <span className="block font-medium text-texte">{utilisateur.nomComplet}</span>
-            <span className="block text-xs text-texte-doux">{libelleRole}</span>
-          </span>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuLabel>{utilisateur.identifiant}</DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => navigate("/mot-de-passe/changer")}>
-            <KeyRound className="size-4" aria-hidden="true" />
-            Changer mon mot de passe
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            variant="destructive"
-            onSelect={() => {
-              void deconnecter();
-            }}
-          >
-            <LogOut className="size-4" aria-hidden="true" />
-            Se déconnecter
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-        </DropdownMenu>
+        <MenuUtilisateur />
       </div>
     </header>
   );

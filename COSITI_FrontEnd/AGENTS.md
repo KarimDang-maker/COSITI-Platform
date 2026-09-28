@@ -63,7 +63,7 @@ réel, jalon par jalon, et le détail des tests.
 
 | Existe aujourd'hui | Reste à faire |
 |---|---|
-| Design system complet : jetons, teintes, statuts, formatage, contrats de composants | Les douze jalons J1–J12 sont livrés. Le reste à faire est consigné en décisions `[A]`/`[V]` dans `Conception/SUIVI_EXECUTION.md` — dont le MFA, non implémenté en V1 |
+| Design system complet : jetons, teintes, statuts, formatage, contrats de composants — v1.1 : gabarit visuel « Spark Admin » traduit dans l'identité COSITI (`docs/02 §2.1`), catalogue vivant `/design-system` en développement | Les douze jalons J1–J12 sont livrés. Le reste à faire est consigné en décisions `[A]`/`[V]` dans `Conception/SUIVI_EXECUTION.md` — dont le MFA, non implémenté en V1 |
 | Tailwind v4 + shadcn/ui + CVA branchés sur les jetons COSITI | Multi-navigateur E2E (Firefox, WebKit) : seul Chromium est installé, voir `docs/journal-dependances.md` |
 | `api/client.ts`, `auth/`, `app/` (routage + garde de route) | CSP effective en production (`docs/04_SECURITE.md §5`, J11) |
 | J1 (auth), J2 (adhérents), J3 (organisation terrain), J4 (cotisations) — frontend et backend, voir `SUIVI_EXECUTION.md` | Contrats `[A]` de `03_SPECIFICATIONS_API.md §6` (désignation du Chef) à confirmer formellement par la COSITI ; champ `creePar` manquant sur `PaiementDto` (J4, voir décisions) |
@@ -88,7 +88,10 @@ Convention d'arborescence en vigueur (voir `docs/01_ARCHITECTURE.md` pour le
 détail complet) : `src/components/ui/` pour les primitives shadcn
 (régénérables par la CLI, noms en anglais) et `src/components/cositi/` pour les
 composants métier (écrits à la main, noms en français). Chaque dossier porte
-son contrat dans son `README.md`. `src/api/`, `src/auth/`, `src/app/`,
+son contrat dans son `README.md`. Un écran interne s'assemble avec
+`CoquilleApplication` → `EnTetePage` → `CarteSection` / `TableauDonnees` ; il
+n'assemble jamais à la main une carte, une pagination ou un champ avec son
+libellé et son erreur (`docs/02_DESIGN_SYSTEM.md §9.1`). `src/api/`, `src/auth/`, `src/app/`,
 `src/ecrans/<domaine>/`, `src/hooks/` et `src/test/` complètent l'arborescence
 depuis J1.
 

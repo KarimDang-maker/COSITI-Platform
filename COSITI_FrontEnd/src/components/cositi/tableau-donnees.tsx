@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import {
   flexRender,
@@ -18,8 +19,20 @@ interface TableauDonneesProps<T> {
   onChangerTri?: (tri: SortingState) => void;
   onActiverLigne?: (ligne: T) => void;
   libelleLigne?: (ligne: T) => string;
+  /** Barre d'outils au-dessus du tableau (gabarit : recherche + filtres + export). */
+  barreOutils?: ReactNode;
+  /** Pied du tableau : `Pagination` en général. */
+  pied?: ReactNode;
+  /** Légende accessible du tableau, lue avant les données. */
+  legende?: string;
+  className?: string;
 }
 
+/**
+ * Tableau de données du gabarit (`table-card-custom`) : carte blanche, barre
+ * d'outils, en-tête en petites capitales, pied de pagination. Tri et
+ * pagination restent **serveur** ; la ligne est activable au clavier.
+ */
 export function TableauDonnees<T>({
   colonnes,
   lignes,
@@ -28,6 +41,10 @@ export function TableauDonnees<T>({
   onChangerTri,
   onActiverLigne,
   libelleLigne,
+  barreOutils,
+  pied,
+  legende,
+  className,
 }: TableauDonneesProps<T>) {
   const table = useReactTable({
     data: lignes as T[],
@@ -45,9 +62,13 @@ export function TableauDonnees<T>({
   });
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-bordure">
+    <div className={cn("overflow-hidden rounded-xl bg-surface shadow-carte", className)}>
+      {barreOutils && (
+        <div className="flex flex-wrap items-end justify-between gap-4 border-b border-bordure p-5">{barreOutils}</div>
+      )}
       <Table>
-        <TableHeader className="sticky top-0 z-10 bg-surface-douce">
+        {legende && <caption className="sr-only">{legende}</caption>}
+        <TableHeader className="sticky top-0 z-10">
           {table.getHeaderGroups().map((groupe) => (
             <TableRow key={groupe.id}>
               {groupe.headers.map((entete) => {
@@ -56,7 +77,7 @@ export function TableauDonnees<T>({
                 return (
                   <TableHead
                     key={entete.id}
-                    className={cn(triable && "cursor-pointer select-none")}
+                    className={cn(triable && "cursor-pointer select-none hover:text-texte")}
                     aria-sort={sens === "asc" ? "ascending" : sens === "desc" ? "descending" : undefined}
                     onClick={triable ? entete.column.getToggleSortingHandler() : undefined}
                   >
@@ -64,9 +85,9 @@ export function TableauDonnees<T>({
                       {flexRender(entete.column.columnDef.header, entete.getContext())}
                       {triable &&
                         (sens === "asc" ? (
-                          <ArrowUp className="size-3.5" aria-hidden="true" />
+                          <ArrowUp className="size-3.5 text-primaire" aria-hidden="true" />
                         ) : sens === "desc" ? (
-                          <ArrowDown className="size-3.5" aria-hidden="true" />
+                          <ArrowDown className="size-3.5 text-primaire" aria-hidden="true" />
                         ) : (
                           <ArrowUpDown className="size-3.5 text-texte-inactif" aria-hidden="true" />
                         ))}
@@ -101,7 +122,8 @@ export function TableauDonnees<T>({
                   : undefined
               }
               className={cn(
-                onActiverLigne && "cursor-pointer outline-none hover:bg-surface-survol focus-visible:bg-surface-survol",
+                onActiverLigne &&
+                  "cursor-pointer outline-none hover:bg-surface-survol focus-visible:bg-surface-survol focus-visible:shadow-[inset_3px_0_0_var(--anneau)]",
               )}
             >
               {ligne.getVisibleCells().map((cellule) => (
@@ -111,6 +133,7 @@ export function TableauDonnees<T>({
           ))}
         </TableBody>
       </Table>
+      {pied && <div className="border-t border-bordure px-5 py-4">{pied}</div>}
     </div>
   );
 }
