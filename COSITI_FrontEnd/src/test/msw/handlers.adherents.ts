@@ -3,7 +3,10 @@ import type {
   Activite,
   Adherent,
   AdherentResume,
+  ChampManquant,
   CorpsCreationAdherent,
+  CorpsModificationAdherent,
+  CorpsModificationCoordonnees,
   CorpsVerificationDoublon,
   Pack,
 } from "@/api/adherents";
@@ -94,6 +97,24 @@ export const PACKS_TEST: readonly Pack[] = [
   },
 ];
 
+/** Champs de complétion manquants — clés du paramètre `[V]` `CHAMPS_COMPLETION_ADHERENT`. */
+export const CHAMPS_MANQUANTS_TEST: readonly ChampManquant[] = [
+  { cle: "NUMERO_CNI", libelle: "Numéro CNI" },
+  { cle: "GEOLOCALISATION", libelle: "Géolocalisation" },
+  { cle: "ASSOCIATION", libelle: "Association" },
+  { cle: "CONSENTEMENT", libelle: "Consentement au traitement des données" },
+];
+
+export const AVERTISSEMENT_COMPLETION =
+  "La liste des champs de complétion (CHAMPS_COMPLETION_ADHERENT) n'est pas validée par la COSITI.";
+
+function introuvable() {
+  return HttpResponse.json(
+    { code: "ADHERENT_INTROUVABLE", message: "Adhérent introuvable.", traceId: "t-adh-404", avertissements: [] },
+    { status: 404 },
+  );
+}
+
 export const handlersAdherents = [
   http.get("/api/v1/packs", () => HttpResponse.json(PACKS_TEST)),
 
@@ -103,8 +124,20 @@ export const handlersAdherents = [
     const url = new URL(request.url);
     const recherche = url.searchParams.get("recherche")?.toLowerCase();
     const statut = url.searchParams.get("statut");
+    const telephone = url.searchParams.get("telephone");
+    const tri = url.searchParams.get("tri");
+
+    // Liste blanche réelle du contrôleur (#8). L'écran envoyait auparavant `tri=nom,asc`, que le serveur
+    // refuse en 400 : un simulacre permissif avait laissé passer ce défaut.
+    if (tri && !["NOM", "MATRICULE", "DATE_ADHESION", "STATUT"].includes(tri)) {
+      return HttpResponse.json(
+        { code: "ADHERENT_TRI_INVALIDE", message: `Champ de tri inconnu : ${tri}.`, champ: "tri", traceId: "t-tri", avertissements: [] },
+        { status: 400 },
+      );
+    }
 
     let contenu = ADHERENTS_TEST;
+    if (telephone) contenu = contenu.filter((a) => a.telephonePrincipal.includes(telephone));
     if (recherche) {
       contenu = contenu.filter(
         (a) =>
@@ -139,15 +172,169 @@ export const handlersAdherents = [
     });
   }),
 
+  http.get("/api/v1/adherents/matricule/:matricule", ({ params }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.matricule === params.matricule);
+    return adherent ? HttpResponse.json(adherent) : introuvable();
+  }),
+
   http.get("/api/v1/adherents/:id", ({ params }) => {
     const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
-    if (!adherent) {
+    return adherent ? HttpResponse.json(adherent) : introuvable();
+  }),
+
+  http.put("/api/v1/adherents/:id", async ({ params, request }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    if (!adherent) return introuvable();
+    const corps = (await request.json()) as CorpsModificationAdherent;
+    return HttpResponse.json({ ...adherent, ...corps });
+  }),
+
+  http.post("/api/v1/adherents/:id/statut", async ({ params, request }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    if (!adherent) return introuvable();
+    const corps = (await request.json()) as { statut: string; motif: string };
+    // Seules règles réelles du service : statut inchangé et adhérent radié refusés en 409.
+    if (corps.statut === adherent.statut) {
       return HttpResponse.json(
-        { code: "ADHERENT_INTROUVABLE", message: "Adhérent introuvable.", traceId: "t-adh-404", avertissements: [] },
-        { status: 404 },
+        { code: "ADHERENT_STATUT_INCHANGE", message: "L'adhérent a déjà ce statut.", traceId: "t-statut", avertissements: [] },
+        { status: 409 },
       );
     }
-    return HttpResponse.json(adherent);
+    return new HttpResponse(null, { status: 204 });
+  }),
+
+  http.post("/api/v1/adherents/:id/archiver", () => new HttpResponse(null, { status: 204 })),
+
+  http.get("/api/v1/adherents/:id/completion", ({ params }) =>
+    HttpResponse.json({
+      adherentId: params.id,
+      pourcentage: 60,
+      champsRenseignes: 6,
+      champsTotal: 10,
+      champsManquants: CHAMPS_MANQUANTS_TEST,
+      avertissements: [AVERTISSEMENT_COMPLETION],
+    }),
+  ),
+
+  http.get("/api/v1/adherents/:id/champs-manquants", () => HttpResponse.json(CHAMPS_MANQUANTS_TEST)),
+
+  http.patch("/api/v1/adherents/:id/profil", async ({ params }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    return adherent ? HttpResponse.json(adherent) : introuvable();
+  }),
+
+  http.get("/api/v1/adherents/:id/dossier", ({ params }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    if (!adherent) return introuvable();
+    return HttpResponse.json({
+      adherentId: adherent.id,
+      statut: adherent.statut,
+      completionPourcentage: 60,
+      champsManquants: CHAMPS_MANQUANTS_TEST,
+      documentsManquants: ["ACTE_NAISSANCE"],
+      avertissements: [AVERTISSEMENT_COMPLETION],
+    });
+  }),
+
+  http.get("/api/v1/adherents/:id/documents-manquants", () => HttpResponse.json(["ACTE_NAISSANCE"])),
+
+  http.get("/api/v1/adherents/:id/historique", ({ params }) =>
+    HttpResponse.json([
+      {
+        id: "audit-2",
+        horodatage: "2026-09-20T09:30:00Z",
+        utilisateurId: "u-gc-1",
+        utilisateurIdentifiant: "gestionnaire.test",
+        typeOperation: "ADHERENT_CHANGEMENT_STATUT",
+        entite: "adherent",
+        entiteId: params.id,
+        motif: "Trois mois sans cotisation",
+        resultat: "SUCCES",
+      },
+      {
+        id: "audit-1",
+        horodatage: "2025-03-02T08:00:00Z",
+        utilisateurId: "u-gc-1",
+        utilisateurIdentifiant: "gestionnaire.test",
+        typeOperation: "ADHERENT_CREATION",
+        entite: "adherent",
+        entiteId: params.id,
+        motif: null,
+        resultat: "SUCCES",
+      },
+    ]),
+  ),
+
+  http.get("/api/v1/adherents/:id/agent", ({ params }) => {
+    // adh-1 est suivie par l'agent-1 ; adh-2 n'a aucun agent (état métier normal, 404 dédié).
+    if (params.id === "adh-1") {
+      return HttpResponse.json({
+        id: "agent-1",
+        codeAgent: "AG-00001",
+        nomComplet: "Ateba Jean",
+        telephone: "677000001",
+        zoneId: "zone-1",
+        actif: true,
+      });
+    }
+    return HttpResponse.json(
+      { code: "ADHERENT_SANS_AGENT", message: "Aucun agent n'est actuellement affecté à cet adhérent.", traceId: "t-agent", avertissements: [] },
+      { status: 404 },
+    );
+  }),
+
+  http.get("/api/v1/adherents/:id/resume-cotisations", ({ params }) =>
+    HttpResponse.json({
+      adherentId: params.id,
+      montantValide: 9000,
+      montantEnAttente: 1400,
+      seuilEligibiliteCnps: 10500,
+      resteAvantSeuil: 1500,
+      pourcentageProgression: 86,
+      eligibleCnps: false,
+      couvertJusquAu: "2026-08-15",
+      avertissements: [],
+    }),
+  ),
+
+  http.get("/api/v1/adherents/:id/professionnel", ({ params }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    if (!adherent) return introuvable();
+    return HttpResponse.json({
+      adherentId: adherent.id,
+      activiteId: ACTIVITES_TEST[0]!.id,
+      numeroCnps: adherent.numeroCnps,
+      associationId: adherent.associationId,
+      packIdCourant: PACKS_TEST[0]!.id,
+    });
+  }),
+
+  http.put("/api/v1/adherents/:id/professionnel", async ({ params }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    return adherent ? HttpResponse.json(adherent) : introuvable();
+  }),
+
+  http.get("/api/v1/adherents/:id/coordonnees", ({ params }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    if (!adherent) return introuvable();
+    return HttpResponse.json({
+      adherentId: adherent.id,
+      telephonePrincipal: adherent.telephonePrincipal,
+      telephoneSecondaire: adherent.telephoneSecondaire,
+      numeroCni: adherent.numeroCni,
+      localisation: adherent.localisation,
+      quartier: adherent.quartier,
+      ville: adherent.ville,
+      latitude: null,
+      longitude: null,
+    });
+  }),
+
+  http.put("/api/v1/adherents/:id/coordonnees", async ({ params, request }) => {
+    const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
+    if (!adherent) return introuvable();
+    const corps = (await request.json()) as CorpsModificationCoordonnees;
+    return HttpResponse.json({ ...adherent, ...corps });
   }),
 
   http.post("/api/v1/adherents/verifier-doublon", async ({ request }) => {

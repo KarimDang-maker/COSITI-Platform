@@ -127,7 +127,8 @@ export function NouvelAdherent() {
         ville: sansVide(valeurs.ville),
         confirmationDoublonIgnore: confirmationDoublonIgnore || undefined,
       });
-      toast.success("Adhérent créé.");
+      // Le matricule est généré par le serveur (#11) : il n'est connu qu'ici, on l'annonce aussitôt.
+      toast.success(`Adhérent créé — matricule ${adherent.matricule}.`);
       navigate(`/adherents/${adherent.id}`);
     } catch (e) {
       if (estErreurApi(e) && e.code === "ADHERENT_DOUBLON_POTENTIEL") {

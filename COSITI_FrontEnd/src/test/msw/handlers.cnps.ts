@@ -175,6 +175,21 @@ export const handlersCnps = [
 
   http.get("/api/v1/cnps/eligibles-non-immatricules", () => HttpResponse.json(ELIGIBLES_TEST)),
 
+  // Proches du seuil (module adhérents, #25) : même forme que les éligibles, cumul sous le seuil.
+  http.get("/api/v1/cnps/proches-seuil", () =>
+    HttpResponse.json([
+      {
+        adherentId: "adh-2",
+        matricule: "COSITI-00002",
+        nomComplet: "ATANGANA Paul",
+        packCode: "PACK_700",
+        cumulCotise: 9000,
+        seuilEligibilite: 10500,
+        dossierOuvert: false,
+      },
+    ]),
+  ),
+
   http.get("/api/v1/cnps/dossiers/:id", ({ params }) => {
     const dossier = DOSSIERS_TEST.find((d) => d.id === params.id);
     if (!dossier) {

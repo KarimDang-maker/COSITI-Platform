@@ -199,6 +199,26 @@ const VALIDATION_PARAMETRE = {
   },
 } satisfies TableStatuts;
 
+/**
+ * Opérations du journal d'audit d'un adhérent (`TypeOperation` backend, entité `adherent`), affichées
+ * dans l'onglet Historique de la fiche (#21). Un type inconnu s'affiche tel quel, en neutre.
+ */
+const OPERATION_ADHERENT = {
+  ADHERENT_CREATION: { libelle: "Création", teinte: "succes" },
+  ADHERENT_MODIFICATION: { libelle: "Modification de la fiche", teinte: "info" },
+  ADHERENT_ARCHIVAGE: { libelle: "Archivage", teinte: "danger" },
+  ADHERENT_CHANGEMENT_STATUT: { libelle: "Changement de statut", teinte: "attention" },
+  ADHERENT_CHANGEMENT_PACK: { libelle: "Changement de pack", teinte: "attention" },
+  ADHERENT_DOUBLON_IGNORE: {
+    libelle: "Doublon signalé et ignoré",
+    teinte: "attention",
+    aide: "La création a été confirmée malgré un doublon potentiel détecté par le serveur.",
+  },
+  ADHERENT_COMPLETION_PROFIL: { libelle: "Complétion du dossier", teinte: "info" },
+  ADHERENT_MODIFICATION_PROFESSIONNELLE: { libelle: "Informations professionnelles", teinte: "info" },
+  ADHERENT_MODIFICATION_CONTACT: { libelle: "Coordonnées", teinte: "info" },
+} satisfies TableStatuts;
+
 /* ==========================================================================
    7. Registre et résolution
    ======================================================================== */
@@ -220,6 +240,7 @@ export const STATUTS = {
   canalRelance: CANAL_RELANCE,
   campagneRelance: CAMPAGNE_RELANCE,
   validationParametre: VALIDATION_PARAMETRE,
+  operationAdherent: OPERATION_ADHERENT,
 } as const;
 
 export type DomaineStatut = keyof typeof STATUTS;

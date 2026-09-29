@@ -100,6 +100,8 @@ export interface AdherentEligibleCnps {
 
 export interface FiltresDossiers {
   statut?: StatutDossierCnps;
+  /** Consultation du dossier d'un adhérent précis (onglet CNPS de la fiche adhérent). */
+  adherentId?: string;
   page?: number;
   taille?: number;
 }
@@ -146,6 +148,15 @@ export function listerEligiblesNonImmatricules(zoneId?: string) {
   return client.get<AdherentEligibleCnps[]>(
     `/cnps/eligibles-non-immatricules${parametres({ zoneId })}`,
   );
+}
+
+/**
+ * Adhérents proches du quota CNPS (module adhérents, #25) : cumul dans la bande
+ * `[seuil × ratio, seuil)`, ratio lu dans le paramètre `[V]` `CNPS_SEUIL_PROXIMITE_RATIO`. Même forme que
+ * les éligibles ; filtrée par le périmètre du demandeur côté serveur.
+ */
+export function listerProchesSeuilCnps(zoneId?: string) {
+  return client.get<AdherentEligibleCnps[]>(`/cnps/proches-seuil${parametres({ zoneId })}`);
 }
 
 export function listerDeclarations(dossierId: string) {

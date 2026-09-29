@@ -98,26 +98,50 @@ Recherche globale et notifications ne sont pas construites en J1 : aucun
 |---|---|
 | Fichier | `src/ecrans/adherents/ListeAdherents.tsx` |
 | Accès | `GardeRoute permission="ADHERENT:LIRE"` |
-| Contrat API | `GET /adherents` (`03_SPECIFICATIONS_API.md §3`) |
+| Contrat API | `GET /adherents`, `GET /adherents/matricule/{matricule}`, `GET /cnps/proches-seuil`, `GET /cnps/eligibles-non-immatricules`, `POST /exports/adherents` |
 
-Filtres synchronisés dans l'URL (`?recherche=&statut=&page=`) : recherche
-libre (matricule, nom, téléphone, CNI) et statut. Pagination **serveur**
-(`?page=&taille=25`), tri serveur au clic sur les en-têtes triables
-(matricule, adhérent, date d'adhésion). Colonnes : matricule (chasse fixe),
-adhérent, téléphone (`formaterTelephone`), zone, date d'adhésion
-(`formaterDate`), statut (`BadgeStatut domaine="adherent"`).
+Module « Gestion des adhérents » (`COSITI_GESTIONNAIRE_FRONTEND_UI_UX_97_FONCTIONNALITES.md §1`,
+fonctionnalités #1 à #8, #25, #26, #34).
 
-Filtres documentés par l'API mais **non construits en J2** (référentiels
-associés non consommés faute de temps) : `zoneId`, `agentId`, `activiteId`,
-`packId`, `associationId`, `sansAgentReferent`, `dateAdhesionDu/Au`. À
-ajouter quand ces référentiels seront exposés par un écran ou un sélecteur.
+Filtres synchronisés dans l'URL : `recherche` (nom, prénoms, matricule — #2),
+`telephone` (#4), `statut` (#5), `agentId` (#6, `SelectRecherche` alimenté par
+`GET /agents`, visible avec `ORGANISATION:LIRE`), `completion` (#7 : plages
+traduites en `completionMin`/`completionMax`, l'appartenance à une plage étant
+décidée par la formule serveur), `page`, `tri`/`direction` (#8). Recherche et
+téléphone sont **temporisés** (300 ms, `useValeurTemporisee`) avant d'atteindre
+l'URL et l'API. Chaque filtre actif est affiché en puce, retirable
+individuellement.
+
+Tri serveur au clic sur matricule, adhérent, date d'adhésion, statut. Le
+paramètre `tri` ne prend que les valeurs de la liste blanche du contrôleur
+(`NOM`, `MATRICULE`, `DATE_ADHESION`, `STATUT`) avec `direction=ASC|DESC`.
+**Corrigé** : l'écran envoyait `tri=nom,asc`, que le serveur refuse en
+`400 ADHERENT_TRI_INVALIDE` — tout clic de tri vidait la liste ; le simulacre
+MSW applique désormais la même liste blanche.
+
+Accès direct par matricule (#3) : champ dédié, recherche exacte côté serveur,
+ouverture de la fiche ; un matricule inexistant ou hors périmètre donne le
+même message (l'API renvoie `404` dans les deux cas).
+
+Onglets, avec `CNPS:LIRE` (`?vue=`) : « Tous les adhérents », « Proches du
+seuil CNPS » (#25, bande calculée par le serveur à partir du paramètre `[V]`
+`CNPS_SEUIL_PROXIMITE_RATIO`, bandeau d'avertissement affiché), « Éligibles
+CNPS » (#26). Barre cumul / seuil = rapport d'affichage entre deux montants
+serveur. Ligne activable → fiche.
+
+Export CSV (#34, `EXPORT:ADHERENTS`) : dialogue de confirmation qui rappelle le
+critère réellement appliqué (statut) et signale que les autres filtres ne sont
+pas pris en charge par `POST /exports/adherents` (seuls `zoneId` et `statut`).
 
 États : squelette de tableau (chargement), bandeau `Alerte` rouge (erreur),
 `EtatVide` avec action « Nouvel adhérent » (liste vide), tableau + pied de
-pagination avec total réel (« 172 adhérents ») sinon. `avertissements` de
-l'enveloppe de liste affichés en `AvertissementRegle` au-dessus du tableau.
+pagination avec total réel (« 172 adhérents ») sinon ; pendant un rechargement
+la page précédente reste affichée. `avertissements` de l'enveloppe de liste
+affichés en `AvertissementRegle` au-dessus du tableau.
 
-Bouton « Nouvel adhérent » visible seulement avec `ADHERENT:CREER`.
+Bouton « Nouvel adhérent » visible seulement avec `ADHERENT:CREER`
+(Gestionnaire des comptes — retirée à l'Agent de terrain par V14, voir
+`SUIVI_EXECUTION.md`).
 
 ### `/adherents/nouveau` — `NouvelAdherent`
 
@@ -158,20 +182,48 @@ d'écran, qui simulent l'API ; la recette E2E l'a révélé. `GET /activites`
 |---|---|
 | Fichier | `src/ecrans/adherents/FicheAdherent.tsx` |
 | Accès | `GardeRoute permission="ADHERENT:LIRE"` |
-| Contrat API | `GET /adherents/{id}` ; `GET /adherents/{id}/situation` si `DROITS:LIRE` |
+| Contrat API | `GET/PUT /adherents/{id}` et ses sous-ressources (voir tableau), `POST /portefeuilles/affecter\|transferer`, `GET /documents?adherentId=`, `POST /documents`, `GET /cnps/dossiers?adherentId=`, `POST /cnps/dossiers`, `GET /droits/adherents/{id}[/periodes]` |
 
-Identité et coordonnées, statut (`BadgeStatut`), bloc « Situation de droits »
-affiché seulement avec la permission `DROITS:LIRE` (avec ses propres
-`avertissements` en `AvertissementRegle` — ex. reliquat non imputé, règle
-`[V]`). Lien vers `/cotisations?adherentId=<id>` plutôt qu'un tableau de
-paiements dupliqué dans la fiche (le journal des cotisations, J4, est la
-source unique de cette liste).
+Composants : `src/ecrans/adherents/fiche/` (un fichier par bloc ou onglet),
+schémas Zod partagés dans `src/ecrans/adherents/schemas.ts`.
 
-Non construit en J2, hors mandat de la session : gestion des ayants droit
-(`GET/POST/DELETE /adherents/{id}/ayants-droit`), changement de pack
-(`POST /adherents/{id}/pack`), modification (`PUT /adherents/{id}`),
-archivage et changement de statut manuels. À spécifier dans un jalon
-ultérieur si le besoin est confirmé.
+**En-tête collant** : nom (`h1`), matricule avec bouton de copie (#11),
+`BadgeStatut`, mention « Archivé », actions autorisées. Onglets synchronisés
+dans l'URL (`?onglet=`) :
+
+| Onglet | Contenu | Endpoint(s) — fonctionnalité | Visible avec |
+|---|---|---|---|
+| Profil | État du dossier : statut, informations, pièces, barre de complétion, champs et pièces manquants, avertissements `[V]` | `/dossier` #17, `/completion` #14 | `ADHERENT:LIRE` |
+| | Parcours « Compléter le dossier » : ne propose que les champs manquants ; clé non saisissable (association : aucun référentiel exposé) listée à part | `/champs-manquants` #15, `PATCH /profil` #16 | bouton : `ADHERENT:MODIFIER` |
+| | Identité (lecture) | `GET /{id}` #12 | |
+| | Coordonnées, lecture / édition explicite (erreur serveur localisée, saisie conservée) | `GET/PUT /coordonnees` #31 #32 | édition : `ADHERENT:MODIFIER` |
+| | Agent responsable ; affecter (motif facultatif) ou réaffecter (motif obligatoire), étape de confirmation ancien → nouvel agent | `GET /agent` #22, `POST /portefeuilles/affecter` #23, `POST /portefeuilles/transferer` #24 | actions : `ORGANISATION:AFFECTER_PORTEFEUILLE` |
+| Professionnel | Activité, numéro CNPS, association, pack courant (lecture seule) ; édition activité / CNPS | `GET/PUT /professionnel` #29 #30 | édition : `ADHERENT:MODIFIER` |
+| Cotisations | Résumé : validé, en attente, reste avant seuil, couvert jusqu'au, progression serveur ; situation et périodes de droits ; lien vers le journal | `/resume-cotisations` #28 ; `/droits/adherents/{id}` | résumé : `DROITS:LIRE` + `PAIEMENT:LIRE` |
+| CNPS | Éligibilité (serveur) **distincte** de la complétude du dossier ; dossier CNPS existant ou ouverture confirmée | `/resume-cotisations` #27, `/dossier`, `/cnps/dossiers` | onglet : résumé ou `CNPS:LIRE` ; ouverture : `CNPS:GERER` |
+| Documents | Pièces obligatoires manquantes (dépôt pré-typé), documents déposés, téléchargement via API, vérification / rejet motivé | `/documents-manquants` #18, `GET /documents` #19, `POST /documents` #20 | `DOCUMENT:LIRE` ; dépôt `DOCUMENT:TELEVERSER` ; décision `DOCUMENT:VERIFIER` |
+| Historique | Chronologie : action (`BadgeStatut domaine="operationAdherent"`), date, acteur, motif ; filtre par type d'action sur la réponse reçue | `/historique` #21 | `ADHERENT:LIRE` |
+
+Actions d'en-tête : « Modifier l'identité » (#13, `ADHERENT:MODIFIER` — le
+`PUT` remplaçant toute la fiche, les champs non édités sont renvoyés tels que
+lus, avec `version`), « Changer le statut » (#33, `ADHERENT:CHANGER_STATUT` :
+tous les statuts sauf le courant, motif obligatoire, étape de confirmation ;
+le serveur seul refuse une transition, son message est affiché),
+« Archiver » (`ADHERENT:ARCHIVER`, motif obligatoire, retour à la liste).
+
+Chaque mutation invalide la fiche entière (toutes ses sous-ressources), les
+listes et les domaines dépendants (`cnps`, `documents`) ; une affectation
+invalide aussi `organisation`. Aucun calcul métier côté client : complétion,
+éligibilité, cumuls, pièces manquantes viennent de l'API.
+
+Temps réel (#35) : le backend publie `AdherentModifieEvent` après commit mais
+n'expose aucun canal SSE/WebSocket en V1 — l'actualisation repose sur
+l'invalidation TanStack Query. Rien n'est construit côté client tant que le
+mécanisme n'est pas retenu.
+
+Non construit : changement de pack (`POST /adherents/{id}/pack`) — V15
+réserve ce circuit à une proposition Gestionnaire validée par le DAF, que
+l'endpoint actuel n'implémente pas (voir `SUIVI_EXECUTION.md`) ; ayants droit.
 
 ## J3 — Organisation terrain
 
@@ -491,7 +543,7 @@ pour une action qui n'existe pas encore côté serveur (`AGENTS.md` règle 10).
 
 | | |
 |---|---|
-| Fichier | `src/ecrans/adherents/FicheAdherent.tsx` (existant depuis J2) |
+| Fichier | `src/ecrans/adherents/fiche/OngletCotisations.tsx` (dans la fiche depuis J2, déplacé dans l'onglet « Cotisations » par le module adhérents) |
 | Contrat API | `GET /droits/adherents/{id}`, `GET /droits/adherents/{id}/periodes` (`§5`), tous deux réservés à `DROITS:LIRE` |
 
 La carte « Situation de droits » (J2) est désormais alimentée par

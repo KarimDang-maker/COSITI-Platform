@@ -74,6 +74,9 @@ export function useCreerAgent() {
 
 function invalider(clientRequetes: ReturnType<typeof useQueryClient>) {
   void clientRequetes.invalidateQueries({ queryKey: [CLE] });
+  // Une affectation change aussi l'agent responsable affiché sur la fiche adhérent (#22) et le
+  // filtre « agent » de la liste (#6) : ces clés vivent dans le domaine `adherents`.
+  void clientRequetes.invalidateQueries({ queryKey: ["adherents"] });
 }
 
 export function useDesignerChef() {

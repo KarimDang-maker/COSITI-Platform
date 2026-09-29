@@ -23,6 +23,7 @@ export const JETON_DGA = "jeton-dga";
 export const JETON_DAF = "jeton-daf";
 export const JETON_CHEF = "jeton-chef-agents-terrain";
 export const JETON_SUPER_ADMIN = "jeton-super-admin";
+export const JETON_PCA = "jeton-pca";
 
 export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
   [JETON_AGENT]: {
@@ -32,7 +33,9 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
     roles: ["AGENT_TERRAIN"],
     permissions: [
       "ADHERENT:LIRE",
-      "ADHERENT:CREER",
+      // V14__correction_droits_hierarchie_lot1.sql §5 : ADHERENT:CREER retirée à l'Agent, remplacée par
+      // ADHERENT:PREINSCRIRE — qu'aucun endpoint n'exploite encore (voir SUIVI_EXECUTION.md).
+      "ADHERENT:PREINSCRIRE",
       "ADHERENT:MODIFIER",
       "PAIEMENT:CREER",
       "PAIEMENT:LIRE",
@@ -64,9 +67,16 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "ADHERENT:MODIFIER",
       "ADHERENT:ARCHIVER",
       "ADHERENT:CHANGER_STATUT",
+      // V15 : le Gestionnaire propose un changement de pack/allocation, le DAF le valide.
+      "ADHERENT:PROPOSER_ALLOCATION",
       "PAIEMENT:LIRE",
+      // V14 §6 : saisie d'un paiement par le Gestionnaire.
+      "PAIEMENT:CREER",
       "ORGANISATION:LIRE",
-      "AUDIT:CONSULTER",
+      // V14 §10 : le Gestionnaire répartit les portefeuilles et gère les zones. AUDIT:CONSULTER lui a été
+      // retirée (§3 : audit global réservé au PCA et au Super Administrateur).
+      "ORGANISATION:AFFECTER_PORTEFEUILLE",
+      "ORGANISATION:GERER_ZONES",
       "DROITS:LIRE",
       // V9__permissions_j7_cnps_documents.sql : le Gestionnaire des comptes est
       // le rôle opérationnel du domaine CNPS (Roles des acteurs.md §7).
@@ -105,7 +115,6 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "ORGANISATION:GERER",
       "ORGANISATION:AFFECTER_PORTEFEUILLE",
       "ORGANISATION:DESIGNER_CHEF",
-      "AUDIT:CONSULTER",
       "DROITS:LIRE",
       // V9 : consultation seule du domaine CNPS (Roles des acteurs.md §11).
       "CNPS:LIRE",
@@ -134,7 +143,6 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "PAIEMENT:RAPPROCHER",
       "PAIEMENT:SIGNALER_INCOHERENCE",
       "ORGANISATION:LIRE",
-      "AUDIT:CONSULTER",
       "DROITS:LIRE",
       "DROITS:RECALCULER",
       "CNPS:LIRE",
@@ -168,6 +176,25 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "RELANCE:LIRE",
       "RELANCE:ENREGISTRER",
       "RELANCE:GERER_CAMPAGNE",
+    ],
+    doitChangerMotDePasse: false,
+  },
+  [JETON_PCA]: {
+    id: "u-pca-1",
+    identifiant: "pca.test",
+    nomComplet: "Essomba Claire",
+    roles: ["PCA"],
+    // V5 (lecture globale + audit), V8 (DROITS:LIRE), V9 (CNPS:LIRE, DOCUMENT:LIRE) : supervision en
+    // lecture seule du module adhérents — aucune écriture.
+    permissions: [
+      "ADHERENT:LIRE",
+      "PAIEMENT:LIRE",
+      "ORGANISATION:LIRE",
+      "AUDIT:CONSULTER",
+      "DROITS:LIRE",
+      "CNPS:LIRE",
+      "DOCUMENT:LIRE",
+      "TABLEAU_BORD:PCA",
     ],
     doitChangerMotDePasse: false,
   },

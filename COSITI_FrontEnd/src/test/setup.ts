@@ -23,6 +23,15 @@ if (typeof Element !== "undefined") {
   }
 }
 
+// `ResizeObserver` (mesure de taille de `ui/checkbox.tsx`, Radix) n'existe pas non plus dans jsdom.
+if (typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 // Toute requête non simulée échoue bruyamment : un test ne doit jamais
 // supposer qu'un backend réel répond (consigne de session, `AGENTS.md §5`).
 beforeAll(() => serveur.listen({ onUnhandledRequest: "error" }));

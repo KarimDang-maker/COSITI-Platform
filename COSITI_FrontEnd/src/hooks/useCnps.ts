@@ -5,6 +5,7 @@ import {
   listerDeclarations,
   listerDossiers,
   listerEligiblesNonImmatricules,
+  listerProchesSeuilCnps,
   obtenirDossier,
   ouvrirDossier,
   preparerDeclaration,
@@ -16,11 +17,13 @@ import {
 
 const CLE = "cnps" as const;
 
-export function useDossiersCnps(filtres: FiltresDossiers) {
+/** `actif` : faux quand l'écran appelant sait déjà que l'appel serait refusé (permission absente). */
+export function useDossiersCnps(filtres: FiltresDossiers, actif = true) {
   return useQuery({
     queryKey: [CLE, "dossiers", filtres],
     queryFn: () => listerDossiers(filtres),
     placeholderData: (precedente) => precedente,
+    enabled: actif,
   });
 }
 
@@ -32,10 +35,20 @@ export function useDossierCnps(dossierId: string | undefined) {
   });
 }
 
-export function useEligiblesNonImmatricules(zoneId?: string) {
+export function useEligiblesNonImmatricules(zoneId?: string, actif = true) {
   return useQuery({
     queryKey: [CLE, "eligibles", zoneId],
     queryFn: () => listerEligiblesNonImmatricules(zoneId),
+    enabled: actif,
+  });
+}
+
+/** Adhérents proches du quota CNPS (#25) — bande calculée par le serveur. */
+export function useProchesSeuilCnps(zoneId?: string, actif = true) {
+  return useQuery({
+    queryKey: [CLE, "proches-seuil", zoneId],
+    queryFn: () => listerProchesSeuilCnps(zoneId),
+    enabled: actif,
   });
 }
 

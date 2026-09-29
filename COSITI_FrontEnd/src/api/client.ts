@@ -231,6 +231,9 @@ export const client = {
     executer<T>(chemin, "POST", corps, options),
   put: <T>(chemin: string, corps?: unknown, options: OptionsRequete = {}) =>
     executer<T>(chemin, "PUT", corps, options),
+  /** Mise à jour partielle (`PATCH /adherents/{id}/profil`, complétion d'un dossier). */
+  patch: <T>(chemin: string, corps?: unknown, options: OptionsRequete = {}) =>
+    executer<T>(chemin, "PATCH", corps, options),
   del: <T>(chemin: string, options: OptionsRequete = {}) =>
     executer<T>(chemin, "DELETE", undefined, options),
   /** Envoi `multipart/form-data` (téléversement de document, jalon J7). */

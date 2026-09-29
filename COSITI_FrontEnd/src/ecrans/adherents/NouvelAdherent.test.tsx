@@ -4,11 +4,11 @@ import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
 import { fireEvent, rendreAvecProviders, screen, waitFor, within } from "@/test/rendu";
 import { serveur } from "@/test/msw/serveur";
-import { JETON_AGENT } from "@/test/msw/donnees";
+import { JETON_GESTIONNAIRE } from "@/test/msw/donnees";
 import { NouvelAdherent } from "@/ecrans/adherents/NouvelAdherent";
 
 function simulerSessionActive() {
-  serveur.use(http.post("/api/v1/auth/rafraichir", () => HttpResponse.json({ jetonAcces: JETON_AGENT })));
+  serveur.use(http.post("/api/v1/auth/rafraichir", () => HttpResponse.json({ jetonAcces: JETON_GESTIONNAIRE })));
 }
 
 function arbre() {
