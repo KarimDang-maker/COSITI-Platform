@@ -91,6 +91,14 @@ class AdherentIntegrationTest extends ConfigurationTestsIntegration {
                 UUID.randomUUID(), adherentId, agentId, LocalDate.now());
     }
 
+    private void insererDocumentVerifie(UUID adherentId, String typeDocument) {
+        jdbcTemplate.update("""
+                INSERT INTO document (id, type_document, nom_fichier_original, chemin_stockage, type_mime,
+                                       taille_octets, empreinte_sha256, chiffre, adherent_id, statut, cree_par)
+                VALUES (?, ?, 'piece.pdf', ?, 'application/pdf', 1000, ?, true, ?, 'VERIFIE', 'test')
+                """, UUID.randomUUID(), typeDocument, "test/" + UUID.randomUUID(), "0".repeat(64), adherentId);
+    }
+
     private Map<String, Object> corpsAdherent(String nom, String telephone) {
         Map<String, Object> corps = new HashMap<>();
         corps.put("nom", nom);
@@ -242,5 +250,219 @@ class AdherentIntegrationTest extends ConfigurationTestsIntegration {
                 "SELECT count(*) FROM adhesion WHERE adherent_id = ? AND date_fin IS NULL",
                 Integer.class, adherentId);
         org.assertj.core.api.Assertions.assertThat(nbAdhesionsOuvertes).isEqualTo(1);
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Fonctionnalités ajoutées (docs/COSITI_GESTIONNAIRE_MODULES_BACKEND_122_FONCTIONNALITES.md §1)
+    // ------------------------------------------------------------------------------------------------
+
+    @Test
+    void consulterParMatriculeRenvoieLeMemeAdherentQueParId() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.matricule", "GESTIONNAIRE_COMPTE", null);
+        var reponse = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Owona Marc", "677111010"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract();
+        String matricule = reponse.path("matricule");
+        String id = reponse.path("id");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/matricule/" + matricule)
+                .then().statusCode(200)
+                .body("id", equalTo(id));
+    }
+
+    @Test
+    void completionEtChampsManquantsRefletentLesChampsRenseignesPuisCompletesParPatch() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.completion", "GESTIONNAIRE_COMPTE", null);
+        String id = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Ela Christian", "677111011"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+
+        int pourcentageInitial = given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/completion")
+                .then().statusCode(200)
+                .extract().path("pourcentage");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/champs-manquants")
+                .then().statusCode(200)
+                .body("size()", greaterThanOrEqualTo(1));
+
+        given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(Map.of("sexe", "M", "numeroCni", "CNI-12345", "quartier", "Akwa",
+                        "ville", "Douala", "consentementDonnees", true))
+                .when().patch("/adherents/" + id + "/profil")
+                .then().statusCode(200)
+                .body("numeroCni", equalTo("CNI-12345"));
+
+        int pourcentageApres = given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/completion")
+                .then().statusCode(200)
+                .extract().path("pourcentage");
+
+        org.assertj.core.api.Assertions.assertThat(pourcentageApres).isGreaterThan(pourcentageInitial);
+    }
+
+    @Test
+    void dossierComposeStatutCompletionEtDocumentsManquants() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.dossier", "GESTIONNAIRE_COMPTE", null);
+        String id = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Manga Rose", "677111012"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/documents-manquants")
+                .then().statusCode(200)
+                .body("$", org.hamcrest.Matchers.hasItems("CNI", "ACTE_NAISSANCE"));
+
+        insererDocumentVerifie(UUID.fromString(id), "CNI");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/documents-manquants")
+                .then().statusCode(200)
+                .body("$", org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("CNI")))
+                .body("$", org.hamcrest.Matchers.hasItem("ACTE_NAISSANCE"));
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/dossier")
+                .then().statusCode(200)
+                .body("statut", equalTo("PREINSCRIT"))
+                .body("documentsManquants", org.hamcrest.Matchers.hasItem("ACTE_NAISSANCE"));
+    }
+
+    @Test
+    void professionnelEtCoordonneesSeConsultentEtSeModifientIndependamment() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.profil", "GESTIONNAIRE_COMPTE", null);
+        String id = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Talla Edwige", "677111013"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/professionnel")
+                .then().statusCode(200)
+                .body("activiteId", equalTo(activiteId.toString()));
+
+        given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(Map.of("activiteId", activiteId.toString(), "numeroCnps", "CNPS-999"))
+                .when().put("/adherents/" + id + "/professionnel")
+                .then().statusCode(200)
+                .body("numeroCnps", equalTo("CNPS-999"))
+                .body("telephonePrincipal", equalTo("677111013"));
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/coordonnees")
+                .then().statusCode(200)
+                .body("telephonePrincipal", equalTo("677111013"));
+
+        given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(Map.of("telephonePrincipal", "677111099", "localisation", "Nouveau marché"))
+                .when().put("/adherents/" + id + "/coordonnees")
+                .then().statusCode(200)
+                .body("telephonePrincipal", equalTo("677111099"))
+                .body("numeroCnps", equalTo("CNPS-999"));
+    }
+
+    @Test
+    void modifierProfessionnelRefusePourUnRoleSansPermission() {
+        String jetonDaf = creerUtilisateurEtSeConnecter("daf.profil", "DAF", null);
+        String jetonGest = creerUtilisateurEtSeConnecter("gest.profil2", "GESTIONNAIRE_COMPTE", null);
+        String id = given().header("Authorization", "Bearer " + jetonGest).contentType(ContentType.JSON)
+                .body(corpsAdherent("Sans Droit", "677111014"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+
+        given().header("Authorization", "Bearer " + jetonDaf).contentType(ContentType.JSON)
+                .body(Map.of("activiteId", activiteId.toString(), "numeroCnps", "X"))
+                .when().put("/adherents/" + id + "/professionnel")
+                .then().statusCode(403);
+    }
+
+    @Test
+    void agentResponsableEstAbsentPuisPresentApresAffectation() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.agent", "GESTIONNAIRE_COMPTE", null);
+        String id = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Njoya Paul", "677111015"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/agent")
+                .then().statusCode(404)
+                .body("code", equalTo("ADHERENT_SANS_AGENT"));
+
+        UUID agentId = creerAgent("AG-RESP");
+        ouvrirPortefeuille(UUID.fromString(id), agentId);
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/agent")
+                .then().statusCode(200)
+                .body("id", equalTo(agentId.toString()));
+    }
+
+    @Test
+    void historiqueContientLaCreationDeLAdherent() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.historique", "GESTIONNAIRE_COMPTE", null);
+        String id = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Historique Test", "677111016"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/historique")
+                .then().statusCode(200)
+                .body("typeOperation", org.hamcrest.Matchers.hasItem("ADHERENT_CREATION"));
+    }
+
+    @Test
+    void resumeCotisationsRenvoieUnMontantValideNulPourUnNouvelAdherent() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.resume", "GESTIONNAIRE_COMPTE", null);
+        String id = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Resume Test", "677111017"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+
+        given().header("Authorization", "Bearer " + jeton)
+                .when().get("/adherents/" + id + "/resume-cotisations")
+                .then().statusCode(200)
+                .body("adherentId", equalTo(id))
+                .body("montantValide", equalTo(0));
+    }
+
+    @Test
+    void listerFiltreParAgentEtTrieParMatriculeDescendant() {
+        String jeton = creerUtilisateurEtSeConnecter("gest.filtre", "GESTIONNAIRE_COMPTE", null);
+        String id1 = given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Filtre Un", "677111018"))
+                .when().post("/adherents")
+                .then().statusCode(201).extract().path("id");
+        given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
+                .body(corpsAdherent("Filtre Deux", "677111019"))
+                .when().post("/adherents")
+                .then().statusCode(201);
+
+        UUID agentId = creerAgent("AG-FILTRE");
+        ouvrirPortefeuille(UUID.fromString(id1), agentId);
+
+        given().header("Authorization", "Bearer " + jeton)
+                .queryParam("agentId", agentId.toString())
+                .when().get("/adherents")
+                .then().statusCode(200)
+                .body("contenu.size()", equalTo(1))
+                .body("contenu[0].id", equalTo(id1));
+
+        given().header("Authorization", "Bearer " + jeton)
+                .queryParam("tri", "MATRICULE").queryParam("direction", "DESC")
+                .when().get("/adherents")
+                .then().statusCode(200);
+
+        given().header("Authorization", "Bearer " + jeton)
+                .queryParam("tri", "INVALIDE")
+                .when().get("/adherents")
+                .then().statusCode(400)
+                .body("code", equalTo("ADHERENT_TRI_INVALIDE"));
     }
 }

@@ -40,6 +40,18 @@ public final class SpecificationsAdherent {
         if (c.dateAdhesionAu() != null) {
             spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("dateAdhesion"), c.dateAdhesionAu()));
         }
+        if (c.telephone() != null && !c.telephone().isBlank()) {
+            String motif = "%" + c.telephone().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(root.get("telephonePrincipal")), motif),
+                    cb.like(cb.lower(cb.coalesce(root.get("telephoneSecondaire"), "")), motif)
+            ));
+        }
         return spec;
+    }
+
+    /** Restreint aux identifiants donnés — utilisé pour le filtre {@code agentId} (résolu en amont). */
+    public static Specification<Adherent> avecIdentifiants(java.util.List<java.util.UUID> ids) {
+        return (root, query, cb) -> root.get("id").in(ids);
     }
 }

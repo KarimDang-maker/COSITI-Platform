@@ -14,6 +14,10 @@ public record CritereRechercheAdherent(
         UUID associationId,
         Boolean sansAgentReferent,
         LocalDate dateAdhesionDu,
-        LocalDate dateAdhesionAu
+        LocalDate dateAdhesionAu,
+        String telephone,
+        UUID agentId,
+        Integer completionMin,
+        Integer completionMax
 ) {
 }

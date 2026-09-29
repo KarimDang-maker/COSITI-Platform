@@ -39,4 +39,10 @@ public interface ServiceDossierCnps {
     List<PieceManquanteDto> piecesManquantes(UUID dossierId, Utilisateur demandeur);
 
     List<AdherentEligibleCnpsDto> eligiblesNonImmatricules(UUID zoneId, Utilisateur demandeur);
+
+    /**
+     * #25 — adhérents dont le cumul imputé est proche du seuil d'éligibilité de leur pack sans encore
+     * l'avoir atteint (bande {@code [seuil * CNPS_SEUIL_PROXIMITE_RATIO, seuil)}).
+     */
+    List<AdherentEligibleCnpsDto> prochesDuSeuil(UUID zoneId, Utilisateur demandeur);
 }

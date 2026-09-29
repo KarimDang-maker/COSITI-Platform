@@ -7,6 +7,7 @@ import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
+import cm.cositi.api.organisation.dto.AgentDto;
 import cm.cositi.api.organisation.dto.ChargeAgentDto;
 import cm.cositi.api.organisation.entite.AffectationPortefeuille;
 import cm.cositi.api.organisation.entite.Agent;
@@ -138,6 +139,20 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         // le paiement disponible — ne jamais inventer un chiffre financier (AGENTS.md règle absolue n°9).
         return new ChargeAgentDto(agentId, periode.toString(), nombreAdherents, BigDecimal.ZERO,
                 agent.getObjectifCollecteMensuel());
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ADHERENT:LIRE')")
+    public AgentDto agentActuel(UUID adherentId, Utilisateur demandeur) {
+        perimetre.verifierAccesAdherent(demandeur, adherentId);
+        if (!adherentRepository.existsById(adherentId)) {
+            throw new ExceptionRessourceIntrouvable("ADHERENT_INTROUVABLE", "Adhérent introuvable.");
+        }
+        UUID agentId = affectationRepository.findByAdherentIdAndDateFinIsNull(adherentId)
+                .map(AffectationPortefeuille::getAgentId)
+                .orElseThrow(() -> new ExceptionRessourceIntrouvable("ADHERENT_SANS_AGENT",
+                        "Aucun agent n'est actuellement affecté à cet adhérent."));
+        return AgentDto.depuis(charger(agentId, "AGENT_INTROUVABLE"));
     }
 
     private void verifierAdherentEtAgent(UUID adherentId, UUID agentId) {

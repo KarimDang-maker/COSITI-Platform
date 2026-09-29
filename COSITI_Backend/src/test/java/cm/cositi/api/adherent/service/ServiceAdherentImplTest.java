@@ -1,6 +1,9 @@
 package cm.cositi.api.adherent.service;
 
+import cm.cositi.api.adherent.dto.CompleterProfilAdherentDto;
 import cm.cositi.api.adherent.dto.CreationAdherentDto;
+import cm.cositi.api.adherent.dto.ModifierCoordonneesDto;
+import cm.cositi.api.adherent.dto.ModifierProfessionnelDto;
 import cm.cositi.api.adherent.entite.Adherent;
 import cm.cositi.api.adherent.entite.Pack;
 import cm.cositi.api.adherent.entite.StatutAdherent;
@@ -8,10 +11,17 @@ import cm.cositi.api.adherent.repository.AdhesionRepository;
 import cm.cositi.api.adherent.repository.AdherentRepository;
 import cm.cositi.api.adherent.repository.PackRepository;
 import cm.cositi.api.adherent.exception.ExceptionDoublonPotentiel;
+import cm.cositi.api.audit.JournalAuditRepository;
 import cm.cositi.api.audit.ServiceAudit;
+import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionConflit;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
+import cm.cositi.api.document.dto.DocumentDto;
+import cm.cositi.api.document.entite.TypeDocument;
+import cm.cositi.api.document.service.ServiceStockageDocument;
+import cm.cositi.api.organisation.repository.AffectationPortefeuilleRepository;
+import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.securite.entite.Role;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
@@ -20,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.lang.reflect.Field;
 import java.util.List;
@@ -57,6 +68,16 @@ class ServiceAdherentImplTest {
     /** Sert au libellé de zone des réponses de lecture (jalon J12) ; aucun test ici ne le sollicite. */
     @Mock
     private cm.cositi.api.organisation.repository.ZoneRepository zoneRepository;
+    @Mock
+    private AffectationPortefeuilleRepository affectationPortefeuilleRepository;
+    @Mock
+    private ServiceStockageDocument serviceStockageDocument;
+    @Mock
+    private JournalAuditRepository journalAuditRepository;
+    @Mock
+    private ServiceParametre serviceParametre;
+    @Mock
+    private ApplicationEventPublisher publicateurEvenements;
 
     private ServiceAdherentImpl service;
     private Utilisateur auteur;
@@ -64,9 +85,17 @@ class ServiceAdherentImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceAdherentImpl(adherentRepository, adhesionRepository, packRepository, serviceMatricule,
-                serviceDoublonAdherent, perimetre, serviceAudit, zoneRepository);
+                serviceDoublonAdherent, perimetre, serviceAudit, zoneRepository, affectationPortefeuilleRepository,
+                serviceStockageDocument, journalAuditRepository, serviceParametre, publicateurEvenements);
         auteur = new Utilisateur("agent1", "hash", "Agent Un");
         setId(auteur, UUID.randomUUID());
+    }
+
+    private Adherent adherentPourTests() throws Exception {
+        Adherent adherent = new Adherent("COSITI-00099", "Ateba", "677999999", UUID.randomUUID(), UUID.randomUUID(),
+                "loc", java.time.LocalDate.now());
+        setId(adherent, UUID.randomUUID());
+        return adherent;
     }
 
     private void setId(Object entite, UUID id) throws Exception {
@@ -172,5 +201,113 @@ class ServiceAdherentImplTest {
 
         assertThatThrownBy(() -> service.consulter(id, auteur))
                 .isInstanceOf(ExceptionRessourceIntrouvable.class);
+    }
+
+    @Test
+    void consulterParMatriculeLeveRessourceIntrouvableSiAbsent() {
+        when(adherentRepository.findByMatricule("COSITI-99999")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.consulterParMatricule("COSITI-99999", auteur))
+                .isInstanceOf(ExceptionRessourceIntrouvable.class);
+
+        verify(perimetre, times(0)).verifierAccesAdherent(any(), any());
+    }
+
+    @Test
+    void completionCompteLesChampsRenseignesSelonLeParametre() throws Exception {
+        Adherent adherent = adherentPourTests();
+        adherent.setNumeroCni("123456");
+        // sexe, téléphone secondaire, etc. restent nuls.
+        doNothing().when(perimetre).verifierAccesAdherent(any(), any());
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        when(serviceParametre.texte("CHAMPS_COMPLETION_ADHERENT")).thenReturn("SEXE,NUMERO_CNI");
+        when(serviceParametre.estValide("CHAMPS_COMPLETION_ADHERENT")).thenReturn(true);
+
+        var resultat = service.completion(adherent.getId(), auteur);
+
+        assertThat(resultat.champsTotal()).isEqualTo(2);
+        assertThat(resultat.champsRenseignes()).isEqualTo(1);
+        assertThat(resultat.pourcentage()).isEqualTo(50);
+        assertThat(resultat.champsManquants()).extracting("cle").containsExactly("SEXE");
+    }
+
+    @Test
+    void completerProfilNAppliqueQueLesChampsFournis() throws Exception {
+        Adherent adherent = adherentPourTests();
+        doNothing().when(perimetre).verifierAccesAdherent(any(), any());
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var dto = new CompleterProfilAdherentDto(null, "F", null, null, null, null, null, null, null, null, false);
+        service.completerProfil(adherent.getId(), dto, auteur);
+
+        assertThat(adherent.getSexe()).isEqualTo("F");
+        assertThat(adherent.getNumeroCni()).isNull();
+        verify(serviceAudit).tracer(eq(TypeOperation.ADHERENT_COMPLETION_PROFIL), eq("adherent"),
+                eq(adherent.getId()), any(), any(), any());
+    }
+
+    @Test
+    void modifierProfessionnelAuditeEtNeChangeQueLesChampsProfessionnels() throws Exception {
+        Adherent adherent = adherentPourTests();
+        String telephoneAvant = adherent.getTelephonePrincipal();
+        doNothing().when(perimetre).verifierAccesAdherent(any(), any());
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        UUID nouvelleActivite = UUID.randomUUID();
+        service.modifierProfessionnel(adherent.getId(),
+                new ModifierProfessionnelDto(nouvelleActivite, "CNPS-1", null), auteur);
+
+        assertThat(adherent.getActiviteId()).isEqualTo(nouvelleActivite);
+        assertThat(adherent.getNumeroCnps()).isEqualTo("CNPS-1");
+        assertThat(adherent.getTelephonePrincipal()).isEqualTo(telephoneAvant);
+        verify(serviceAudit).tracer(eq(TypeOperation.ADHERENT_MODIFICATION_PROFESSIONNELLE), any(), any(), any(),
+                any(), any());
+    }
+
+    @Test
+    void modifierCoordonneesAuditeEtChangeLesCoordonnees() throws Exception {
+        Adherent adherent = adherentPourTests();
+        doNothing().when(perimetre).verifierAccesAdherent(any(), any());
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        service.modifierCoordonnees(adherent.getId(),
+                new ModifierCoordonneesDto("677111111", null, null, "Nouveau quartier", null, null, null, null),
+                auteur);
+
+        assertThat(adherent.getTelephonePrincipal()).isEqualTo("677111111");
+        assertThat(adherent.getLocalisation()).isEqualTo("Nouveau quartier");
+        verify(serviceAudit).tracer(eq(TypeOperation.ADHERENT_MODIFICATION_CONTACT), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void documentsManquantsNeRetientQueLesTypesAbsentsOuRejetes() throws Exception {
+        Adherent adherent = adherentPourTests();
+        doNothing().when(perimetre).verifierAccesAdherent(any(), any());
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        when(serviceParametre.texte("DOCUMENTS_ADHERENT_OBLIGATOIRES")).thenReturn("CNI,ACTE_NAISSANCE");
+        DocumentDto cniRejete = new DocumentDto(UUID.randomUUID(), TypeDocument.CNI, "f.pdf", "application/pdf", 10,
+                true, adherent.getId(), null, cm.cositi.api.document.entite.StatutDocument.REJETE,
+                cm.cositi.api.document.entite.AnalyseAntivirus.PROPRE, false, java.time.Instant.now(), "agent1");
+        when(serviceStockageDocument.listerParAdherent(adherent.getId(), auteur)).thenReturn(List.of(cniRejete));
+
+        List<TypeDocument> manquants = service.documentsManquants(adherent.getId(), auteur);
+
+        assertThat(manquants).containsExactlyInAnyOrder(TypeDocument.CNI, TypeDocument.ACTE_NAISSANCE);
+    }
+
+    @Test
+    void historiqueVerifieLePerimetreAvantDeLireLeJournal() {
+        UUID id = UUID.randomUUID();
+        doThrow(new cm.cositi.api.commun.exception.ExceptionAutorisation("PERIMETRE_ADHERENT_REFUSE", "hors périmètre"))
+                .when(perimetre).verifierAccesAdherent(auteur, id);
+
+        assertThatThrownBy(() -> service.historique(id, auteur))
+                .isInstanceOf(cm.cositi.api.commun.exception.ExceptionAutorisation.class);
+
+        verify(journalAuditRepository, times(0)).findAll(any(org.springframework.data.jpa.domain.Specification.class),
+                any(org.springframework.data.domain.Sort.class));
     }
 }

@@ -1,6 +1,7 @@
 package cm.cositi.api.organisation.service;
 
 import cm.cositi.api.adherent.dto.AdherentResumeDto;
+import cm.cositi.api.organisation.dto.AgentDto;
 import cm.cositi.api.organisation.dto.ChargeAgentDto;
 import cm.cositi.api.securite.entite.Utilisateur;
 
@@ -22,4 +23,7 @@ public interface ServicePortefeuille {
     List<AdherentResumeDto> sansAgentReferent(UUID zoneId);
 
     ChargeAgentDto charge(UUID agentId, YearMonth periode);
+
+    /** #22 — agent actuellement affecté à un adhérent (affectation ouverte). */
+    AgentDto agentActuel(UUID adherentId, Utilisateur demandeur);
 }
