@@ -97,14 +97,14 @@ public class ControleurCnps {
     @GetMapping("/eligibles-non-immatricules")
     public List<AdherentEligibleCnpsDto> eligiblesNonImmatricules(@RequestParam(required = false) UUID zoneId,
                                                                    @AuthenticationPrincipal Utilisateur demandeur) {
-        return serviceDossier.eligiblesNonImmatricules(zoneId, demandeur);
+        return serviceDossier.eligiblesNonImmatricules(zoneId, null, demandeur);
     }
 
     /** #25 (docs/COSITI_GESTIONNAIRE_MODULES_BACKEND_122_FONCTIONNALITES.md §1). */
     @GetMapping("/proches-seuil")
     public List<AdherentEligibleCnpsDto> prochesDuSeuil(@RequestParam(required = false) UUID zoneId,
                                                          @AuthenticationPrincipal Utilisateur demandeur) {
-        return serviceDossier.prochesDuSeuil(zoneId, demandeur);
+        return serviceDossier.prochesDuSeuil(zoneId, null, demandeur);
     }
 
     // ------------------------------------------------------------ Déclarations

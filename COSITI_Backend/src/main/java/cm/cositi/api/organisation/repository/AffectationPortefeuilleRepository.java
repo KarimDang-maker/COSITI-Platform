@@ -11,4 +11,7 @@ public interface AffectationPortefeuilleRepository extends JpaRepository<Affecta
     Optional<AffectationPortefeuille> findByAdherentIdAndDateFinIsNull(UUID adherentId);
     List<AffectationPortefeuille> findByAgentIdAndDateFinIsNull(UUID agentId);
     List<AffectationPortefeuille> findByAdherentIdIn(List<UUID> adherentIds);
+
+    /** #24 — historique complet (ouvert + clôturé), jamais supprimé physiquement. */
+    List<AffectationPortefeuille> findByAgentIdOrderByDateDebutDesc(UUID agentId);
 }

@@ -1,14 +1,21 @@
 package cm.cositi.api.organisation.service;
 
+import cm.cositi.api.audit.AuditLigneDto;
+import cm.cositi.api.audit.JournalAudit;
+import cm.cositi.api.audit.JournalAuditRepository;
 import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionAutorisation;
 import cm.cositi.api.commun.exception.ExceptionConflit;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
+import cm.cositi.api.commun.reponse.ReponsePaginee;
 import cm.cositi.api.organisation.dto.AgentDto;
+import cm.cositi.api.organisation.dto.ChangerStatutAgentDto;
 import cm.cositi.api.organisation.dto.CreationAgentDto;
+import cm.cositi.api.organisation.dto.CritereRechercheAgent;
 import cm.cositi.api.organisation.dto.HistoriqueDesignationChefDto;
+import cm.cositi.api.organisation.dto.ModificationAgentDto;
 import cm.cositi.api.organisation.entite.Agent;
 import cm.cositi.api.organisation.entite.HistoriqueDesignationChef;
 import cm.cositi.api.organisation.repository.AgentRepository;
@@ -17,6 +24,10 @@ import cm.cositi.api.securite.entite.Role;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.repository.RoleRepository;
 import cm.cositi.api.securite.repository.UtilisateurRepository;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -43,10 +55,14 @@ public class ServiceAgentImpl implements ServiceAgent {
     private final PasswordEncoder encodeurMotDePasse;
     private final JdbcTemplate jdbcTemplate;
     private final ServiceAudit serviceAudit;
+    private final JournalAuditRepository journalAuditRepository;
+    private final ApplicationEventPublisher publicateurEvenements;
 
     public ServiceAgentImpl(AgentRepository agentRepository, HistoriqueDesignationChefRepository historiqueRepository,
                              UtilisateurRepository utilisateurRepository, RoleRepository roleRepository,
-                             PasswordEncoder encodeurMotDePasse, JdbcTemplate jdbcTemplate, ServiceAudit serviceAudit) {
+                             PasswordEncoder encodeurMotDePasse, JdbcTemplate jdbcTemplate, ServiceAudit serviceAudit,
+                             JournalAuditRepository journalAuditRepository,
+                             ApplicationEventPublisher publicateurEvenements) {
         this.agentRepository = agentRepository;
         this.historiqueRepository = historiqueRepository;
         this.utilisateurRepository = utilisateurRepository;
@@ -54,6 +70,8 @@ public class ServiceAgentImpl implements ServiceAgent {
         this.encodeurMotDePasse = encodeurMotDePasse;
         this.jdbcTemplate = jdbcTemplate;
         this.serviceAudit = serviceAudit;
+        this.journalAuditRepository = journalAuditRepository;
+        this.publicateurEvenements = publicateurEvenements;
     }
 
     private void exigerDga(Utilisateur utilisateur, String action) {
@@ -61,6 +79,20 @@ public class ServiceAgentImpl implements ServiceAgent {
             throw new ExceptionAutorisation("ORGANISATION_RESERVE_DGA",
                     "Seule la DGA peut " + action + ".");
         }
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
+    public ReponsePaginee<AgentDto> lister(CritereRechercheAgent critere, Pageable pageable, Utilisateur demandeur) {
+        Specification<Agent> spec = SpecificationsAgent.depuisCritere(critere);
+        Page<AgentDto> page = agentRepository.findAll(spec, pageable).map(AgentDto::depuis);
+        return ReponsePaginee.depuis(page);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
+    public AgentDto consulter(UUID id, Utilisateur demandeur) {
+        return AgentDto.depuis(charger(id));
     }
 
     @Override
@@ -99,8 +131,53 @@ public class ServiceAgentImpl implements ServiceAgent {
 
         serviceAudit.tracer(TypeOperation.AGENT_CREATION_PAR_DGA, "agent", agent.getId(), null,
                 AgentDto.depuis(agent), "Créé par la DGA " + dga.getIdentifiant());
+        publicateurEvenements.publishEvent(new AgentModifieEvent(agent.getId(), "CREATION"));
 
         return AgentDto.avecMotDePasseInitial(agent, motDePasseClair);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:GERER')")
+    @Transactional
+    public AgentDto modifier(UUID id, ModificationAgentDto dto, Utilisateur dga) {
+        exigerDga(dga, "modifier la fiche d'un agent de terrain");
+        Agent agent = charger(id);
+        AgentDto avant = AgentDto.depuis(agent);
+
+        agent.setNomComplet(dto.nomComplet());
+        agent.setTelephone(dto.telephone());
+        if (dto.zoneId() != null) {
+            agent.setZoneId(dto.zoneId());
+        }
+        agent.setObjectifCollecteMensuel(dto.objectifCollecteMensuel());
+        agent = agentRepository.save(agent);
+
+        serviceAudit.tracer(TypeOperation.AGENT_MODIFICATION, "agent", agent.getId(), avant,
+                AgentDto.depuis(agent), null);
+        publicateurEvenements.publishEvent(new AgentModifieEvent(agent.getId(), "MODIFICATION"));
+        return AgentDto.depuis(agent);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:GERER')")
+    @Transactional
+    public AgentDto changerStatut(UUID id, ChangerStatutAgentDto dto, Utilisateur dga) {
+        exigerDga(dga, "activer ou désactiver un agent de terrain");
+        if (dto.motif() == null || dto.motif().isBlank()) {
+            throw new ExceptionValidation("AGENT_MOTIF_REQUIS", "Le motif du changement de statut est obligatoire.");
+        }
+        Agent agent = charger(id);
+        if (agent.isActif() == dto.actif()) {
+            throw new ExceptionConflit("AGENT_STATUT_INCHANGE", "L'agent a déjà ce statut.");
+        }
+        boolean avant = agent.isActif();
+        agent.setActif(dto.actif());
+        agent = agentRepository.save(agent);
+
+        serviceAudit.tracer(TypeOperation.AGENT_CHANGEMENT_STATUT, "agent", agent.getId(), avant,
+                dto.actif(), dto.motif());
+        publicateurEvenements.publishEvent(new AgentModifieEvent(agent.getId(), "CHANGEMENT_STATUT"));
+        return AgentDto.depuis(agent);
     }
 
     @Override
@@ -222,6 +299,27 @@ public class ServiceAgentImpl implements ServiceAgent {
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable("ORGANISATION_AUCUN_CHEF",
                         "Aucun Chef n'est désigné pour cette zone."));
         return AgentDto.depuis(charger(dernier.getAgentId()));
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
+    public List<AuditLigneDto> operations(UUID id, Instant depuis, Instant jusqua, Utilisateur demandeur) {
+        charger(id);
+        Specification<JournalAudit> spec = (root, query, cb) -> {
+            var predicat = cb.and(cb.equal(root.get("entite"), "agent"), cb.equal(root.get("entiteId"), id));
+            if (depuis != null) {
+                predicat = cb.and(predicat, cb.greaterThanOrEqualTo(root.get("horodatage"), depuis));
+            }
+            if (jusqua != null) {
+                predicat = cb.and(predicat, cb.lessThanOrEqualTo(root.get("horodatage"), jusqua));
+            }
+            return predicat;
+        };
+        return journalAuditRepository.findAll(spec,
+                        org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "horodatage"))
+                .stream()
+                .map(AuditLigneDto::depuis)
+                .toList();
     }
 
     private Agent charger(UUID id) {

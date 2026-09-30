@@ -2,12 +2,13 @@ package cm.cositi.api.organisation.repository;
 
 import cm.cositi.api.organisation.entite.Agent;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-public interface AgentRepository extends JpaRepository<Agent, UUID> {
+public interface AgentRepository extends JpaRepository<Agent, UUID>, JpaSpecificationExecutor<Agent> {
     Optional<Agent> findByCodeAgent(String codeAgent);
     Optional<Agent> findByUtilisateurId(UUID utilisateurId);
     List<Agent> findByZoneIdAndArchiveFalse(UUID zoneId);

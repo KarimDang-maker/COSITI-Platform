@@ -323,6 +323,9 @@ public class ServicePaiementImpl implements ServicePaiement {
         if (critere.dateAu() != null) {
             spec = spec.and((root, q, cb) -> cb.lessThanOrEqualTo(root.get("datePaiement"), critere.dateAu()));
         }
+        if (critere.agentId() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("agentEncaisseurId"), critere.agentId()));
+        }
         Page<PaiementDto> page = paiementRepository.findAll(spec, pageable).map(PaiementDto::depuis);
         return ReponsePaginee.depuis(page);
     }

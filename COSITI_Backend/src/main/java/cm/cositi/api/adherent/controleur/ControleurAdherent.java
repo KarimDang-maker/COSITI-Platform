@@ -233,7 +233,7 @@ public class ControleurAdherent {
                                                            @AuthenticationPrincipal Utilisateur demandeur) {
         SituationDroitsDto situation = serviceCalculDroits.situation(id, LocalDate.now(), demandeur);
 
-        var critere = new CritereJournalPaiement(id, null, null, null, null);
+        var critere = new CritereJournalPaiement(id, null, null, null, null, null);
         ReponsePaginee<PaiementDto> paiements = servicePaiement.journal(critere,
                 PageRequest.of(0, 200, Sort.by(Sort.Direction.DESC, "datePaiement")), demandeur);
         BigDecimal montantEnAttente = paiements.contenu().stream()

@@ -58,7 +58,7 @@ public class ControleurPaiement {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "25") int taille,
             @AuthenticationPrincipal Utilisateur demandeur) {
-        var critere = new CritereJournalPaiement(adherentId, statut, modePaiement, dateDu, dateAu);
+        var critere = new CritereJournalPaiement(adherentId, statut, modePaiement, dateDu, dateAu, null);
         int tailleBornee = Math.min(taille, 200);
         return servicePaiement.journal(critere,
                 PageRequest.of(page, tailleBornee, Sort.by(Sort.Direction.DESC, "datePaiement")), demandeur);

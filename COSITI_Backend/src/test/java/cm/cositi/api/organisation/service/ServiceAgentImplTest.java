@@ -1,11 +1,16 @@
 package cm.cositi.api.organisation.service;
 
+import cm.cositi.api.audit.JournalAuditRepository;
 import cm.cositi.api.audit.ServiceAudit;
+import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionAutorisation;
 import cm.cositi.api.commun.exception.ExceptionConflit;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
+import cm.cositi.api.organisation.dto.AgentDto;
+import cm.cositi.api.organisation.dto.ChangerStatutAgentDto;
 import cm.cositi.api.organisation.dto.CreationAgentDto;
+import cm.cositi.api.organisation.dto.ModificationAgentDto;
 import cm.cositi.api.organisation.entite.Agent;
 import cm.cositi.api.organisation.repository.AgentRepository;
 import cm.cositi.api.organisation.repository.HistoriqueDesignationChefRepository;
@@ -18,17 +23,21 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.lang.reflect.Field;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -48,6 +57,10 @@ class ServiceAgentImplTest {
     private JdbcTemplate jdbcTemplate;
     @Mock
     private ServiceAudit serviceAudit;
+    @Mock
+    private JournalAuditRepository journalAuditRepository;
+    @Mock
+    private ApplicationEventPublisher publicateurEvenements;
 
     private ServiceAgentImpl service;
     private Utilisateur dga;
@@ -56,7 +69,7 @@ class ServiceAgentImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceAgentImpl(agentRepository, historiqueRepository, utilisateurRepository, roleRepository,
-                encodeurMotDePasse, jdbcTemplate, serviceAudit);
+                encodeurMotDePasse, jdbcTemplate, serviceAudit, journalAuditRepository, publicateurEvenements);
 
         dga = new Utilisateur("dga1", "hash", "DGA Un");
         setId(dga, UUID.randomUUID());
@@ -147,5 +160,63 @@ class ServiceAgentImplTest {
         assertThatThrownBy(() -> service.remplacerChef(candidat.getId(), "motif valable", dga))
                 .isInstanceOf(ExceptionRessourceIntrouvable.class)
                 .hasFieldOrPropertyWithValue("code", "ORGANISATION_AUCUN_CHEF");
+    }
+
+    @Test
+    void modifierRefuseSiAuteurNestPasDga() {
+        var dto = new ModificationAgentDto("Nouveau nom", "690000002", null, null);
+
+        assertThatThrownBy(() -> service.modifier(UUID.randomUUID(), dto, nonDga))
+                .isInstanceOf(ExceptionAutorisation.class)
+                .hasFieldOrPropertyWithValue("code", "ORGANISATION_RESERVE_DGA");
+    }
+
+    @Test
+    void modifierMetAJourLesChampsEtAuditeSansToucherAuStatut() throws Exception {
+        Agent agent = agentAvecId(UUID.randomUUID(), UUID.randomUUID());
+        when(agentRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+        when(agentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        UUID nouvelleZone = UUID.randomUUID();
+
+        AgentDto resultat = service.modifier(agent.getId(),
+                new ModificationAgentDto("Nom Modifié", "690000099", nouvelleZone, BigDecimal.TEN), dga);
+
+        assertThat(resultat.nomComplet()).isEqualTo("Nom Modifié");
+        assertThat(resultat.zoneId()).isEqualTo(nouvelleZone);
+        assertThat(agent.isActif()).isTrue();
+        verify(serviceAudit).tracer(eq(TypeOperation.AGENT_MODIFICATION), eq("agent"), eq(agent.getId()), any(),
+                any(), any());
+    }
+
+    @Test
+    void changerStatutExigeUnMotif() {
+        var dto = new ChangerStatutAgentDto(false, "  ");
+        assertThatThrownBy(() -> service.changerStatut(UUID.randomUUID(), dto, dga))
+                .isInstanceOf(ExceptionValidation.class)
+                .hasFieldOrPropertyWithValue("code", "AGENT_MOTIF_REQUIS");
+    }
+
+    @Test
+    void changerStatutRefuseSiStatutInchange() throws Exception {
+        Agent agent = agentAvecId(UUID.randomUUID(), UUID.randomUUID());
+        when(agentRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+
+        assertThatThrownBy(() -> service.changerStatut(agent.getId(), new ChangerStatutAgentDto(true, "motif"), dga))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "AGENT_STATUT_INCHANGE");
+    }
+
+    @Test
+    void changerStatutDesactiveEtAuditeAvecMotif() throws Exception {
+        Agent agent = agentAvecId(UUID.randomUUID(), UUID.randomUUID());
+        when(agentRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+        when(agentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        AgentDto resultat = service.changerStatut(agent.getId(),
+                new ChangerStatutAgentDto(false, "Congé longue durée"), dga);
+
+        assertThat(resultat.actif()).isFalse();
+        verify(serviceAudit).tracer(eq(TypeOperation.AGENT_CHANGEMENT_STATUT), eq("agent"), eq(agent.getId()),
+                eq(true), eq(false), eq("Congé longue durée"));
     }
 }

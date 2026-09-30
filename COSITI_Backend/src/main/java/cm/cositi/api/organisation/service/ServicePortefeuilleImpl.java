@@ -3,19 +3,30 @@ package cm.cositi.api.organisation.service;
 import cm.cositi.api.adherent.dto.AdherentResumeDto;
 import cm.cositi.api.adherent.entite.Adherent;
 import cm.cositi.api.adherent.repository.AdherentRepository;
+import cm.cositi.api.adherent.service.EvaluationCompletionAdherent;
+import cm.cositi.api.adherent.service.SpecificationsAdherent;
 import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
+import cm.cositi.api.commun.reponse.ReponsePaginee;
+import cm.cositi.api.organisation.dto.AffectationPortefeuilleDto;
 import cm.cositi.api.organisation.dto.AgentDto;
 import cm.cositi.api.organisation.dto.ChargeAgentDto;
+import cm.cositi.api.organisation.dto.DistributionPortefeuilleDto;
+import cm.cositi.api.organisation.dto.ResumePortefeuilleDto;
 import cm.cositi.api.organisation.entite.AffectationPortefeuille;
 import cm.cositi.api.organisation.entite.Agent;
 import cm.cositi.api.organisation.repository.AffectationPortefeuilleRepository;
 import cm.cositi.api.organisation.repository.AgentRepository;
+import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.organisation.repository.ZoneRepository;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
@@ -39,11 +50,14 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
     private final ServiceAudit serviceAudit;
     private final ServicePerimetreDonnees perimetre;
     private final ZoneRepository zoneRepository;
+    private final ServiceParametre serviceParametre;
+    private final ApplicationEventPublisher publicateurEvenements;
 
     public ServicePortefeuilleImpl(AffectationPortefeuilleRepository affectationRepository,
                                     AdherentRepository adherentRepository, AgentRepository agentRepository,
                                     JdbcTemplate jdbcTemplate, ServiceAudit serviceAudit,
-                                    ServicePerimetreDonnees perimetre, ZoneRepository zoneRepository) {
+                                    ServicePerimetreDonnees perimetre, ZoneRepository zoneRepository,
+                                    ServiceParametre serviceParametre, ApplicationEventPublisher publicateurEvenements) {
         this.affectationRepository = affectationRepository;
         this.adherentRepository = adherentRepository;
         this.agentRepository = agentRepository;
@@ -51,6 +65,8 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         this.serviceAudit = serviceAudit;
         this.perimetre = perimetre;
         this.zoneRepository = zoneRepository;
+        this.serviceParametre = serviceParametre;
+        this.publicateurEvenements = publicateurEvenements;
     }
 
     @Override
@@ -67,6 +83,7 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         affectationRepository.save(affectation);
         serviceAudit.tracer(TypeOperation.PORTEFEUILLE_AFFECTATION, "affectation_portefeuille", affectation.getId(),
                 null, affectation.getAgentId(), motif);
+        publicateurEvenements.publishEvent(new AgentModifieEvent(agentId, "PORTEFEUILLE_AFFECTATION"));
     }
 
     @Override
@@ -92,6 +109,7 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         affectationRepository.save(nouvelle);
         serviceAudit.tracer(TypeOperation.PORTEFEUILLE_TRANSFERT, "affectation_portefeuille", nouvelle.getId(),
                 null, nouvelAgentId, motif);
+        publicateurEvenements.publishEvent(new AgentModifieEvent(nouvelAgentId, "PORTEFEUILLE_TRANSFERT"));
     }
 
     @Override
@@ -104,15 +122,81 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
     }
 
     @Override
-    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
-    public List<AdherentResumeDto> portefeuille(UUID agentId, Utilisateur demandeur) {
-        List<UUID> adherentIds = affectationRepository.findByAgentIdAndDateFinIsNull(agentId).stream()
-                .map(AffectationPortefeuille::getAdherentId)
-                .collect(Collectors.toList());
-        if (adherentIds.isEmpty()) {
-            return List.of();
+    @PreAuthorize("hasAuthority('ORGANISATION:AFFECTER_PORTEFEUILLE')")
+    @Transactional
+    public void retirer(UUID adherentId, String motif, Utilisateur auteur) {
+        if (motif == null || motif.isBlank()) {
+            throw new ExceptionValidation("PORTEFEUILLE_MOTIF_REQUIS", "Le motif du retrait est obligatoire.");
         }
-        return enResumes(adherentRepository.findAllById(adherentIds));
+        AffectationPortefeuille ouverte = affectationRepository.findByAdherentIdAndDateFinIsNull(adherentId)
+                .orElseThrow(() -> new ExceptionRessourceIntrouvable("PORTEFEUILLE_AUCUNE_AFFECTATION",
+                        "Cet adhérent n'a aucune affectation ouverte à retirer."));
+        UUID agentId = ouverte.getAgentId();
+        ouverte.cloturer(LocalDate.now());
+        affectationRepository.save(ouverte);
+        serviceAudit.tracer(TypeOperation.PORTEFEUILLE_RETRAIT, "affectation_portefeuille", ouverte.getId(),
+                agentId, null, motif);
+        publicateurEvenements.publishEvent(new AgentModifieEvent(agentId, "PORTEFEUILLE_RETRAIT"));
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
+    public ReponsePaginee<AdherentResumeDto> portefeuille(UUID agentId, Pageable pageable, Utilisateur demandeur) {
+        List<UUID> adherentIds = idsPortefeuille(agentId);
+        if (adherentIds.isEmpty()) {
+            return ReponsePaginee.depuis(Page.empty(pageable));
+        }
+        Specification<Adherent> spec = SpecificationsAdherent.avecIdentifiants(adherentIds);
+        Page<Adherent> page = adherentRepository.findAll(spec, pageable);
+        Map<UUID, String> libellesZone = zoneRepository.findAll().stream()
+                .collect(Collectors.toMap(z -> z.getId(), z -> z.getLibelle()));
+        return ReponsePaginee.depuis(page.map(a -> AdherentResumeDto.depuis(a, libellesZone.get(a.getZoneId()))));
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
+    public ResumePortefeuilleDto resumePortefeuille(UUID agentId, Utilisateur demandeur) {
+        List<UUID> adherentIds = idsPortefeuille(agentId);
+        if (adherentIds.isEmpty()) {
+            return new ResumePortefeuilleDto(0, 0, 0);
+        }
+        String champsBrut = serviceParametre.texte("CHAMPS_COMPLETION_ADHERENT");
+        boolean regleValidee = serviceParametre.estValide("CHAMPS_COMPLETION_ADHERENT");
+
+        List<Adherent> adherents = adherentRepository.findAllById(adherentIds);
+        int complets = 0;
+        for (Adherent a : adherents) {
+            if (EvaluationCompletionAdherent.evaluer(a, champsBrut, regleValidee).pourcentage() == 100) {
+                complets++;
+            }
+        }
+        return new ResumePortefeuilleDto(adherents.size(), complets, adherents.size() - complets);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
+    public List<AffectationPortefeuilleDto> historiquePortefeuille(UUID agentId, Utilisateur demandeur) {
+        charger(agentId, "AGENT_INTROUVABLE");
+        return affectationRepository.findByAgentIdOrderByDateDebutDesc(agentId).stream()
+                .map(AffectationPortefeuilleDto::depuis)
+                .toList();
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
+    public List<DistributionPortefeuilleDto> distribution(Utilisateur demandeur) {
+        List<Map<String, Object>> lignes = jdbcTemplate.queryForList("""
+                SELECT a.id AS agent_id, a.code_agent, a.nom_complet, count(ap.id) AS nombre_adherents
+                FROM agent a
+                LEFT JOIN affectation_portefeuille ap ON ap.agent_id = a.id AND ap.date_fin IS NULL
+                WHERE a.archive = false AND a.actif = true
+                GROUP BY a.id, a.code_agent, a.nom_complet
+                ORDER BY a.nom_complet
+                """);
+        return lignes.stream()
+                .map(l -> new DistributionPortefeuilleDto((UUID) l.get("agent_id"), (String) l.get("code_agent"),
+                        (String) l.get("nom_complet"), ((Number) l.get("nombre_adherents")).longValue()))
+                .toList();
     }
 
     @Override
@@ -135,9 +219,17 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
         charger(agentId, "AGENT_INTROUVABLE");
         int nombreAdherents = affectationRepository.findByAgentIdAndDateFinIsNull(agentId).size();
         Agent agent = charger(agentId, "AGENT_INTROUVABLE");
-        // Montant collecté : nécessite le module Cotisation (jalon J4). Laissé à zéro ici, complété une fois
-        // le paiement disponible — ne jamais inventer un chiffre financier (AGENTS.md règle absolue n°9).
-        return new ChargeAgentDto(agentId, periode.toString(), nombreAdherents, BigDecimal.ZERO,
+
+        // #20 — montant réellement collecté par l'agent sur la période (paiements VALIDE/RAPPROCHE),
+        // corrige l'ancien TODO qui renvoyait toujours zéro : le module Cotisation est désormais disponible.
+        BigDecimal montantCollecte = jdbcTemplate.queryForObject("""
+                SELECT COALESCE(SUM(p.montant), 0) FROM paiement p
+                WHERE p.agent_encaisseur_id = ? AND p.archive = false
+                  AND p.statut IN ('VALIDE', 'RAPPROCHE')
+                  AND date_trunc('month', p.date_paiement) = date_trunc('month', CAST(? AS date))
+                """, BigDecimal.class, agentId, periode.atDay(1));
+
+        return new ChargeAgentDto(agentId, periode.toString(), nombreAdherents, montantCollecte,
                 agent.getObjectifCollecteMensuel());
     }
 
@@ -153,6 +245,12 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable("ADHERENT_SANS_AGENT",
                         "Aucun agent n'est actuellement affecté à cet adhérent."));
         return AgentDto.depuis(charger(agentId, "AGENT_INTROUVABLE"));
+    }
+
+    private List<UUID> idsPortefeuille(UUID agentId) {
+        return affectationRepository.findByAgentIdAndDateFinIsNull(agentId).stream()
+                .map(AffectationPortefeuille::getAdherentId)
+                .toList();
     }
 
     private void verifierAdherentEtAgent(UUID adherentId, UUID agentId) {

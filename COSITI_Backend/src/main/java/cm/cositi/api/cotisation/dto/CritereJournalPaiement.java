@@ -10,6 +10,7 @@ public record CritereJournalPaiement(
         StatutPaiement statut,
         String modePaiement,
         LocalDate dateDu,
-        LocalDate dateAu
+        LocalDate dateAu,
+        UUID agentId
 ) {
 }

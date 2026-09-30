@@ -215,15 +215,17 @@
 > 35/35 fonctionnalités couvertes (15 déjà en place, 20 ajoutées). Détail et correspondance route-cible → route réelle dans le message de livraison de la session du 2026-09-29.
 
 ## Module 2 — Agents terrain
-- [ ] Modèle/entité vérifié
-- [ ] Liste/recherche
-- [ ] Profil
-- [ ] Portefeuille
-- [ ] Affectation/réaffectation
-- [ ] Activité
-- [ ] Statistiques
-- [ ] Audit
-- [ ] Tests
+- [x] Modèle/entité vérifié (aucune migration nécessaire — tout réutilise des colonnes déjà en base)
+- [x] Liste/recherche (+ filtre statut/zone, tri configurable — #1, #2, #21 ; correctif sécurité : `GET /agents` et `/{id}` passent désormais par `ServiceAgent` avec `ORGANISATION:LIRE`, au lieu d'un accès direct au repository sans permission)
+- [x] Profil (modification #5, activation/désactivation #6)
+- [x] Portefeuille (pagination #9, résumé chiffré + complétion #8/#10/#11, CNPS ciblé #12/#13, retrait #17, distribution globale #19, historique structuré #24)
+- [x] Affectation/réaffectation (#16, #18 déjà en place ; #17 retrait ajouté)
+- [x] Activité (#7/#22/#23 unifiées sur `GET /agents/{id}/operations`)
+- [x] Statistiques (cotisations de l'agent #14/#15 ; correctif du TODO `montantCollecte` toujours à zéro dans `GET /agents/{id}/charge` — #20)
+- [x] Audit (nouveaux `TypeOperation` : `AGENT_MODIFICATION`, `AGENT_CHANGEMENT_STATUT`, `PORTEFEUILLE_RETRAIT` ; événement après commit `AgentModifieEvent` — #25)
+- [x] Tests (unitaires `ServiceAgentImplTest` + nouveau `ServicePortefeuilleImplTest`, 53/53 verts ; vérification manuelle bout-en-bout sur serveur réel le 2026-09-29)
+
+> 25/25 fonctionnalités couvertes (4 déjà en place, 5 partielles complétées, 16 ajoutées). Détail et correspondance route-cible → route réelle dans le message de livraison de la session.
 
 ## Module 3 — Cotisations
 - [ ] Modèle transaction

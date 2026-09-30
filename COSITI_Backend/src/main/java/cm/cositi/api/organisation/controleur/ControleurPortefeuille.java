@@ -2,6 +2,7 @@ package cm.cositi.api.organisation.controleur;
 
 import cm.cositi.api.adherent.dto.AdherentResumeDto;
 import cm.cositi.api.organisation.dto.AffecterPortefeuilleDto;
+import cm.cositi.api.organisation.dto.RetirerPortefeuilleDto;
 import cm.cositi.api.organisation.dto.TransfererPortefeuilleDto;
 import cm.cositi.api.organisation.service.ServicePortefeuille;
 import cm.cositi.api.securite.entite.Utilisateur;
@@ -39,6 +40,14 @@ public class ControleurPortefeuille {
     public ResponseEntity<Void> transferer(@Valid @RequestBody TransfererPortefeuilleDto dto,
                                             @AuthenticationPrincipal Utilisateur auteur) {
         servicePortefeuille.transfererEnLot(dto.adherentIds(), dto.nouvelAgentId(), dto.motif(), auteur);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** #17 — clôture logique de l'affectation ouverte, sans en ouvrir une nouvelle. */
+    @PostMapping("/retirer")
+    public ResponseEntity<Void> retirer(@Valid @RequestBody RetirerPortefeuilleDto dto,
+                                         @AuthenticationPrincipal Utilisateur auteur) {
+        servicePortefeuille.retirer(dto.adherentId(), dto.motif(), auteur);
         return ResponseEntity.noContent().build();
     }
 

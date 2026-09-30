@@ -231,9 +231,17 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
         return piecesManquantesInterne(dossierId);
     }
 
+    /** Clause commune à {@link #eligiblesNonImmatricules} et {@link #prochesDuSeuil} — restreint au
+     * portefeuille ouvert d'un agent quand {@code agentId} n'est pas nul (#12/#13 module agents de terrain). */
+    private static final String CLAUSE_PORTEFEUILLE_AGENT = """
+              AND (CAST(? AS uuid) IS NULL OR EXISTS (
+                    SELECT 1 FROM affectation_portefeuille ap2
+                    WHERE ap2.adherent_id = a.id AND ap2.agent_id = CAST(? AS uuid) AND ap2.date_fin IS NULL))
+            """;
+
     @Override
     @PreAuthorize("hasAuthority('CNPS:LIRE')")
-    public List<AdherentEligibleCnpsDto> eligiblesNonImmatricules(UUID zoneId, Utilisateur demandeur) {
+    public List<AdherentEligibleCnpsDto> eligiblesNonImmatricules(UUID zoneId, UUID agentId, Utilisateur demandeur) {
         // Éligibilité = cumul imputé (periode_droits non annulées) >= seuil du pack DE L'ADHÉRENT.
         // « Non immatriculé » = ni numéro CNPS sur la fiche, ni numéro d'immatriculation sur un dossier.
         String sql = """
@@ -250,12 +258,14 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
                   AND a.numero_cnps IS NULL
                   AND (d.numero_immatriculation IS NULL)
                   AND (CAST(? AS uuid) IS NULL OR a.zone_id = CAST(? AS uuid))
+                """ + CLAUSE_PORTEFEUILLE_AGENT + """
                 GROUP BY a.id, a.matricule, a.nom, a.prenoms, p.code, p.seuil_eligibilite_cnps, d.id
                 HAVING COALESCE(SUM(pd.montant_impute), 0) >= p.seuil_eligibilite_cnps
                 ORDER BY a.nom, a.prenoms
                 """;
 
         String zone = zoneId == null ? null : zoneId.toString();
+        String agent = agentId == null ? null : agentId.toString();
         List<AdherentEligibleCnpsDto> resultats = jdbcTemplate.query(sql, (rs, ligne) -> new AdherentEligibleCnpsDto(
                 UUID.fromString(rs.getString("id")),
                 rs.getString("matricule"),
@@ -263,7 +273,7 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
                 rs.getString("pack_code"),
                 rs.getBigDecimal("cumul"),
                 rs.getBigDecimal("seuil"),
-                rs.getBoolean("dossier_ouvert")), zone, zone);
+                rs.getBoolean("dossier_ouvert")), zone, zone, agent, agent);
 
         return resultats.stream()
                 .filter(dto -> perimetre.peutAccederAdherent(demandeur, dto.adherentId()))
@@ -272,7 +282,7 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
 
     @Override
     @PreAuthorize("hasAuthority('CNPS:LIRE')")
-    public List<AdherentEligibleCnpsDto> prochesDuSeuil(UUID zoneId, Utilisateur demandeur) {
+    public List<AdherentEligibleCnpsDto> prochesDuSeuil(UUID zoneId, UUID agentId, Utilisateur demandeur) {
         // Même requête que eligiblesNonImmatricules, bande [seuil * ratio, seuil) au lieu de >= seuil —
         // ratio lu dans CNPS_SEUIL_PROXIMITE_RATIO ([V], non confirmé par la COSITI).
         java.math.BigDecimal ratio = serviceParametre.decimal(CLE_RATIO_PROXIMITE);
@@ -290,6 +300,7 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
                   AND a.numero_cnps IS NULL
                   AND (d.numero_immatriculation IS NULL)
                   AND (CAST(? AS uuid) IS NULL OR a.zone_id = CAST(? AS uuid))
+                """ + CLAUSE_PORTEFEUILLE_AGENT + """
                 GROUP BY a.id, a.matricule, a.nom, a.prenoms, p.code, p.seuil_eligibilite_cnps, d.id
                 HAVING COALESCE(SUM(pd.montant_impute), 0) >= p.seuil_eligibilite_cnps * ?
                    AND COALESCE(SUM(pd.montant_impute), 0) < p.seuil_eligibilite_cnps
@@ -297,6 +308,7 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
                 """;
 
         String zone = zoneId == null ? null : zoneId.toString();
+        String agent = agentId == null ? null : agentId.toString();
         List<AdherentEligibleCnpsDto> resultats = jdbcTemplate.query(sql, (rs, ligne) -> new AdherentEligibleCnpsDto(
                 UUID.fromString(rs.getString("id")),
                 rs.getString("matricule"),
@@ -304,7 +316,7 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
                 rs.getString("pack_code"),
                 rs.getBigDecimal("cumul"),
                 rs.getBigDecimal("seuil"),
-                rs.getBoolean("dossier_ouvert")), zone, zone, ratio);
+                rs.getBoolean("dossier_ouvert")), zone, zone, agent, agent, ratio);
 
         return resultats.stream()
                 .filter(dto -> perimetre.peutAccederAdherent(demandeur, dto.adherentId()))
