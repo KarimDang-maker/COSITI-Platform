@@ -1,0 +1,219 @@
+name: CI
+
+# Jalon J12 — pipeline d'intégration continue.
+#
+# Ce workflow clôt aussi le critère de passage de J0 (« pipeline CI vert »), resté non rempli
+# jusqu'ici : les 212 tests backend et 85 tests frontend ne protégeaient que la machine sur
+# laquelle on les lançait.
+#
+# Les contrôles de sécurité de `COSITI_Backend/docs/04_SECURITE.md §10` et de
+# `COSITI_FrontEnd/docs/05_DEPENDANCES_CHAINE_LOGICIELLE.md §1.4` sont exécutés ici, et
+# seulement ici : `osv-scanner`, `npm audit signatures` et `gitleaks` ne sont pas disponibles
+# sur les postes de développement.
+
+on:
+  push:
+    branches: [main, feature_root]
+  pull_request:
+    branches: [main]
+
+# Un seul pipeline par branche : une nouvelle poussée annule la précédente plutôt que de
+# faire la queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend — compilation et tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      # Les tests d'intégration démarrent leur propre PostgreSQL via Testcontainers, disponible
+      # sur les exécuteurs GitHub. Aucune base de service n'est déclarée ici : c'est justement
+      # ce que Testcontainers évite.
+      - name: Tests backend (JUnit 5 + Testcontainers)
+        working-directory: COSITI_Backend
+        run: mvn --batch-mode --no-transfer-progress verify
+
+      - name: Conserver les rapports de test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapports-surefire
+          path: COSITI_Backend/target/surefire-reports/
+          retention-days: 7
+
+  frontend:
+    name: Frontend — types, lint, tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: COSITI_FrontEnd/package-lock.json
+
+      - name: Installer les dépendances
+        working-directory: COSITI_FrontEnd
+        # `npm ci` et non `npm install` : installation reproductible à partir du verrou, et
+        # échec si `package.json` et `package-lock.json` divergent.
+        run: npm ci
+
+      - name: Vérification des types et build de production
+        working-directory: COSITI_FrontEnd
+        run: npm run build
+
+      - name: Analyse statique
+        working-directory: COSITI_FrontEnd
+        run: npm run lint
+
+      - name: Tests unitaires et d'intégration (Vitest)
+        working-directory: COSITI_FrontEnd
+        run: npm run test
+
+  securite:
+    name: Sécurité — dépendances, provenance, secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `gitleaks` doit voir tout l'historique : un secret retiré au dernier commit reste
+          # un secret publié (checklist `04_SECURITE.md §11`).
+          fetch-depth: 0
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: COSITI_FrontEnd/package-lock.json
+
+      - name: Installer les dépendances
+        working-directory: COSITI_FrontEnd
+        run: npm ci
+
+      - name: Vulnérabilités npm (bloquant à partir de « high »)
+        working-directory: COSITI_FrontEnd
+        run: npm audit --audit-level=high
+
+      - name: Provenance des paquets npm
+        working-directory: COSITI_FrontEnd
+        # Contrôle impossible en local (`05_DEPENDANCES_CHAINE_LOGICIELLE.md §1.4`) : il vérifie
+        # que les archives publiées correspondent bien à leurs sources signées.
+        run: npm audit signatures
+
+      - name: Recherche de secrets (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Vulnérabilités des dépendances (osv-scanner)
+        uses: google/osv-scanner-action/osv-scanner-action@v1.9.1
+        with:
+          scan-args: |-
+            --recursive
+            --skip-git
+            ./
+
+  e2e:
+    name: Recette E2E (Playwright)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: cositi_db_e2e
+          POSTGRES_USER: cositi_app
+          POSTGRES_PASSWORD: motdepasse_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Mot de passe des comptes de démonstration, jamais écrit dans le dépôt.
+      COSITI_E2E_MOT_DE_PASSE: ${{ secrets.COSITI_E2E_MOT_DE_PASSE }}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/cositi_db_e2e
+      SPRING_DATASOURCE_USERNAME: cositi_app
+      SPRING_DATASOURCE_PASSWORD: motdepasse_ci
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Installer Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: maven
+
+      - name: Installer Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: COSITI_FrontEnd/package-lock.json
+
+      - name: Construire l'API
+        working-directory: COSITI_Backend
+        run: mvn --batch-mode --no-transfer-progress package -DskipTests
+
+      - name: Démarrer l'API (profil dev — comptes de démonstration)
+        working-directory: COSITI_Backend
+        run: |
+          # Le profil `dev` crée les comptes de démonstration ; il ne peut pas être activé en
+          # production (double verrou en code, docs/04_SECURITE.md §2).
+          java -jar target/*.jar \
+            --spring.profiles.active=dev \
+            --server.port=8083 \
+            --cositi.securite.debit.actif=false \
+            --cositi.securite.cors.allowed-origins=http://localhost:5174 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8083/actuator/health > /dev/null; then
+              echo "API prête."; exit 0
+            fi
+            sleep 5
+          done
+          echo "L'API n'a pas démarré dans le délai imparti."; exit 1
+
+      - name: Installer les dépendances frontend
+        working-directory: COSITI_FrontEnd
+        run: npm ci
+
+      - name: Installer Chromium
+        working-directory: COSITI_FrontEnd
+        # Un seul moteur, comme en local : voir `docs/journal-dependances.md` (23/09/2026).
+        run: npx playwright install --with-deps chromium
+
+      - name: Recette E2E
+        working-directory: COSITI_FrontEnd
+        env:
+          VITE_API_BASE_URL: http://localhost:8083/api/v1
+        run: npx playwright test
+
+      - name: Conserver le rapport Playwright
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rapport-playwright
+          path: COSITI_FrontEnd/playwright-report/
+          retention-days: 7

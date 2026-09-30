@@ -1,0 +1,265 @@
+/* ============================================================================
+   COSITI — Jetons de design
+   ----------------------------------------------------------------------------
+   Source de vérité des couleurs : COSITI_branding_pack/COSITI_charte_graphique.md
+   Référence complète : docs/02_DESIGN_SYSTEM.md
+
+   RÈGLE : aucune valeur hexadécimale ne doit être écrite ailleurs que dans ce
+   fichier. Un composant consomme un jeton sémantique (§3), jamais une couleur
+   de marque (§1) ni un HEX en dur.
+
+   Gabarit visuel (v1.1, 28/09/2026) : la structure de l'interface — rayons,
+   ombres, coquille, densité — reprend le gabarit « Spark Admin », traduit dans
+   l'identité COSITI : le vert forêt du gabarit devient le vert de la charte,
+   l'accent lime devient l'orange de marque. La charte reste prioritaire sur
+   tout ce qu'elle fixe (couleurs, typographie, logo) — docs/02 §2.1.
+
+   Les ratios de contraste indiqués sont calculés selon WCAG 2.1 (sRGB).
+   ========================================================================== */
+
+:root {
+  /* ==========================================================================
+     1. COULEURS DE MARQUE — charte graphique COSITI [C]
+     Immuables. Ne jamais modifier sans mise à jour de la charte.
+     ====================================================================== */
+
+  --cositi-orange: #f28c18; /* accents de marque, action prioritaire */
+  --cositi-orange-fonce: #c9680b; /* survol orange, confirmation */
+  --cositi-vert: #146b45; /* navigation, boutons principaux, positif */
+  --cositi-vert-fonce: #0b4931; /* titres, navigation forte, fonds contrastés */
+  --cositi-vert-clair: #ddf3e7; /* succès, badges, surfaces douces */
+  --cositi-creme: #fff8ed; /* alertes douces, surfaces chaleureuses */
+  --cositi-fond-interface: #f5f7f6; /* arrière-plan global */
+  --cositi-texte-principal: #1f2933; /* contenu courant */
+  --cositi-texte-secondaire: #6b7280; /* légendes, aide, métadonnées */
+  --cositi-information: #247ba0; /* messages informatifs */
+  --cositi-avertissement: #d99a18; /* états nécessitant attention */
+  --cositi-erreur: #c83e4d; /* erreurs, actions destructives */
+
+  /* Contrastes mesurés sur blanc :
+     vert 6.52 OK · vert-fonce 10.44 OK · information 4.75 OK · erreur 4.94 OK
+     texte-secondaire 4.83 OK (4.49 sur --cositi-fond-interface : limite, §2)
+     orange 2.46 ECHEC · orange-fonce 3.84 (UI et grand texte seulement)
+     avertissement 2.45 ECHEC
+     => orange et avertissement sont des REMPLISSAGES, jamais du texte sur clair.
+     Orange sur vert foncé : 4.25 — icône, liseré, grand texte ; jamais un
+     texte courant (< 4.5). */
+
+  /* ==========================================================================
+     2. DÉRIVÉS NEUTRES ET ACCESSIBLES [A]
+     Nuances absentes de la charte, nécessaires à une interface de gestion.
+     Chacune est justifiée par un ratio de contraste, jamais choisie à l'oeil.
+     ====================================================================== */
+
+  --cositi-blanc: #ffffff;
+  --cositi-surface-survol: #edf1ef; /* ligne de tableau survolée */
+  --cositi-surface-tableau: #f8faf9; /* en-tête de tableau, zone inerte d'une carte */
+  --cositi-bordure: #e3e8e6; /* séparateurs, bordures de carte */
+  --cositi-bordure-forte: #c4ccc9; /* bordure de champ au repos */
+  --cositi-texte-secondaire-fort: #5a626d; /* 5.73 sur le fond interface */
+  --cositi-texte-inactif: #9aa1a9; /* état désactivé uniquement (exempt AA) */
+
+  /* ==========================================================================
+     3. JETONS SÉMANTIQUES — ce que les composants consomment
+     ====================================================================== */
+
+  /* --- Surfaces et texte --- */
+  --fond: var(--cositi-fond-interface); /* arrière-plan de page */
+  --surface: var(--cositi-blanc); /* cartes, tableaux, modales */
+  --surface-douce: var(--cositi-surface-tableau); /* en-tête de tableau, zone inerte */
+  --surface-survol: var(--cositi-surface-survol);
+  --bordure: var(--cositi-bordure);
+  --bordure-forte: var(--cositi-bordure-forte);
+  --texte: var(--cositi-texte-principal);
+  --texte-doux: var(--cositi-texte-secondaire); /* sur --surface (blanc) : 4.83 */
+  --texte-doux-fort: var(--cositi-texte-secondaire-fort); /* sur --fond ou --surface-douce : 5.73 */
+  --texte-inactif: var(--cositi-texte-inactif);
+  --titre: var(--cositi-vert-fonce); /* tous les titres de page et de section */
+
+  /* --- Surface inversée : la carte d'indicateur principal (taux d'activation)
+     et tout bloc qui doit dominer un écran. Fond uni vert foncé : seule la
+     version inversée du logo y est admise (charte §5). --- */
+  --surface-inversee: var(--cositi-vert-fonce);
+  --surface-inversee-contenu: var(--cositi-blanc); /* 10.44 */
+  --surface-inversee-doux: #a8c6b7; /* 4.9 sur vert foncé — légendes */
+  --surface-inversee-trait: rgb(255 255 255 / 0.14);
+  --surface-inversee-accent: var(--cositi-orange); /* 4.25 : icône et liseré seulement */
+
+  /* --- Action principale : vert (charte §2, règles d'usage) --- */
+  --primaire: var(--cositi-vert);
+  --primaire-survol: var(--cositi-vert-fonce);
+  --primaire-contenu: var(--cositi-blanc); /* 6.52 OK */
+  --primaire-doux: var(--cositi-vert-clair); /* fond d'état actif */
+
+  /* --- Accent de marque : orange (charte §2, règles d'usage) ---
+     Aplat plein + texte sombre. JAMAIS de texte orange sur fond clair. */
+  --marque: var(--cositi-orange);
+  --marque-survol: var(--cositi-orange-fonce);
+  --marque-contenu: var(--cositi-texte-principal); /* 6.00 OK */
+  --marque-trait: var(--cositi-orange-fonce); /* liseré, icône : 3.84 >= 3:1 OK */
+
+  /* --- Navigation latérale (fond vert foncé, logo inversé) ---
+     Gabarit : item actif sur voile blanc léger, liseré orange collé au bord
+     gauche du panneau, icône orange. */
+  --nav-fond: var(--cositi-vert-fonce);
+  --nav-contenu: var(--cositi-blanc); /* 10.44 sur --nav-fond */
+  --nav-contenu-doux: #a8c6b7; /* items inactifs, titres de section : 4.9 sur --nav-fond */
+  --nav-survol-fond: rgb(255 255 255 / 0.05);
+  --nav-actif-fond: rgb(255 255 255 / 0.08); /* blanc sur ce voile : > 9:1 */
+  --nav-actif-trait: var(--cositi-orange); /* liseré et icône de l'item actif : 4.25 */
+  --nav-trait: rgb(255 255 255 / 0.1); /* séparateurs internes au panneau */
+
+  /* --- En-tête collant : fond de page translucide, lisible au défilement --- */
+  --entete-fond: rgb(245 247 246 / 0.88);
+
+  /* --- Voile des surfaces modales (modale, tiroir de navigation mobile) --- */
+  --voile: rgb(11 73 49 / 0.4);
+
+  /* --- Focus --- */
+  --anneau: var(--cositi-vert);
+  --anneau-halo: rgb(20 107 69 / 0.16);
+  --anneau-danger: var(--cositi-erreur);
+  --anneau-danger-halo: rgb(200 62 77 / 0.16);
+
+  /* ==========================================================================
+     4. TEINTES D'ÉTAT — les six seules autorisées
+     Convention : -doux = surface · -fort = texte et icône · -trait = bordure.
+     Tout couple doux / fort est >= 4.5:1.
+     ====================================================================== */
+
+  --neutre-doux: #edf1ef;
+  --neutre-fort: #4b5563; /* 6.64 */
+  --neutre-trait: #d7dedb;
+
+  --info-doux: #e7f1f6;
+  --info-fort: #1c6382; /* 5.80 */
+  --info-trait: #bbd7e5;
+
+  --succes-doux: var(--cositi-vert-clair);
+  --succes-fort: var(--cositi-vert-fonce); /* 8.97 */
+  --succes-trait: #a8dcc1;
+
+  --attention-doux: var(--cositi-creme);
+  --attention-fort: #8a6410; /* 5.09 */
+  --attention-trait: #efd6a3;
+
+  --danger-doux: #fbeaec;
+  --danger-fort: #9e2c39; /* 6.29 */
+  --danger-trait: #efc2c7;
+
+  /* La sixième teinte, « marque », est un aplat plein : voir --marque ci-dessus.
+     Elle signale l'action prioritaire, jamais un état métier. */
+
+  /* ==========================================================================
+     5. GRAPHIQUES — docs/02 §11
+     Trois séries au maximum, teintes fonctionnelles uniquement. Recharts pose
+     les couleurs en attributs SVG : `src/lib/jetons.ts` lit ces variables à
+     l'exécution, aucun composant ne recopie une valeur.
+     ====================================================================== */
+
+  --graphique-serie-1: var(--cositi-vert);
+  --graphique-serie-2: var(--cositi-orange);
+  --graphique-serie-3: var(--info-fort);
+  --graphique-grille: var(--cositi-bordure);
+  --graphique-axe: var(--cositi-texte-secondaire);
+  --graphique-survol: rgb(20 107 69 / 0.06);
+
+  /* ==========================================================================
+     6. TYPOGRAPHIE — gabarit Spark (décision du 28/09/2026, docs/02 §6)
+     Plus Jakarta Sans, police du gabarit, auto-hébergée (styles/polices/).
+     La charte admet « une équivalence » à Noto Sans / DejaVu Sans : elles
+     restent en repli. Le lettrage du logo n'est jamais reconstitué avec une
+     police.
+     ====================================================================== */
+
+  --police-base: "Plus Jakarta Sans", "Noto Sans", "DejaVu Sans", system-ui, "Segoe UI",
+    Roboto, sans-serif;
+  --police-mono: "Noto Sans Mono", "DejaVu Sans Mono", "Cascadia Mono", Consolas,
+    monospace; /* matricules, références de transaction, identifiants */
+
+  --taille-2xs: 0.75rem; /* 12px — micro-légende, badge, titre de section de navigation */
+  --taille-xs: 0.8125rem; /* 13px — légende et aide (charte) */
+  --taille-sm: 0.875rem; /* 14px — libellé de champ, cellule dense, bouton */
+  --taille-base: 1rem; /* 16px — texte courant (charte) */
+  --taille-lg: 1.125rem; /* 18px — accroche, valeur secondaire */
+  --taille-xl: 1.375rem; /* 22px — titre de section (charte) */
+  --taille-2xl: 1.75rem; /* 28px — valeur d'indicateur */
+  --taille-3xl: 2rem; /* 32px — titre de page (charte), valeur d'indicateur */
+  --taille-4xl: 2.5rem; /* 40px — valeur de l'indicateur principal uniquement */
+  --taille-affiche: 6rem; /* 96px — code d'une page d'erreur, rien d'autre */
+
+  --graisse-normale: 400;
+  --graisse-moyenne: 500;
+  --graisse-demi: 600;
+  --graisse-forte: 700;
+  --graisse-extra: 800; /* valeurs d'indicateur uniquement */
+
+  --interligne-serre: 1.2; /* titres, valeurs chiffrées */
+  --interligne-base: 1.55; /* texte courant */
+
+  --interlettre-texte: -0.01em; /* gabarit : texte courant légèrement resserré */
+  --interlettre-titre: -0.025em;
+  --interlettre-valeur: -0.03em; /* grands chiffres d'indicateur */
+  --interlettre-capitale: 0.06em; /* en-tête de tableau, titre de section de nav */
+
+  /* ==========================================================================
+     7. ESPACEMENT, RAYONS, OMBRES, MOUVEMENT
+     ====================================================================== */
+
+  --espace-1: 0.25rem; /* 4 */
+  --espace-2: 0.5rem; /* 8 */
+  --espace-3: 0.75rem; /* 12 */
+  --espace-4: 1rem; /* 16 */
+  --espace-5: 1.5rem; /* 24 */
+  --espace-6: 2rem; /* 32 */
+  --espace-7: 3rem; /* 48 */
+  --espace-8: 4rem; /* 64 */
+
+  /* Rayons — échelle du gabarit. Plus l'objet est grand, plus il est arrondi. */
+  --rayon-sm: 6px; /* case à cocher, puce, marque de tableau */
+  --rayon-md: 10px; /* item de menu, bouton compact, action de ligne */
+  --rayon-lg: 14px; /* bouton, champ, élément de liste, avatar, alerte */
+  --rayon-xl: 18px; /* menu déroulant, tableau, carte secondaire */
+  --rayon-2xl: 24px; /* carte, modale, carte de connexion */
+  --rayon-plein: 9999px; /* badge, pastille, barre de progression */
+
+  /* Ombres teintées vert foncé : une ombre neutre grise paraît sale sur le
+     fond interface légèrement vert. Aucune bordure sur les cartes : l'ombre
+     suffit à les détacher du fond. */
+  --ombre-legere: 0 2px 8px rgb(11 73 49 / 0.04); /* bouton d'en-tête, champ de recherche */
+  --ombre-carte: 0 10px 30px rgb(11 73 49 / 0.05);
+  --ombre-flottante: 0 20px 50px rgb(11 73 49 / 0.1); /* menu, sélecteur, infobulle */
+  --ombre-modale: 0 24px 64px rgb(11 73 49 / 0.18);
+  --ombre-selection: 0 4px 10px rgb(11 73 49 / 0.25); /* jour sélectionné du calendrier (gabarit) */
+
+  --duree-rapide: 120ms; /* survol, focus */
+  --duree-base: 180ms; /* ouverture de panneau, modale, repli de navigation */
+  --courbe: cubic-bezier(0.2, 0, 0.2, 1);
+
+  /* ==========================================================================
+     8. GABARIT
+     ====================================================================== */
+
+  --largeur-nav: 280px;
+  --largeur-nav-repliee: 80px;
+  --hauteur-entete: 72px;
+  --largeur-contenu-max: 1440px;
+  --marge-page: 2.5rem; /* 40 — gouttière du contenu au-delà de 1280 px */
+  --marge-page-compacte: 1.5rem; /* 24 — sous 1280 px */
+
+  --z-contenu: 0;
+  --z-entete: 10;
+  --z-nav: 20;
+  --z-flottant: 30; /* menu déroulant, infobulle */
+  --z-modale: 40;
+  --z-notification: 50;
+}
+
+/* Points de rupture (non utilisables comme variable dans une @media — repris
+   tels quels dans le thème Tailwind) : sm 640 · md 768 · lg 1024 · xl 1280 ·
+   2xl 1440.
+
+   Pas de mode sombre en V1. L'application est un outil de bureau utilisé en
+   journée ; un second thème doublerait la surface de vérification des
+   contrastes sans bénéfice mesuré. Ne pas en ajouter un sans décision
+   explicite consignée dans docs/02_DESIGN_SYSTEM.md. */
