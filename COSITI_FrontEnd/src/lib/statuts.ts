@@ -219,6 +219,27 @@ const OPERATION_ADHERENT = {
   ADHERENT_MODIFICATION_CONTACT: { libelle: "Coordonnées", teinte: "info" },
 } satisfies TableStatuts;
 
+/**
+ * État d'un agent de terrain (`agent.actif` backend, exposé en booléen) : l'écran traduit le booléen en
+ * `ACTIF`/`INACTIF` pour passer par `BadgeStatut`, jamais par un libellé écrit à la main.
+ */
+const AGENT = {
+  ACTIF: { libelle: "Actif", teinte: "succes" },
+  INACTIF: { libelle: "Inactif", teinte: "neutre", aide: "Agent désactivé : il n'apparaît plus dans la répartition des portefeuilles." },
+} satisfies TableStatuts;
+
+/** Opérations du journal d'audit d'un agent (`TypeOperation`, entité `agent`) — onglet Activité (#7, #23). */
+const OPERATION_AGENT = {
+  AGENT_CREATION_PAR_DGA: { libelle: "Création par la DGA", teinte: "succes" },
+  AGENT_MODIFICATION: { libelle: "Modification du profil", teinte: "info" },
+  AGENT_CHANGEMENT_STATUT: { libelle: "Activation / désactivation", teinte: "attention" },
+  AGENT_DESIGNATION_CHEF: { libelle: "Désignation comme Chef", teinte: "info" },
+  AGENT_REMPLACEMENT_CHEF: { libelle: "Remplacement du Chef", teinte: "attention" },
+  PORTEFEUILLE_AFFECTATION: { libelle: "Affectation d'un adhérent", teinte: "info" },
+  PORTEFEUILLE_TRANSFERT: { libelle: "Transfert d'un adhérent", teinte: "attention" },
+  PORTEFEUILLE_RETRAIT: { libelle: "Retrait d'un adhérent", teinte: "attention" },
+} satisfies TableStatuts;
+
 /* ==========================================================================
    7. Registre et résolution
    ======================================================================== */
@@ -241,6 +262,8 @@ export const STATUTS = {
   campagneRelance: CAMPAGNE_RELANCE,
   validationParametre: VALIDATION_PARAMETRE,
   operationAdherent: OPERATION_ADHERENT,
+  agent: AGENT,
+  operationAgent: OPERATION_AGENT,
 } as const;
 
 export type DomaineStatut = keyof typeof STATUTS;

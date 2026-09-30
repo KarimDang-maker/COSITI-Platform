@@ -283,6 +283,81 @@ zone, transfert en lot (l'API l'accepte, l'écran ne transfère qu'un adhérent
 à la fois), historique de désignation du Chef (`GET /agents/{id}/historique-chef`,
 appel disponible côté `api/organisation.ts`, pas encore affiché à l'écran).
 
+**Module agents de terrain** : le nom de chaque agent ouvre sa fiche
+(`/agents/:id`). `GET /agents` et `GET /agents/{id}/portefeuille` renvoyant
+désormais l'enveloppe paginée, le dialogue « Portefeuille » lit la page
+maximale (200) ; la consultation paginée complète est sur la fiche agent.
+
+## Module « Gestion des agents de terrain » (25 fonctionnalités)
+
+Référence : `COSITI_GESTIONNAIRE_FRONTEND_UI_UX_97_FONCTIONNALITES.md §2`,
+branchée sur les routes **réelles** de `ControleurAgent` et
+`ControleurPortefeuille` (le document cite des routes cibles
+`/agents-terrain/...` que le backend a gardées sous `/agents/...` et
+`/portefeuilles/...`). Composants : `src/ecrans/agents/`, onglets de la fiche
+dans `src/ecrans/agents/fiche/`.
+
+**Rupture de contrat absorbée** : `GET /agents` renvoie une enveloppe paginée.
+`listerAgents()` (référentiel des sélecteurs : filtre agent de la liste des
+adhérents, affectation, saisie de paiement, droits) lit une page de 200 et
+renvoie `contenu` ; la liste de l'écran utilise `listerAgentsPagines()`.
+
+### `/agents` — `ListeAgentsTerrain`
+
+| | |
+|---|---|
+| Fichier | `src/ecrans/agents/ListeAgentsTerrain.tsx`, `VueRepartition.tsx` |
+| Accès | `GardeRoute permission="ORGANISATION:LIRE"` — entrée « Agents de terrain » de la navigation |
+| Contrat API | `GET /agents`, `GET /agents/portefeuille-distribution`, `GET /zones`, `POST /agents` |
+
+Onglet **Agents** (#1, #2, #21) : recherche serveur temporisée (nom, code,
+téléphone), filtres statut (`actif`) et zone, tri serveur sur code, nom, zone
+(liste blanche `NOM|CODE_AGENT|ZONE` + `direction`), pagination ; tout est dans
+l'URL, chaque filtre actif est une puce retirable. Colonnes : code, agent (nom
++ téléphone, contre les homonymes), zone, adhérents suivis (valeur de la
+répartition serveur ; « — » pour un agent inactif, que la répartition
+n'inclut pas), statut (`BadgeStatut domaine="agent"`). Ligne → fiche.
+
+Onglet **Répartition des portefeuilles** (#19) : volumes par agent actif, dans
+l'ordre serveur (par nom), barre = part du total affiché ; aucun classement.
+
+« Ajouter un agent » (#4, `ORGANISATION:GERER`, DGA) : `DialogueAjouterAgent`
+(mot de passe initial affiché une fois) ; à la fermeture, la fiche du nouvel
+agent s'ouvre.
+
+### `/agents/:id` — `FicheAgentTerrain`
+
+| | |
+|---|---|
+| Fichier | `src/ecrans/agents/FicheAgentTerrain.tsx`, `src/ecrans/agents/fiche/` |
+| Accès | `GardeRoute permission="ORGANISATION:LIRE"` |
+
+En-tête : nom, code, zone, mention « Chef des agents de la zone »
+(`GET /agents/chef`), `BadgeStatut`. Carte Identité : téléphone, zone, objectif
+mensuel, lien vers le Chef superviseur. Onglets dans l'URL (`?onglet=`) :
+
+| Onglet | Contenu | Endpoint(s) — fonctionnalité | Visible avec |
+|---|---|---|---|
+| Synthèse | Adhérents suivis, dossiers complets / incomplets (liens vers `/adherents?agentId=&completion=`) | `/portefeuille/resume` #8 #10 #11 | `ORGANISATION:LIRE` ; liens `ADHERENT:LIRE` |
+| | Période (mois) ; paiements, validés, en attente, annulés | `/cotisations-resume?periode=` #14 #15 | `PAIEMENT:LIRE` |
+| | Charge : collecte validée / objectif serveur | `/charge?periode=` #20 | |
+| | Dernière activité (type, date, auteur) | 1ʳᵉ ligne de `/operations` #22 | |
+| Portefeuille | Adhérents affectés, paginé, ligne → fiche adhérent ; affecter (adhérents **sans agent** de la zone, confirmation), réaffecter (agent actuel → nouvel agent, motif obligatoire), retirer (motif obligatoire) | `/portefeuille` #9 ; `POST /portefeuilles/affecter` #16, `/retirer` #17, `/transferer` #18 | actions : `ORGANISATION:AFFECTER_PORTEFEUILLE` |
+| CNPS | Proches du seuil, seuil atteint — restreints au portefeuille | `/portefeuille/cnps/proches-seuil` #12, `/eligibles` #13 | `CNPS:LIRE` |
+| Activité | Chronologie des opérations ; filtre **par période seulement** (seul filtre de l'API) | `/operations?depuis=&jusqua=` #7 #23 | |
+| Historique du portefeuille | Affectations ouvertes et clôturées (début, fin, motif) ; identité relue par `GET /adherents/{id}`, « hors de votre périmètre » sinon | `/portefeuille/historique` #24 | identité : `ADHERENT:LIRE` |
+
+Actions d'en-tête : « Modifier » (#5, `PUT /agents/{id}` : nom, téléphone,
+zone, objectif ; erreur serveur localisée au champ), « Désactiver / Réactiver »
+(#6, état actuel → cible, motif obligatoire), « Désigner Chef »
+(`DialogueDesignerChef`, `ORGANISATION:DESIGNER_CHEF`, masqué si l'agent est
+déjà Chef ou inactif). Modification et statut exigent `ORGANISATION:GERER` **et**
+le rôle DGA (double verrou serveur).
+
+Toute mutation invalide le domaine `organisation` (liste, fiche, répartition,
+sélecteurs) et le domaine `adherents`. Temps réel (#25) : `AgentModifieEvent`
+n'est que journalisé après commit — aucune souscription côté client.
+
 ## J4 — Cotisations
 
 Contrat vérifié directement dans le code backend réel

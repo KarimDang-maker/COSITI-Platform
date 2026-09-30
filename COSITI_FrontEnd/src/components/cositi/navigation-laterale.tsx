@@ -12,6 +12,7 @@ import {
   FileText,
   History,
   Settings,
+  UserRoundCog,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -75,6 +76,8 @@ const SECTIONS: readonly SectionNavigation[] = [
   {
     titre: "Terrain",
     entrees: [
+      // Module « Gestion des agents de terrain » : liste, fiche, portefeuilles, répartition.
+      { chemin: "/agents", libelle: "Agents de terrain", icone: UserRoundCog, permission: "ORGANISATION:LIRE" },
       // Code confirmé par le catalogue RBAC réel du backend
       // (`COSITI_Backend/src/main/resources/db/migration/V5__catalogue_permissions.sql`),
       // absent de `03_SPECIFICATIONS_API.md §6` — voir SUIVI_EXECUTION.md.

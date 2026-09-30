@@ -9,6 +9,7 @@ import { SqueletteTableau } from "@/components/cositi/squelette-tableau";
 import { Alerte } from "@/components/cositi/alerte";
 import { BarreProgression } from "@/components/cositi/barre-progression";
 import { useEligiblesNonImmatricules, useProchesSeuilCnps } from "@/hooks/useCnps";
+import { useCnpsPortefeuille } from "@/hooks/useOrganisation";
 import type { AdherentEligibleCnps } from "@/api/cnps";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterMontant } from "@/lib/format";
@@ -16,6 +17,11 @@ import { formaterMontant } from "@/lib/format";
 interface VueSeuilCnpsProps {
   /** `proches` : bande sous le seuil (#25). `eligibles` : seuil atteint, non immatriculés (#26). */
   mode: "proches" | "eligibles";
+  /**
+   * Restreint la liste au portefeuille d'un agent (module agents de terrain, #12 et #13 :
+   * `GET /agents/{id}/portefeuille/cnps/...`). Absent : tout le périmètre du demandeur.
+   */
+  agentId?: string;
 }
 
 /**
@@ -23,11 +29,13 @@ interface VueSeuilCnpsProps {
  * proximité ni l'éligibilité : il affiche la réponse, et la barre n'est qu'un rapport d'affichage entre
  * deux montants serveur (cumul / seuil).
  */
-export function VueSeuilCnps({ mode }: VueSeuilCnpsProps) {
+export function VueSeuilCnps({ mode, agentId }: VueSeuilCnpsProps) {
   const navigate = useNavigate();
-  const proches = useProchesSeuilCnps(undefined, mode === "proches");
-  const eligibles = useEligiblesNonImmatricules(undefined, mode === "eligibles");
-  const requete = mode === "proches" ? proches : eligibles;
+  const global = !agentId;
+  const proches = useProchesSeuilCnps(undefined, global && mode === "proches");
+  const eligibles = useEligiblesNonImmatricules(undefined, global && mode === "eligibles");
+  const portefeuille = useCnpsPortefeuille(agentId, mode, !global);
+  const requete = !global ? portefeuille : mode === "proches" ? proches : eligibles;
 
   const colonnes = useMemo<ColumnDef<AdherentEligibleCnps>[]>(
     () => [

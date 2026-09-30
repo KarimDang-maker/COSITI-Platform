@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router";
 import { Plus, UserCog, Users } from "lucide-react";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { Alerte } from "@/components/cositi/alerte";
@@ -48,7 +49,10 @@ interface DialoguePortefeuilleAgentProps {
 
 /** Détail du portefeuille d'un agent, avec transfert adhérent par adhérent (`ORGANISATION:AFFECTER_PORTEFEUILLE`). */
 function DialoguePortefeuilleAgent({ agent, onFermer, onTransferer }: DialoguePortefeuilleAgentProps) {
-  const { data: portefeuille, isLoading } = usePortefeuilleAgent(agent?.id);
+  // Le portefeuille est paginé côté serveur : ce dialogue de transfert rapide lit la page maximale (200) ;
+  // la consultation complète et paginée vit sur la fiche agent (`/agents/:id`, onglet Portefeuille).
+  const { data: page, isLoading } = usePortefeuilleAgent(agent?.id, 0, 200);
+  const portefeuille = page?.contenu;
   return (
     <Dialog open={!!agent} onOpenChange={(ouvert) => !ouvert && onFermer()}>
       <DialogContent>
@@ -162,7 +166,9 @@ export function EcranOrganisation() {
                   <TableRow key={agent.id}>
                     <TableCell className="ref">{agent.codeAgent}</TableCell>
                     <TableCell>
-                      <CelluleIdentite nom={agent.nomComplet} />
+                      <Link to={`/agents/${agent.id}`} className="hover:underline">
+                        <CelluleIdentite nom={agent.nomComplet} />
+                      </Link>
                     </TableCell>
                     <TableCell className="ref">{formaterTelephone(agent.telephone)}</TableCell>
                     <TableCell>{libelleZone(agent.zoneId)}</TableCell>

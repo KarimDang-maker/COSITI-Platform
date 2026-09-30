@@ -46,6 +46,8 @@ const PLAGES_COMPLETION = [
   { valeur: "50-79", libelle: "De 50 à 79 %", min: 50, max: 79 },
   { valeur: "80-99", libelle: "De 80 à 99 %", min: 80, max: 99 },
   { valeur: "100-100", libelle: "Dossier complet (100 %)", min: 100, max: 100 },
+  // Lien « dossiers incomplets » de la fiche agent (module agents, #11).
+  { valeur: "0-99", libelle: "Dossier incomplet (moins de 100 %)", min: 0, max: 99 },
 ] as const;
 
 /** Colonne du tableau → champ de la liste blanche serveur (#8). */

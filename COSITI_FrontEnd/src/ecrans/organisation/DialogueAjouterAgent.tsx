@@ -32,13 +32,16 @@ type Valeurs = z.infer<typeof schema>;
 interface DialogueAjouterAgentProps {
   ouvert: boolean;
   onOuvertChange: (ouvert: boolean) => void;
+  /** Appelé à la fermeture, une fois le mot de passe initial affiché : ouverture de la fiche du nouvel agent (#4). */
+  onAgentCree?: (agentId: string) => void;
 }
 
 /** DGA-F01 : ajout d'un Agent de terrain. Réservé à `ORGANISATION:GERER` (masqué par l'appelant si absent). */
-export function DialogueAjouterAgent({ ouvert, onOuvertChange }: DialogueAjouterAgentProps) {
+export function DialogueAjouterAgent({ ouvert, onOuvertChange, onAgentCree }: DialogueAjouterAgentProps) {
   const { data: zones } = useZones();
   const creerAgent = useCreerAgent();
   const [motDePasseInitial, setMotDePasseInitial] = useState<string | null>(null);
+  const [agentCreeId, setAgentCreeId] = useState<string | null>(null);
 
   const {
     register,
@@ -59,6 +62,7 @@ export function DialogueAjouterAgent({ ouvert, onOuvertChange }: DialogueAjouter
       });
       toast.success(`Agent ${agent.nomComplet} créé.`);
       setMotDePasseInitial(agent.motDePasseInitial ?? null);
+      setAgentCreeId(agent.id);
       reset();
     } catch {
       // L'erreur est affichée via creerAgent.error ci-dessous.
@@ -69,7 +73,11 @@ export function DialogueAjouterAgent({ ouvert, onOuvertChange }: DialogueAjouter
     <Dialog
       open={ouvert}
       onOpenChange={(valeur) => {
-        if (!valeur) setMotDePasseInitial(null);
+        if (!valeur) {
+          setMotDePasseInitial(null);
+          if (agentCreeId) onAgentCree?.(agentCreeId);
+          setAgentCreeId(null);
+        }
         onOuvertChange(valeur);
       }}
     >
@@ -88,7 +96,16 @@ export function DialogueAjouterAgent({ ouvert, onOuvertChange }: DialogueAjouter
               </p>
             </Alerte>
             <DialogFooter>
-              <Button onClick={() => onOuvertChange(false)}>Fermer</Button>
+              <Button
+                onClick={() => {
+                  setMotDePasseInitial(null);
+                  if (agentCreeId) onAgentCree?.(agentCreeId);
+                  setAgentCreeId(null);
+                  onOuvertChange(false);
+                }}
+              >
+                Fermer
+              </Button>
             </DialogFooter>
           </div>
         ) : (

@@ -7,6 +7,8 @@ import { ListeAdherents } from "@/ecrans/adherents/ListeAdherents";
 import { FicheAdherent } from "@/ecrans/adherents/FicheAdherent";
 import { NouvelAdherent } from "@/ecrans/adherents/NouvelAdherent";
 import { EcranOrganisation } from "@/ecrans/organisation/EcranOrganisation";
+import { ListeAgentsTerrain } from "@/ecrans/agents/ListeAgentsTerrain";
+import { FicheAgentTerrain } from "@/ecrans/agents/FicheAgentTerrain";
 import { JournalCotisations } from "@/ecrans/cotisations/JournalCotisations";
 import { NouveauPaiement } from "@/ecrans/cotisations/NouveauPaiement";
 import { DetailPaiement } from "@/ecrans/cotisations/DetailPaiement";
@@ -153,6 +155,25 @@ export function RoutesApplication() {
         element={
           <GardeRoute permission="ORGANISATION:LIRE">
             <EcranOrganisation />
+          </GardeRoute>
+        }
+      />
+
+      {/* Module « Gestion des agents de terrain » : ouvert à tout rôle portant ORGANISATION:LIRE
+          (PCA, DG, DGA, DAF, Gestionnaire, Chef, Agent) — actions filtrées dans les écrans. */}
+      <Route
+        path="/agents"
+        element={
+          <GardeRoute permission="ORGANISATION:LIRE">
+            <ListeAgentsTerrain />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/agents/:id"
+        element={
+          <GardeRoute permission="ORGANISATION:LIRE">
+            <FicheAgentTerrain />
           </GardeRoute>
         }
       />
