@@ -6,5 +6,7 @@ public enum StatutPaiement {
     VALIDE,
     RAPPROCHE,
     ANNULE,
-    INCOHERENCE
+    INCOHERENCE,
+    /** Rejet définitif et motivé par un validateur (#17, V18) — distinct de l'annulation. */
+    REJETE
 }

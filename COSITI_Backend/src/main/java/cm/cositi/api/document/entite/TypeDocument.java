@@ -6,6 +6,11 @@ public enum TypeDocument {
     ACTE_NAISSANCE,
     PREUVE_PAIEMENT,
     ACCUSE_CNPS,
+    // Matrice documentaire du document des règles v2.0 (§17, §18) — V21.
+    JUSTIFICATIF_RESIDENCE,
+    PIECE_PROFESSIONNELLE,
+    PIECE_CNPS,
+    FORMULAIRE_ADHESION,
     AUTRE;
 
     /**

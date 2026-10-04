@@ -28,11 +28,25 @@ public record DocumentDto(
         AnalyseAntivirus analyseAntivirus,
         boolean telechargeable,
         Instant creeLe,
-        String creePar
+        String creePar,
+        /** Versionnement (§22) : n° de version, version remplacée, motif. */
+        int versionDocument,
+        UUID remplaceDocumentId,
+        String motifRemplacement,
+        /** Validité (§21), quand elle s'applique au type de pièce. */
+        java.time.LocalDate valideDu,
+        java.time.LocalDate valideJusquau,
+        boolean expire,
+        UUID verifiePar,
+        Instant verifieLe,
+        String commentaireVerification
 ) {
     public static DocumentDto depuis(Document d) {
         return new DocumentDto(d.getId(), d.getTypeDocument(), d.getNomFichierOriginal(), d.getTypeMime(),
                 d.getTailleOctets(), d.isChiffre(), d.getAdherentId(), d.getPaiementId(), d.getStatut(),
-                d.getAnalyseAntivirus(), d.estTelechargeable(), d.getCreeLe(), d.getCreePar());
+                d.getAnalyseAntivirus(), d.estTelechargeable(), d.getCreeLe(), d.getCreePar(), d.getVersionDocument(),
+                d.getRemplaceDocumentId(), d.getMotifRemplacement(), d.getValideDu(), d.getValideJusquau(),
+                d.estExpire(java.time.LocalDate.now()), d.getVerifiePar(), d.getVerifieLe(),
+                d.getCommentaireVerification());
     }
 }

@@ -6,6 +6,7 @@ import cm.cositi.api.commun.reponse.ReponsePaginee;
 import cm.cositi.api.securite.entite.Utilisateur;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,10 +23,20 @@ public class ServiceNotificationImpl implements ServiceNotification {
 
     private final NotificationRepository notificationRepository;
     private final JdbcTemplate jdbcTemplate;
+    private final ApplicationEventPublisher evenements;
 
-    public ServiceNotificationImpl(NotificationRepository notificationRepository, JdbcTemplate jdbcTemplate) {
+    public ServiceNotificationImpl(NotificationRepository notificationRepository, JdbcTemplate jdbcTemplate,
+                                   ApplicationEventPublisher evenements) {
         this.notificationRepository = notificationRepository;
         this.jdbcTemplate = jdbcTemplate;
+        this.evenements = evenements;
+    }
+
+    /** Enregistre puis annonce la notification : le flux temps réel la pousse à son destinataire après commit. */
+    private void deposer(UUID destinataireId, String type, String titre, String corps, String entite, UUID entiteId) {
+        Notification enregistree = notificationRepository.save(
+                new Notification(destinataireId, type, titre, corps, entite, entiteId));
+        evenements.publishEvent(new NotificationCreeeEvent(destinataireId, NotificationDto.depuis(enregistree)));
     }
 
     @Override
@@ -37,13 +48,20 @@ public class ServiceNotificationImpl implements ServiceNotification {
             JOURNAL.warn("Notification {} non déposée : aucun destinataire pour l'entité {} {}", type, entite, entiteId);
             return;
         }
-        notificationRepository.save(new Notification(destinataireId, type, titre, corps, entite, entiteId));
+        deposer(destinataireId, type, titre, corps, entite, entiteId);
     }
 
     @Override
     @Transactional
     public int notifierRoles(List<String> codesRoles, String type, String titre, String corps, String entite,
                               UUID entiteId) {
+        return notifierRolesSauf(codesRoles, null, type, titre, corps, entite, entiteId);
+    }
+
+    @Override
+    @Transactional
+    public int notifierRolesSauf(List<String> codesRoles, UUID dejaNotifie, String type, String titre, String corps,
+                                 String entite, UUID entiteId) {
         if (codesRoles == null || codesRoles.isEmpty()) {
             return 0;
         }
@@ -65,9 +83,9 @@ public class ServiceNotificationImpl implements ServiceNotification {
             JOURNAL.warn("Notification {} sans destinataire : aucun utilisateur actif ne porte {}", type, codesRoles);
             return 0;
         }
-        destinataires.forEach(id ->
-                notificationRepository.save(new Notification(id, type, titre, corps, entite, entiteId)));
-        return destinataires.size();
+        List<UUID> servis = destinataires.stream().filter(id -> !id.equals(dejaNotifie)).toList();
+        servis.forEach(id -> deposer(id, type, titre, corps, entite, entiteId));
+        return servis.size() + (dejaNotifie != null && destinataires.contains(dejaNotifie) ? 1 : 0);
     }
 
     @Override

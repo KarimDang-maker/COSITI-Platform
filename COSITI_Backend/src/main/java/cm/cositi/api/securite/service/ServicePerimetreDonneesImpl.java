@@ -104,6 +104,11 @@ public class ServicePerimetreDonneesImpl implements ServicePerimetreDonnees {
         verifierAccesAdherent(utilisateur, adherentId);
     }
 
+    @Override
+    public boolean estPerimetreAdherentGlobal(Utilisateur utilisateur) {
+        return perimetreAdherentGlobal(utilisateur);
+    }
+
     private boolean perimetreAdherentGlobal(Utilisateur utilisateur) {
         return utilisateur.getRoles().stream().anyMatch(r -> ROLES_PERIMETRE_ADHERENT_GLOBAL_V1.contains(r.getCode()));
     }

@@ -57,8 +57,14 @@ public class ControleurDocument {
                                                    @RequestParam TypeDocument type,
                                                    @RequestParam(required = false) UUID adherentId,
                                                    @RequestParam(required = false) UUID paiementId,
+                                                   @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate valideDu,
+                                                   @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE) java.time.LocalDate valideJusquau,
+                                                   @RequestParam(required = false) UUID remplaceDocumentId,
+                                                   @RequestParam(required = false) String motifRemplacement,
                                                    @AuthenticationPrincipal Utilisateur auteur) {
-        DocumentDto cree = serviceDocument.televerser(fichier, type, new RattachementDto(adherentId, paiementId), auteur);
+        DocumentDto cree = serviceDocument.televerser(fichier, type, new RattachementDto(adherentId, paiementId),
+                new cm.cositi.api.document.dto.OptionsTeleversementDto(valideDu, valideJusquau, remplaceDocumentId,
+                        motifRemplacement), auteur);
         return ResponseEntity.status(201).body(cree);
     }
 

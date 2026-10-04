@@ -78,6 +78,8 @@ class ServiceAdherentImplTest {
     private ServiceParametre serviceParametre;
     @Mock
     private ApplicationEventPublisher publicateurEvenements;
+    @Mock
+    private cm.cositi.api.adhesion.service.ServiceExigenceDocumentaire serviceExigence;
 
     private ServiceAdherentImpl service;
     private Utilisateur auteur;
@@ -86,7 +88,8 @@ class ServiceAdherentImplTest {
     void setUp() throws Exception {
         service = new ServiceAdherentImpl(adherentRepository, adhesionRepository, packRepository, serviceMatricule,
                 serviceDoublonAdherent, perimetre, serviceAudit, zoneRepository, affectationPortefeuilleRepository,
-                serviceStockageDocument, journalAuditRepository, serviceParametre, publicateurEvenements);
+                serviceStockageDocument, journalAuditRepository, serviceParametre, publicateurEvenements,
+                serviceExigence);
         auteur = new Utilisateur("agent1", "hash", "Agent Un");
         setId(auteur, UUID.randomUUID());
     }
@@ -287,15 +290,17 @@ class ServiceAdherentImplTest {
         Adherent adherent = adherentPourTests();
         doNothing().when(perimetre).verifierAccesAdherent(any(), any());
         when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
-        when(serviceParametre.texte("DOCUMENTS_ADHERENT_OBLIGATOIRES")).thenReturn("CNI,ACTE_NAISSANCE");
+        // Matrice documentaire V21 : pièces de niveau OBLIGATOIRE (CNI, formulaire d'adhésion).
+        when(serviceExigence.typesPiecesObligatoires()).thenReturn(java.util.Set.of("CNI", "FORMULAIRE_ADHESION"));
         DocumentDto cniRejete = new DocumentDto(UUID.randomUUID(), TypeDocument.CNI, "f.pdf", "application/pdf", 10,
                 true, adherent.getId(), null, cm.cositi.api.document.entite.StatutDocument.REJETE,
-                cm.cositi.api.document.entite.AnalyseAntivirus.PROPRE, false, java.time.Instant.now(), "agent1");
+                cm.cositi.api.document.entite.AnalyseAntivirus.PROPRE, false, java.time.Instant.now(), "agent1",
+                1, null, null, null, null, false, null, null, null);
         when(serviceStockageDocument.listerParAdherent(adherent.getId(), auteur)).thenReturn(List.of(cniRejete));
 
         List<TypeDocument> manquants = service.documentsManquants(adherent.getId(), auteur);
 
-        assertThat(manquants).containsExactlyInAnyOrder(TypeDocument.CNI, TypeDocument.ACTE_NAISSANCE);
+        assertThat(manquants).containsExactlyInAnyOrder(TypeDocument.CNI, TypeDocument.FORMULAIRE_ADHESION);
     }
 
     @Test
@@ -309,5 +314,73 @@ class ServiceAdherentImplTest {
 
         verify(journalAuditRepository, times(0)).findAll(any(org.springframework.data.jpa.domain.Specification.class),
                 any(org.springframework.data.domain.Sort.class));
+    }
+
+    // ------------------------------------------------------------------ Workflow V19 : routes directes protégées
+
+    private Adherent adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite statut)
+            throws Exception {
+        Adherent adherent = new Adherent("COSITI-00077", "Essomba", "677000077", UUID.randomUUID(), UUID.randomUUID(),
+                "loc", java.time.LocalDate.now());
+        setId(adherent, UUID.randomUUID());
+        adherent.setStatutValidation(statut);
+        adherent.setVille("Yaoundé");
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        doNothing().when(perimetre).verifierAccesAdherent(any(), any());
+        return adherent;
+    }
+
+    @Test
+    void modifierCoordonneesRefuseUnDossierValide() throws Exception {
+        Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
+        var dto = new ModifierCoordonneesDto("699000000", null, null, "Nouvelle adresse", null, null, null, null);
+
+        assertThatThrownBy(() -> service.modifierCoordonnees(adherent.getId(), dto, auteur))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "ADHERENT_MODIFICATION_PAR_DEMANDE");
+        verify(adherentRepository, org.mockito.Mockito.never()).save(any());
+    }
+
+    @Test
+    void modifierProfessionnelRefuseUnDossierEnCoursDeValidation() throws Exception {
+        Adherent adherent = adherentAvecStatutValidation(
+                cm.cositi.api.workflow.entite.StatutValidationEntite.EN_ATTENTE_VALIDATION);
+
+        assertThatThrownBy(() -> service.modifierProfessionnel(adherent.getId(),
+                new ModifierProfessionnelDto(null, "CNPS-1", null), auteur))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "ADHERENT_EN_VALIDATION");
+    }
+
+    @Test
+    void changerStatutRefuseUnDossierValide() throws Exception {
+        Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
+
+        assertThatThrownBy(() -> service.changerStatut(adherent.getId(), StatutAdherent.INACTIF, "motif", auteur))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "ADHERENT_MODIFICATION_PAR_DEMANDE");
+    }
+
+    @Test
+    void completerProfilDUnDossierValideNeRemplacePasUneValeurOfficielle() throws Exception {
+        Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
+        var remplacement = new CompleterProfilAdherentDto(null, null, null, null, null, null, null, "Douala",
+                null, null, false);
+
+        assertThatThrownBy(() -> service.completerProfil(adherent.getId(), remplacement, auteur))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "ADHERENT_MODIFICATION_PAR_DEMANDE");
+    }
+
+    @Test
+    void completerProfilDUnDossierValideRemplitUnChampVide() throws Exception {
+        Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
+        when(adherentRepository.save(any(Adherent.class))).thenAnswer(i -> i.getArgument(0));
+        var ajout = new CompleterProfilAdherentDto(null, null, null, null, null, null, "Mvog-Ada", null,
+                null, null, false);
+
+        var resultat = service.completerProfil(adherent.getId(), ajout, auteur);
+
+        org.assertj.core.api.Assertions.assertThat(resultat.quartier()).isEqualTo("Mvog-Ada");
     }
 }

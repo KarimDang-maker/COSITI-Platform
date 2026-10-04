@@ -9,6 +9,7 @@ import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.commun.util.ChiffrementFichier;
 import cm.cositi.api.document.dto.ContenuDocument;
 import cm.cositi.api.document.dto.DocumentDto;
+import cm.cositi.api.document.dto.OptionsTeleversementDto;
 import cm.cositi.api.document.dto.RattachementDto;
 import cm.cositi.api.document.entite.AnalyseAntivirus;
 import cm.cositi.api.document.entite.Document;
@@ -95,6 +96,20 @@ public class ServiceStockageDocumentImpl implements ServiceStockageDocument {
     @Transactional
     public DocumentDto televerser(MultipartFile fichier, TypeDocument type, RattachementDto rattachement,
                                    Utilisateur auteur) {
+        return televerserInterne(fichier, type, rattachement, OptionsTeleversementDto.aucune(), auteur);
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('DOCUMENT:TELEVERSER')")
+    @Transactional
+    public DocumentDto televerser(MultipartFile fichier, TypeDocument type, RattachementDto rattachement,
+                                  OptionsTeleversementDto options, Utilisateur auteur) {
+        return televerserInterne(fichier, type, rattachement, options == null ? OptionsTeleversementDto.aucune() : options,
+                auteur);
+    }
+
+    private DocumentDto televerserInterne(MultipartFile fichier, TypeDocument type, RattachementDto rattachement,
+                                          OptionsTeleversementDto options, Utilisateur auteur) {
         if (type == null) {
             throw new ExceptionValidation("DOCUMENT_TYPE_REQUIS", "Le type de document est obligatoire.", "type");
         }
@@ -103,6 +118,29 @@ public class ServiceStockageDocumentImpl implements ServiceStockageDocument {
                     "Un document doit être rattaché soit à un adhérent, soit à un paiement — exactement l'un des deux.");
         }
         verifierPerimetre(rattachement.adherentId(), rattachement.paiementId(), auteur);
+        if (options.valideDu() != null && options.valideJusquau() != null
+                && options.valideJusquau().isBefore(options.valideDu())) {
+            throw new ExceptionValidation("DOCUMENT_VALIDITE_INCOHERENTE",
+                    "La date de fin de validité doit suivre la date de début.", "valideJusquau");
+        }
+        Document precedent = null;
+        if (options.remplaceDocumentId() != null) {
+            precedent = charger(options.remplaceDocumentId());
+            if (!precedent.estVersionActive()) {
+                throw new ExceptionConflit("DOCUMENT_REMPLACEMENT_IMPOSSIBLE",
+                        "Seule la version active d'un document peut être remplacée (statut actuel : " + precedent.getStatut() + ").");
+            }
+            if (precedent.getTypeDocument() != type || !java.util.Objects.equals(precedent.getAdherentId(), rattachement.adherentId())
+                    || !java.util.Objects.equals(precedent.getPaiementId(), rattachement.paiementId())) {
+                throw new ExceptionValidation("DOCUMENT_REMPLACEMENT_INCOHERENT",
+                        "Le remplaçant doit avoir le même type et le même rattachement que le document remplacé.",
+                        "remplaceDocumentId");
+            }
+            if (estVide(options.motifRemplacement())) {
+                throw new ExceptionValidation("DOCUMENT_MOTIF_REQUIS", "Le motif du remplacement est obligatoire.",
+                        "motifRemplacement");
+            }
+        }
 
         if (fichier == null || fichier.isEmpty()) {
             throw new ExceptionValidation("DOCUMENT_FICHIER_VIDE", "Le fichier transmis est vide.", "fichier");
@@ -149,10 +187,23 @@ public class ServiceStockageDocumentImpl implements ServiceStockageDocument {
                 contenu.length, empreinte, rattachement.adherentId(), rattachement.paiementId(),
                 auteur.getIdentifiant());
         document.setAnalyseAntivirus(resultatAnalyse);
+        document.definirValidite(options.valideDu(), options.valideJusquau());
+        if (precedent != null) {
+            document.definirRemplacement(precedent, options.motifRemplacement().trim());
+        }
         document = documentRepository.save(document);
 
         serviceAudit.tracer(TypeOperation.DOCUMENT_TELEVERSEMENT, "document", document.getId(), null,
                 DocumentDto.depuis(document), "Type " + type);
+        if (precedent != null) {
+            // §22 : l'ancienne version n'est jamais écrasée — elle passe REMPLACE et reste consultable.
+            StatutDocument avant = precedent.getStatut();
+            precedent.setStatut(StatutDocument.REMPLACE);
+            documentRepository.save(precedent);
+            serviceAudit.tracer(TypeOperation.DOCUMENT_REMPLACEMENT, "document", precedent.getId(), avant,
+                    java.util.Map.of("remplacePar", document.getId(), "version", document.getVersionDocument()),
+                    options.motifRemplacement().trim());
+        }
         return DocumentDto.depuis(document);
     }
 

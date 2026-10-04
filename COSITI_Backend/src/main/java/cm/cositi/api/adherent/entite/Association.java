@@ -58,6 +58,22 @@ public class Association {
         return nom;
     }
 
+    public String getType() {
+        return type;
+    }
+
+    public String getContactNom() {
+        return contactNom;
+    }
+
+    public String getContactTelephone() {
+        return contactTelephone;
+    }
+
+    public LocalDate getDateConvention() {
+        return dateConvention;
+    }
+
     public UUID getZoneId() {
         return zoneId;
     }

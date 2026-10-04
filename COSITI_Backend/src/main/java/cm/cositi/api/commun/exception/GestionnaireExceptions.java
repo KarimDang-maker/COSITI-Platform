@@ -192,8 +192,9 @@ public class GestionnaireExceptions {
                 .body(new ReponseErreur(500, "ERREUR_INTERNE", "Une erreur inattendue est survenue.", null, traceId));
     }
 
+    /** Identifiant de corrélation posé par {@code FiltreCorrelation} : le même que dans les journaux et l'audit. */
     private String traceId(HttpServletRequest requete) {
-        String entete = requete.getHeader("X-Trace-Id");
-        return (entete != null && !entete.isBlank()) ? entete : UUID.randomUUID().toString();
+        String id = cm.cositi.api.commun.correlation.FiltreCorrelation.courant(requete);
+        return id != null ? id : UUID.randomUUID().toString();
     }
 }

@@ -42,6 +42,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import cm.cositi.api.workflow.entite.StatutValidationEntite;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -63,7 +64,6 @@ import java.util.stream.Collectors;
 public class ServiceAdherentImpl implements ServiceAdherent {
 
     static final String CLE_CHAMPS_COMPLETION = "CHAMPS_COMPLETION_ADHERENT";
-    static final String CLE_DOCUMENTS_OBLIGATOIRES = "DOCUMENTS_ADHERENT_OBLIGATOIRES";
 
     private final AdherentRepository adherentRepository;
     private final AdhesionRepository adhesionRepository;
@@ -78,6 +78,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     private final JournalAuditRepository journalAuditRepository;
     private final ServiceParametre serviceParametre;
     private final ApplicationEventPublisher publicateurEvenements;
+    private final cm.cositi.api.adhesion.service.ServiceExigenceDocumentaire serviceExigence;
 
     public ServiceAdherentImpl(AdherentRepository adherentRepository, AdhesionRepository adhesionRepository,
                                 PackRepository packRepository, ServiceMatricule serviceMatricule,
@@ -86,7 +87,8 @@ public class ServiceAdherentImpl implements ServiceAdherent {
                                 AffectationPortefeuilleRepository affectationPortefeuilleRepository,
                                 ServiceStockageDocument serviceStockageDocument,
                                 JournalAuditRepository journalAuditRepository, ServiceParametre serviceParametre,
-                                ApplicationEventPublisher publicateurEvenements) {
+                                ApplicationEventPublisher publicateurEvenements,
+                               cm.cositi.api.adhesion.service.ServiceExigenceDocumentaire serviceExigence) {
         this.adherentRepository = adherentRepository;
         this.adhesionRepository = adhesionRepository;
         this.packRepository = packRepository;
@@ -100,6 +102,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         this.journalAuditRepository = journalAuditRepository;
         this.serviceParametre = serviceParametre;
         this.publicateurEvenements = publicateurEvenements;
+        this.serviceExigence = serviceExigence;
     }
 
     @Override
@@ -180,6 +183,12 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     public AdherentDetailDto modifier(UUID id, ModificationAdherentDto dto, Utilisateur auteur) {
         perimetre.verifierAccesAdherent(auteur, id);
         Adherent adherent = charger(id);
+        exigerModificationDirecte(adherent);
+        if (dto.version() != null && !dto.version().equals(adherent.getVersion())) {
+            // Le champ version était transmis mais ignoré : un écrasement silencieux restait possible (§17).
+            throw new ExceptionConflit("ADHERENT_VERSION_OBSOLETE",
+                    "Ce dossier a été modifié depuis votre lecture. Rechargez-le avant d'enregistrer.");
+        }
         AdherentDetailDto avant = AdherentDetailDto.depuis(adherent);
 
         adherent.setNom(dto.nom());
@@ -282,6 +291,13 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         }
         perimetre.verifierAccesAdherent(auteur, id);
         Adherent adherent = charger(id);
+        exigerModificationDirecte(adherent);
+        if (adherent.getStatut() == StatutAdherent.PREINSCRIT && nouveau == StatutAdherent.ACTIF) {
+            // V20 : l'activation est un processus (conditions, frais d'adhésion, transmission au contrôle DGA), jamais
+            // un simple changement de statut.
+            throw new ExceptionConflit("ADHERENT_ACTIVATION_PAR_ROUTE_DEDIEE",
+                    "L'activation d'un adhérent passe par POST /api/v1/adherents/{id}/activer (Gestionnaire des comptes).");
+        }
         if (adherent.getStatut() == StatutAdherent.RADIE) {
             throw new ExceptionConflit("ADHERENT_STATUT_TERMINAL",
                     "Un adhérent radié ne peut plus changer de statut.");
@@ -343,6 +359,23 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     public AdherentDetailDto completerProfil(UUID id, CompleterProfilAdherentDto dto, Utilisateur auteur) {
         perimetre.verifierAccesAdherent(auteur, id);
         Adherent adherent = charger(id);
+        if (adherent.getStatutValidation() == StatutValidationEntite.EN_ATTENTE_VALIDATION) {
+            exigerModificationDirecte(adherent);
+        }
+        if (adherent.getStatutValidation() == StatutValidationEntite.VALIDE) {
+            // Dossier officiel : compléter un champ vide reste direct (aucune donnée officielle n'est remplacée) ;
+            // remplacer une valeur existante passe par une demande de modification.
+            exigerChampVide("dateNaissance", adherent.getDateNaissance(), dto.dateNaissance());
+            exigerChampVide("sexe", adherent.getSexe(), dto.sexe());
+            exigerChampVide("telephoneSecondaire", adherent.getTelephoneSecondaire(), dto.telephoneSecondaire());
+            exigerChampVide("numeroCni", adherent.getNumeroCni(), dto.numeroCni());
+            exigerChampVide("numeroCnps", adherent.getNumeroCnps(), dto.numeroCnps());
+            exigerChampVide("associationId", adherent.getAssociationId(), dto.associationId());
+            exigerChampVide("quartier", adherent.getQuartier(), dto.quartier());
+            exigerChampVide("ville", adherent.getVille(), dto.ville());
+            exigerChampVide("latitude", adherent.getLatitude(), dto.latitude());
+            exigerChampVide("longitude", adherent.getLongitude(), dto.longitude());
+        }
         AdherentDetailDto avant = AdherentDetailDto.depuis(adherent);
 
         if (dto.dateNaissance() != null) {
@@ -395,7 +428,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         List<TypeDocument> documentsManquants = documentsManquantsInterne(id, demandeur);
 
         List<String> avertissements = new ArrayList<>(completion.avertissements());
-        if (!serviceParametre.estValide(CLE_DOCUMENTS_OBLIGATOIRES)) {
+        if (!serviceExigence.piecesObligatoiresConfirmees()) {
             avertissements.add("La liste des documents obligatoires (DOCUMENTS_ADHERENT_OBLIGATOIRES) n'est pas "
                     + "validée par la COSITI.");
         }
@@ -440,6 +473,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     public AdherentDetailDto modifierProfessionnel(UUID id, ModifierProfessionnelDto dto, Utilisateur auteur) {
         perimetre.verifierAccesAdherent(auteur, id);
         Adherent adherent = charger(id);
+        exigerModificationDirecte(adherent);
         AdherentDetailDto avant = AdherentDetailDto.depuis(adherent);
 
         if (dto.activiteId() != null) {
@@ -471,6 +505,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     public AdherentDetailDto modifierCoordonnees(UUID id, ModifierCoordonneesDto dto, Utilisateur auteur) {
         perimetre.verifierAccesAdherent(auteur, id);
         Adherent adherent = charger(id);
+        exigerModificationDirecte(adherent);
         AdherentDetailDto avant = AdherentDetailDto.depuis(adherent);
 
         adherent.setTelephonePrincipal(dto.telephonePrincipal());
@@ -493,6 +528,32 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     // Interne
     // ------------------------------------------------------------------
 
+    /**
+     * Protection des routes de modification directe (workflow V19, §24) : un dossier soumis est verrouillé, un
+     * dossier validé ne se modifie plus que par demande — le backend refuse le contournement, quel que soit le rôle.
+     */
+    private static void exigerModificationDirecte(Adherent adherent) {
+        if (adherent.getStatutValidation() == StatutValidationEntite.EN_ATTENTE_VALIDATION) {
+            throw new ExceptionConflit("ADHERENT_EN_VALIDATION",
+                    "Ce dossier est en cours de validation : il est verrouillé jusqu'à la décision.");
+        }
+        if (adherent.getStatutValidation() == StatutValidationEntite.VALIDE) {
+            throw new ExceptionConflit("ADHERENT_MODIFICATION_PAR_DEMANDE",
+                    "Ce dossier est validé : toute modification passe par une demande de modification "
+                            + "(POST /api/v1/adherents/{id}/demandes-modification).");
+        }
+    }
+
+    private static void exigerChampVide(String champ, Object actuel, Object propose) {
+        boolean proposeRenseigne = propose != null && !(propose instanceof String t && t.isBlank());
+        boolean actuelRenseigne = actuel != null && !(actuel instanceof String t && t.isBlank());
+        if (proposeRenseigne && actuelRenseigne && !String.valueOf(actuel).equals(String.valueOf(propose).trim())) {
+            throw new ExceptionConflit("ADHERENT_MODIFICATION_PAR_DEMANDE",
+                    "Le champ « " + champ + " » est déjà renseigné sur un dossier validé : sa modification passe par "
+                            + "une demande de modification (POST /api/v1/adherents/{id}/demandes-modification).");
+        }
+    }
+
     private EvaluationCompletionAdherent.Resultat evaluerCompletion(Adherent adherent) {
         String champsBrut = serviceParametre.texte(CLE_CHAMPS_COMPLETION);
         boolean regleValidee = serviceParametre.estValide(CLE_CHAMPS_COMPLETION);
@@ -514,14 +575,14 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         return manquants;
     }
 
+    /** Pièces de niveau OBLIGATOIRE de la matrice documentaire en vigueur (V21, §18), confirmées ou non. */
     private Set<TypeDocument> documentsObligatoires() {
-        String brut = serviceParametre.texte(CLE_DOCUMENTS_OBLIGATOIRES);
         Set<TypeDocument> types = new LinkedHashSet<>();
-        for (String code : Arrays.stream(brut.split(",")).map(String::trim).filter(s -> !s.isBlank()).toList()) {
+        for (String code : serviceExigence.typesPiecesObligatoires()) {
             try {
                 types.add(TypeDocument.valueOf(code));
             } catch (IllegalArgumentException e) {
-                // Valeur inconnue du paramètre : ignorée plutôt que de faire échouer la lecture du dossier.
+                // Type inconnu dans la matrice : ignoré plutôt que de faire échouer la lecture du dossier.
             }
         }
         return types;

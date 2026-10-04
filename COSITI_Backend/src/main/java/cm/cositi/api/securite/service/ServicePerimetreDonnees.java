@@ -29,6 +29,9 @@ public interface ServicePerimetreDonnees {
      */
     boolean estPerimetreGlobal(Utilisateur utilisateur);
 
+    /** {@code true} si l'utilisateur voit tous les adhérents (périmètre global ou Gestionnaire des comptes en V1). */
+    boolean estPerimetreAdherentGlobal(Utilisateur utilisateur);
+
     /** Filtre de liste des adhérents visibles par l'utilisateur. */
     Specification<Adherent> perimetreAdherent(Utilisateur utilisateur);
 

@@ -30,12 +30,18 @@ public record PaiementDto(
         UUID confirmeParChefId,
         Instant confirmeLe,
         String motifIncoherence,
+        /** Rejet définitif (#17) — renseignés uniquement quand {@code statut == REJETE}. */
+        String motifRejet,
+        UUID rejetePar,
+        Instant rejeteLe,
+        Instant creeLe,
         Long version
 ) {
     public static PaiementDto depuis(Paiement p) {
         return new PaiementDto(p.getId(), p.getAdherentId(), p.getNumeroRecu(), p.getDatePaiement(), p.getMontant(),
                 p.getModePaiement(), p.getReferenceTransaction(), p.getTypePaiement(), p.getAgentEncaisseurId(),
                 p.getStatut(), p.getValidePar(), p.getCreePar(), p.getConfirmeParChefId(), p.getConfirmeLe(),
-                p.getMotifIncoherence(), p.getVersion());
+                p.getMotifIncoherence(), p.getMotifRejet(), p.getRejetePar(), p.getRejeteLe(), p.getCreeLe(),
+                p.getVersion());
     }
 }

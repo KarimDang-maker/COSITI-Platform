@@ -6,6 +6,7 @@ import cm.cositi.api.securite.filtre.FiltreJwt;
 import cm.cositi.api.securite.filtre.FiltreLimiteDebit;
 import cm.cositi.api.securite.service.ServiceJeton;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -96,6 +97,10 @@ public class SecurityConfig {
                             ecrireErreur(reponse, 403, "ACCES_REFUSE", "Accès refusé."))
             )
             .authorizeHttpRequests(autorisations -> autorisations
+                    // Redistribution asynchrone d'une requête DÉJÀ autorisée à son entrée (flux SSE
+                    // `/api/v1/temps-reel/flux`, achèvement ou expiration de l'émetteur) : le jeton n'est pas
+                    // relu à ce stade, la refuser casserait la fermeture propre du flux.
+                    .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                     .requestMatchers(
                             "/api/v1/auth/connexion",
                             "/api/v1/auth/rafraichir",

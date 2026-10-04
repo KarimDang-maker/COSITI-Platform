@@ -224,12 +224,39 @@ class ControleDafIntegrationTest extends ConfigurationTestsIntegration {
                 .then().statusCode(200)
                 .body("totalElements", greaterThanOrEqualTo(1));
 
-        // ... la correction résout l'incohérence et rouvre le paiement au contrôle.
+        // ... la correction directe n'est plus possible sur une cotisation soumise (workflow V19) ...
         given().header("Authorization", "Bearer " + jetonDaf).contentType(ContentType.JSON)
                 .body(Map.of("motif", "Justificatif reçu, montant confirmé"))
                 .when().post("/paiements/" + paiementId + "/corriger")
+                .then().statusCode(409)
+                .body("code", equalTo("PAIEMENT_CORRECTION_PAR_DEMANDE"));
+
+        // ... elle passe par une demande de l'agent, approuvée par le DAF, qui résout l'incohérence et rouvre le
+        // paiement au contrôle.
+        String demandeId = given().header("Authorization", "Bearer " + jetonAgent).contentType(ContentType.JSON)
+                .body(Map.of("motif", "Montant corrigé d'après le justificatif",
+                        "elements", java.util.List.of(Map.of("champ", "montant", "valeurProposee", "1200"))))
+                .when().post("/paiements/" + paiementId + "/demandes-correction")
+                .then().statusCode(201)
+                .body("statut", equalTo("EN_ATTENTE_VALIDATION"))
+                .extract().path("id");
+
+        // Tant que la demande est ouverte, aucune décision sur la cotisation.
+        given().header("Authorization", "Bearer " + jetonDaf)
+                .when().post("/paiements/" + paiementId + "/valider")
+                .then().statusCode(409);
+
+        given().header("Authorization", "Bearer " + jetonDaf).contentType(ContentType.JSON)
+                .body(Map.of("commentaire", "Justificatif conforme"))
+                .when().post("/demandes-validation/" + demandeId + "/approuver")
                 .then().statusCode(200)
-                .body("statut", equalTo("A_CONTROLER"));
+                .body("statut", equalTo("APPROUVEE"));
+
+        given().header("Authorization", "Bearer " + jetonDaf)
+                .when().get("/paiements/" + paiementId)
+                .then().statusCode(200)
+                .body("statut", equalTo("A_CONTROLER"))
+                .body("montant", equalTo(1200.0f));
 
         given().header("Authorization", "Bearer " + jetonDaf)
                 .when().get("/paiements?statut=A_CONTROLER")

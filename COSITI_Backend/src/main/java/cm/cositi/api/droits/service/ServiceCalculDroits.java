@@ -31,6 +31,13 @@ public interface ServiceCalculDroits {
      */
     List<PeriodeDroitsDto> imputer(UUID affectationPaiementId);
 
+    /**
+     * Imputation d'un paiement validé : la somme de ses affectations sur les composantes qui ouvrent des droits
+     * (paramètre {@code DROITS_COMPOSANTES_IMPUTABLES}) est imputée en une seule fois. Imputer chaque part séparément
+     * (ex. 700 + 300 FCFA sur un pack à 1 000 FCFA/jour) ferait perdre la journée couverte par le versement entier.
+     */
+    List<PeriodeDroitsDto> imputerPaiement(UUID paiementId);
+
     /** Situation de droits à une date de référence — jamais recalculée à partir des paiements bruts. */
     SituationDroitsDto situation(UUID adherentId, LocalDate dateReference, Utilisateur demandeur);
 

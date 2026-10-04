@@ -99,6 +99,32 @@ public class Document {
     protected Document() {
     }
 
+    // ---------------------------------------------------------------- Métadonnées et versionnement (V21, §21-22)
+
+    @Column(name = "version_document", nullable = false)
+    private int versionDocument = 1;
+
+    @Column(name = "remplace_document_id", updatable = false)
+    private UUID remplaceDocumentId;
+
+    @Column(name = "motif_remplacement", updatable = false, columnDefinition = "TEXT")
+    private String motifRemplacement;
+
+    @Column(name = "valide_du")
+    private java.time.LocalDate valideDu;
+
+    @Column(name = "valide_jusquau")
+    private java.time.LocalDate valideJusquau;
+
+    @Column(name = "verifie_par")
+    private UUID verifiePar;
+
+    @Column(name = "verifie_le")
+    private Instant verifieLe;
+
+    @Column(name = "commentaire_verification", columnDefinition = "TEXT")
+    private String commentaireVerification;
+
     public Document(TypeDocument typeDocument, String nomFichierOriginal, String cheminStockage, String typeMime,
                      long tailleOctets, String empreinteSha256, UUID adherentId, UUID paiementId, String creePar) {
         this.typeDocument = typeDocument;
@@ -192,6 +218,68 @@ public class Document {
         this.archive = true;
         this.motifArchivage = motif;
         this.statut = StatutDocument.ARCHIVE;
+    }
+
+    /** Nouvelle version d'un document remplacé : l'ancienne reste intacte, avec son historique. */
+    public void definirRemplacement(Document precedent, String motif) {
+        this.remplaceDocumentId = precedent.getId();
+        this.versionDocument = precedent.getVersionDocument() + 1;
+        this.motifRemplacement = motif;
+    }
+
+    public void definirValidite(java.time.LocalDate du, java.time.LocalDate jusquau) {
+        this.valideDu = du;
+        this.valideJusquau = jusquau;
+    }
+
+    /** Vérification humaine (DGA) : le document justifie bien les informations qu'il porte. */
+    public void marquerVerifie(UUID verificateurId, String commentaire) {
+        this.statut = StatutDocument.VERIFIE;
+        this.verifiePar = verificateurId;
+        this.verifieLe = Instant.now();
+        this.commentaireVerification = commentaire;
+    }
+
+    /** Expiré à la date donnée lorsque la durée de validité s'applique (§20 EXPIRE). */
+    public boolean estExpire(java.time.LocalDate date) {
+        return valideJusquau != null && valideJusquau.isBefore(date);
+    }
+
+    /** Version active : ni archivée, ni remplacée, ni rejetée. */
+    public boolean estVersionActive() {
+        return !archive && statut != StatutDocument.REMPLACE && statut != StatutDocument.REJETE;
+    }
+
+    public int getVersionDocument() {
+        return versionDocument;
+    }
+
+    public UUID getRemplaceDocumentId() {
+        return remplaceDocumentId;
+    }
+
+    public String getMotifRemplacement() {
+        return motifRemplacement;
+    }
+
+    public java.time.LocalDate getValideDu() {
+        return valideDu;
+    }
+
+    public java.time.LocalDate getValideJusquau() {
+        return valideJusquau;
+    }
+
+    public UUID getVerifiePar() {
+        return verifiePar;
+    }
+
+    public Instant getVerifieLe() {
+        return verifieLe;
+    }
+
+    public String getCommentaireVerification() {
+        return commentaireVerification;
     }
 
     /** Un document n'est téléchargeable que sain, non archivé et non rejeté. */

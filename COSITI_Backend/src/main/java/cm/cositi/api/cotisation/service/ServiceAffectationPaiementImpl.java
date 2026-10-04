@@ -17,28 +17,40 @@ import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.securite.entite.Utilisateur;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Optional;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
- * {@code REPARTITION_VERSEMENT} est marqué {@code [V]} (non validé) dans {@code parametre} — l'implémentation
- * applique donc systématiquement l'affectation unique par défaut vers {@code COOPERATIVE} et journalise un
- * avertissement, conformément à docs/02_CLASSES_ET_METHODES.md §4. Aucune ventilation CNPS/Épargne réelle
- * n'est inventée tant que le DAF n'a pas tranché.
+ * Applique la règle confirmée {@code REPARTITION_VERSEMENT} (statut {@code C} depuis V14) : à chaque paiement, au
+ * moins {@code MONTANT_MINIMUM_SECURITE_SOCIALE} (700 FCFA) vers la composante Sécurité sociale ({@code CNPS}), le
+ * reste vers l'Épargne — sauf recommandation structurée de paiement (montant &gt; 1 000 FCFA) ou préférence
+ * d'allocation de l'adhérent. Sécurité sociale + Épargne égale toujours le montant ; une allocation où la Sécurité
+ * sociale descend sous le minimum est refusée.
  */
 @Service
 public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiement {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServiceAffectationPaiementImpl.class);
-    private static final String CLE_PARAMETRE_REPARTITION = "REPARTITION_VERSEMENT";
-    private static final String CODE_COMPOSANTE_DEFAUT = "COOPERATIVE";
-    private static final String REGLE_DEFAUT = "PAR_DEFAUT_COOPERATIVE_NON_VALIDEE";
+    static final String CLE_PARAMETRE_REPARTITION = "REPARTITION_VERSEMENT";
+    static final String CLE_MINIMUM_SECURITE_SOCIALE = "MONTANT_MINIMUM_SECURITE_SOCIALE";
+    static final String CODE_SECURITE_SOCIALE = "CNPS";
+    static final String CODE_EPARGNE = "EPARGNE";
+    /** Seuil au-delà duquel une recommandation structurée du membre est prise en compte (règle confirmée). */
+    private static final BigDecimal SEUIL_RECOMMANDATION = new BigDecimal("1000");
+    static final String REGLE_DEFAUT = "SECURITE_SOCIALE_MINIMUM_700_PUIS_EPARGNE";
+    static final String REGLE_PREFERENCE = "PREFERENCE_ADHERENT";
+    static final String REGLE_RECOMMANDATION = "RECOMMANDATION_PAIEMENT";
+    /** Règle des affectations produites avant l'application de la répartition confirmée (historique). */
+    static final String REGLE_ANCIENNE_COOPERATIVE = "PAR_DEFAUT_COOPERATIVE_NON_VALIDEE";
     private static final String REGLE_MANUELLE = "MANUEL";
 
     private final AffectationPaiementRepository affectationRepository;
@@ -46,16 +58,23 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
     private final ComposanteAffectationRepository composanteRepository;
     private final ServiceParametre serviceParametre;
     private final ServiceAudit serviceAudit;
+    private final JdbcTemplate jdbcTemplate;
 
     public ServiceAffectationPaiementImpl(AffectationPaiementRepository affectationRepository,
                                            PaiementRepository paiementRepository,
                                            ComposanteAffectationRepository composanteRepository,
-                                           ServiceParametre serviceParametre, ServiceAudit serviceAudit) {
+                                           ServiceParametre serviceParametre, ServiceAudit serviceAudit,
+                                           JdbcTemplate jdbcTemplate) {
         this.affectationRepository = affectationRepository;
         this.paiementRepository = paiementRepository;
         this.composanteRepository = composanteRepository;
         this.serviceParametre = serviceParametre;
         this.serviceAudit = serviceAudit;
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    /** Répartition retenue pour un paiement. */
+    record Repartition(BigDecimal securiteSociale, BigDecimal epargne, String regle) {
     }
 
     @Override
@@ -69,30 +88,75 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
 
         Paiement paiement = paiementRepository.findById(paiementId)
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable("PAIEMENT_INTROUVABLE", "Paiement introuvable."));
+        Repartition repartition = calculerRepartition(paiement);
 
-        boolean regleValidee = serviceParametre.estValide(CLE_PARAMETRE_REPARTITION);
-        String avertissement = null;
-        if (!regleValidee) {
-            avertissement = "Règle de répartition du versement (REPARTITION_VERSEMENT) non validée par le DAF — "
-                    + "affectation unique appliquée vers COOPERATIVE, sans ventilation CNPS/Épargne.";
-            LOG.warn(avertissement);
+        List<AffectationPaiement> creees = new ArrayList<>();
+        if (repartition.securiteSociale().signum() > 0) {
+            creees.add(affectationRepository.saveAndFlush(new AffectationPaiement(paiementId,
+                    composante(CODE_SECURITE_SOCIALE).getId(), repartition.securiteSociale(), repartition.regle(),
+                    auteur.getIdentifiant())));
         }
+        if (repartition.epargne().signum() > 0) {
+            creees.add(affectationRepository.saveAndFlush(new AffectationPaiement(paiementId,
+                    composante(CODE_EPARGNE).getId(), repartition.epargne(), repartition.regle(),
+                    auteur.getIdentifiant())));
+        }
+        // saveAndFlush (pas seulement save) : ServiceCalculDroitsImpl.imputerPaiement, appelé juste après par
+        // ServicePaiementImpl.valider dans la même transaction, lit ces lignes par une requête JDBC directe — sans
+        // flush immédiat, les INSERT ne seraient pas encore visibles.
+        List<AffectationDto> resultat = creees.stream().map(AffectationDto::depuis).toList();
+        serviceAudit.tracer(TypeOperation.AFFECTATION_CREATION, "paiement", paiementId, null, resultat,
+                "Répartition " + repartition.regle() + " : Sécurité sociale " + repartition.securiteSociale()
+                        + " FCFA, Épargne " + repartition.epargne() + " FCFA");
+        return resultat;
+    }
 
-        ComposanteAffectation composanteDefaut = composanteRepository.findByCode(CODE_COMPOSANTE_DEFAUT)
-                .orElseThrow(() -> new IllegalStateException("Composante COOPERATIVE introuvable — seed V3 incomplet."));
+    /** Recommandation (paiement &gt; 1 000 FCFA), sinon préférence de l'adhérent, sinon règle par défaut. */
+    Repartition calculerRepartition(Paiement paiement) {
+        BigDecimal minimum = serviceParametre.decimal(CLE_MINIMUM_SECURITE_SOCIALE);
+        BigDecimal montant = paiement.getMontant();
+        if (montant.compareTo(minimum) < 0) {
+            throw new ExceptionConflit("PAIEMENT_MONTANT_INFERIEUR_MINIMUM_SECURITE_SOCIALE",
+                    "Le paiement (" + montant + " FCFA) est inférieur au minimum de " + minimum
+                            + " FCFA affecté à la Sécurité sociale à chaque paiement : la répartition est impossible.");
+        }
+        if (montant.compareTo(SEUIL_RECOMMANDATION) > 0) {
+            Optional<Repartition> recommandation = lire(
+                    "SELECT allocation_securite_sociale, allocation_epargne FROM recommandation_allocation_paiement "
+                            + "WHERE paiement_id = ?", REGLE_RECOMMANDATION, paiement.getId());
+            Optional<Repartition> valide = recommandation.filter(r -> estValide(r, montant, minimum));
+            if (valide.isPresent()) {
+                return valide.get();
+            }
+            recommandation.ifPresent(r -> LOG.warn("Recommandation d'allocation ignorée pour le paiement {} : somme ou "
+                    + "minimum Sécurité sociale incohérents.", paiement.getId()));
+        }
+        // Préférence : appliquée telle quelle quand elle porte sur le montant du paiement ; pour un autre montant, la
+        // règle ne dit pas comment l'adapter — la règle par défaut s'applique alors (aucune proportion inventée).
+        Optional<Repartition> preference = lire(
+                "SELECT allocation_securite_sociale, allocation_epargne FROM preference_allocation_adherent "
+                        + "WHERE adherent_id = ? AND actif = true AND montant_reference = ?", REGLE_PREFERENCE,
+                paiement.getAdherentId(), montant);
+        if (preference.isPresent() && estValide(preference.get(), montant, minimum)) {
+            return preference.get();
+        }
+        return new Repartition(minimum, montant.subtract(minimum), REGLE_DEFAUT);
+    }
 
-        AffectationPaiement affectation = new AffectationPaiement(paiementId, composanteDefaut.getId(),
-                paiement.getMontant(), REGLE_DEFAUT, auteur.getIdentifiant());
-        // saveAndFlush (pas seulement save) : ServiceCalculDroitsImpl.imputer, appelé juste après par
-        // ServicePaiementImpl.valider dans la même transaction, lit cette ligne via une requête JDBC directe
-        // (jointure affectation_paiement/paiement) plutôt que via le contexte de persistance Hibernate — sans
-        // flush immédiat, l'INSERT ne serait pas encore visible et l'imputation échouerait (AFFECTATION_INTROUVABLE).
-        affectation = affectationRepository.saveAndFlush(affectation);
+    private Optional<Repartition> lire(String sql, String regle, Object... parametres) {
+        List<Repartition> lignes = jdbcTemplate.query(sql, (rs, i) -> new Repartition(
+                rs.getBigDecimal("allocation_securite_sociale"), rs.getBigDecimal("allocation_epargne"), regle), parametres);
+        return lignes.stream().findFirst();
+    }
 
-        serviceAudit.tracer(TypeOperation.AFFECTATION_CREATION, "affectation_paiement", affectation.getId(),
-                null, AffectationDto.depuis(affectation), avertissement);
+    private static boolean estValide(Repartition r, BigDecimal montant, BigDecimal minimum) {
+        return r.securiteSociale().compareTo(minimum) >= 0 && r.epargne().signum() >= 0
+                && r.securiteSociale().add(r.epargne()).compareTo(montant) == 0;
+    }
 
-        return List.of(AffectationDto.depuis(affectation));
+    private ComposanteAffectation composante(String code) {
+        return composanteRepository.findByCode(code)
+                .orElseThrow(() -> new IllegalStateException("Composante " + code + " introuvable — seed V3 incomplet."));
     }
 
     @Override
@@ -107,6 +171,28 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
             throw new ExceptionValidation("AFFECTATION_MONTANT_INCOHERENT",
                     "La somme des affectations (" + somme + ") doit être égale au montant du paiement ("
                             + paiement.getMontant() + ").");
+        }
+        // Règle confirmée REPARTITION_VERSEMENT : seules la Sécurité sociale et l'Épargne reçoivent un versement, et la
+        // Sécurité sociale ne descend jamais sous le minimum.
+        BigDecimal minimum = serviceParametre.decimal(CLE_MINIMUM_SECURITE_SOCIALE);
+        BigDecimal securiteSociale = BigDecimal.ZERO;
+        for (LigneAffectationDto ligne : lignes) {
+            String code = composanteRepository.findById(ligne.composanteId()).map(ComposanteAffectation::getCode)
+                    .orElseThrow(() -> new ExceptionValidation("AFFECTATION_COMPOSANTE_INCONNUE",
+                            "Composante d'affectation introuvable.", "lignes"));
+            if (!CODE_SECURITE_SOCIALE.equals(code) && !CODE_EPARGNE.equals(code)) {
+                throw new ExceptionValidation("AFFECTATION_COMPOSANTE_NON_AUTORISEE",
+                        "Un versement ne s'affecte qu'à la Sécurité sociale et à l'Épargne (règle REPARTITION_VERSEMENT).",
+                        "lignes");
+            }
+            if (CODE_SECURITE_SOCIALE.equals(code)) {
+                securiteSociale = securiteSociale.add(ligne.montant());
+            }
+        }
+        if (securiteSociale.compareTo(minimum) < 0) {
+            throw new ExceptionValidation("AFFECTATION_SECURITE_SOCIALE_INSUFFISANTE",
+                    "La part Sécurité sociale (" + securiteSociale + " FCFA) ne peut pas être inférieure à " + minimum
+                            + " FCFA (règle REPARTITION_VERSEMENT).", "lignes");
         }
 
         List<AffectationPaiement> existantes = affectationRepository.findByPaiementId(paiementId);
@@ -126,6 +212,24 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
     }
 
     @Override
+    @PreAuthorize("hasAuthority('PAIEMENT:AFFECTER')")
+    @Transactional
+    public List<AffectationDto> reaffecterApresCorrection(UUID paiementId, Utilisateur auteur) {
+        List<AffectationPaiement> existantes = affectationRepository.findByPaiementId(paiementId);
+        if (existantes.stream().anyMatch(a -> REGLE_MANUELLE.equals(a.getRegleAppliquee()))) {
+            throw new ExceptionConflit("PAIEMENT_AFFECTATION_MANUELLE",
+                    "Ce paiement porte une répartition manuelle : refaites-la (POST /paiements/{id}/affectations) "
+                            + "avant d'approuver une correction de montant.");
+        }
+        affectationRepository.deleteAll(existantes);
+        affectationRepository.flush();
+        List<AffectationDto> nouvelles = affecter(paiementId, auteur);
+        serviceAudit.tracer(TypeOperation.AFFECTATION_CREATION, "paiement", paiementId, existantes.size(),
+                nouvelles.size(), "Ré-affectation par défaut après correction approuvée");
+        return nouvelles;
+    }
+
+    @Override
     public void verifierInvariant(UUID paiementId) {
         Paiement paiement = paiementRepository.findById(paiementId)
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable("PAIEMENT_INTROUVABLE", "Paiement introuvable."));
@@ -142,8 +246,10 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
     @Override
     @PreAuthorize("hasAuthority('PAIEMENT:LIRE')")
     public List<AffectationDto> lister(UUID paiementId) {
+        java.util.Map<UUID, ComposanteAffectation> composantes = composanteRepository.findAll().stream()
+                .collect(Collectors.toMap(ComposanteAffectation::getId, c -> c));
         return affectationRepository.findByPaiementId(paiementId).stream()
-                .map(AffectationDto::depuis)
+                .map(a -> AffectationDto.depuis(a, composantes.get(a.getComposanteId())))
                 .collect(Collectors.toList());
     }
 }

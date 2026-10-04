@@ -1,9 +1,13 @@
 package cm.cositi.api.organisation.entite;
 
 import cm.cositi.api.commun.entite.EntiteArchivable;
+import cm.cositi.api.workflow.entite.StatutValidationEntite;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -43,6 +47,16 @@ public class Agent extends EntiteArchivable {
 
     @Column(name = "cree_par_dga_id")
     private UUID creeParDgaId;
+
+    /** Statut de validation du profil (workflow V19), distinct du statut métier {@link #actif}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_validation", nullable = false, length = 30)
+    private StatutValidationEntite statutValidation = StatutValidationEntite.BROUILLON;
+
+    /** Verrouillage optimiste (V19) : un profil modifié pendant l'examen d'une demande invalide celle-ci. */
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
 
     protected Agent() {
     }
@@ -120,5 +134,17 @@ public class Agent extends EntiteArchivable {
 
     public void setCreeParDgaId(UUID creeParDgaId) {
         this.creeParDgaId = creeParDgaId;
+    }
+
+    public StatutValidationEntite getStatutValidation() {
+        return statutValidation;
+    }
+
+    public void setStatutValidation(StatutValidationEntite statutValidation) {
+        this.statutValidation = statutValidation;
+    }
+
+    public Long getVersion() {
+        return version;
     }
 }

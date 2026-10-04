@@ -17,6 +17,7 @@ import cm.cositi.api.organisation.dto.CritereRechercheAgent;
 import cm.cositi.api.organisation.dto.HistoriqueDesignationChefDto;
 import cm.cositi.api.organisation.dto.ModificationAgentDto;
 import cm.cositi.api.organisation.entite.Agent;
+import cm.cositi.api.workflow.entite.StatutValidationEntite;
 import cm.cositi.api.organisation.entite.HistoriqueDesignationChef;
 import cm.cositi.api.organisation.repository.AgentRepository;
 import cm.cositi.api.organisation.repository.HistoriqueDesignationChefRepository;
@@ -57,12 +58,21 @@ public class ServiceAgentImpl implements ServiceAgent {
     private final ServiceAudit serviceAudit;
     private final JournalAuditRepository journalAuditRepository;
     private final ApplicationEventPublisher publicateurEvenements;
+    private final cm.cositi.api.parametre.ServiceParametre serviceParametre;
+
+    /** Paramètre [V] (inventaire D-14) : TOUS ou SOI_ET_SUPERVISES. */
+    static final String PARAM_PERIMETRE_AGENTS = "ORGANISATION_PERIMETRE_AGENTS";
+    static final String PERIMETRE_SOI_ET_SUPERVISES = "SOI_ET_SUPERVISES";
+    /** Rôles qui voient toujours tous les agents : directions, administration, Gestionnaire (les agents lui rendent compte). */
+    private static final java.util.Set<String> ROLES_VOIENT_TOUS_LES_AGENTS =
+            java.util.Set.of("PCA", "DG", "DGA", "DAF", "SUPER_ADMIN", "GESTIONNAIRE_COMPTE");
 
     public ServiceAgentImpl(AgentRepository agentRepository, HistoriqueDesignationChefRepository historiqueRepository,
                              UtilisateurRepository utilisateurRepository, RoleRepository roleRepository,
                              PasswordEncoder encodeurMotDePasse, JdbcTemplate jdbcTemplate, ServiceAudit serviceAudit,
                              JournalAuditRepository journalAuditRepository,
-                             ApplicationEventPublisher publicateurEvenements) {
+                             ApplicationEventPublisher publicateurEvenements,
+                             cm.cositi.api.parametre.ServiceParametre serviceParametre) {
         this.agentRepository = agentRepository;
         this.historiqueRepository = historiqueRepository;
         this.utilisateurRepository = utilisateurRepository;
@@ -72,6 +82,39 @@ public class ServiceAgentImpl implements ServiceAgent {
         this.serviceAudit = serviceAudit;
         this.journalAuditRepository = journalAuditRepository;
         this.publicateurEvenements = publicateurEvenements;
+        this.serviceParametre = serviceParametre;
+    }
+
+    /**
+     * Périmètre de lecture des agents. {@code null} : aucun filtre. Sinon les identifiants visibles : la fiche de
+     * l'agent lié au compte et, pour un Chef, les agents dont il est {@code chef_agent_id}. Un compte terrain sans agent
+     * lié ne voit aucun agent.
+     */
+    private java.util.Set<UUID> agentsVisibles(Utilisateur demandeur) {
+        if (demandeur == null || demandeur.getRoles().stream().anyMatch(r -> ROLES_VOIENT_TOUS_LES_AGENTS.contains(r.getCode()))) {
+            return null;
+        }
+        if (!PERIMETRE_SOI_ET_SUPERVISES.equalsIgnoreCase(serviceParametre.texte(PARAM_PERIMETRE_AGENTS).trim())) {
+            return null;
+        }
+        UUID agentId = demandeur.getAgentId();
+        if (agentId == null) {
+            return java.util.Set.of();
+        }
+        java.util.Set<UUID> ids = new java.util.HashSet<>();
+        ids.add(agentId);
+        if (demandeur.possedeRole("CHEF_AGENT_TERRAIN")) {
+            ids.addAll(jdbcTemplate.query("SELECT id FROM agent WHERE chef_agent_id = ?",
+                    (rs, n) -> (UUID) rs.getObject("id"), agentId));
+        }
+        return ids;
+    }
+
+    private void verifierAgentVisible(UUID id, Utilisateur demandeur) {
+        java.util.Set<UUID> visibles = agentsVisibles(demandeur);
+        if (visibles != null && !visibles.contains(id)) {
+            throw new ExceptionAutorisation("AGENT_HORS_PERIMETRE", "Cet agent n'est pas dans votre périmètre.");
+        }
     }
 
     private void exigerDga(Utilisateur utilisateur, String action) {
@@ -85,6 +128,13 @@ public class ServiceAgentImpl implements ServiceAgent {
     @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
     public ReponsePaginee<AgentDto> lister(CritereRechercheAgent critere, Pageable pageable, Utilisateur demandeur) {
         Specification<Agent> spec = SpecificationsAgent.depuisCritere(critere);
+        java.util.Set<UUID> visibles = agentsVisibles(demandeur);
+        if (visibles != null) {
+            Specification<Agent> perimetre = visibles.isEmpty()
+                    ? (root, query, cb) -> cb.disjunction()
+                    : (root, query, cb) -> root.get("id").in(visibles);
+            spec = spec == null ? perimetre : spec.and(perimetre);
+        }
         Page<AgentDto> page = agentRepository.findAll(spec, pageable).map(AgentDto::depuis);
         return ReponsePaginee.depuis(page);
     }
@@ -92,7 +142,9 @@ public class ServiceAgentImpl implements ServiceAgent {
     @Override
     @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
     public AgentDto consulter(UUID id, Utilisateur demandeur) {
-        return AgentDto.depuis(charger(id));
+        Agent agent = charger(id);
+        verifierAgentVisible(id, demandeur);
+        return AgentDto.depuis(agent);
     }
 
     @Override
@@ -142,6 +194,8 @@ public class ServiceAgentImpl implements ServiceAgent {
     public AgentDto modifier(UUID id, ModificationAgentDto dto, Utilisateur dga) {
         exigerDga(dga, "modifier la fiche d'un agent de terrain");
         Agent agent = charger(id);
+        exigerModificationDirecte(agent, "AGENT_MODIFICATION_PAR_DEMANDE",
+                "POST /api/v1/agents/{id}/demandes-modification");
         AgentDto avant = AgentDto.depuis(agent);
 
         agent.setNomComplet(dto.nomComplet());
@@ -167,6 +221,8 @@ public class ServiceAgentImpl implements ServiceAgent {
             throw new ExceptionValidation("AGENT_MOTIF_REQUIS", "Le motif du changement de statut est obligatoire.");
         }
         Agent agent = charger(id);
+        exigerModificationDirecte(agent, "AGENT_CHANGEMENT_STATUT_PAR_DEMANDE",
+                "POST /api/v1/agents/{id}/demandes-changement-statut");
         if (agent.isActif() == dto.actif()) {
             throw new ExceptionConflit("AGENT_STATUT_INCHANGE", "L'agent a déjà ce statut.");
         }
@@ -186,6 +242,8 @@ public class ServiceAgentImpl implements ServiceAgent {
     public AgentDto affecter(UUID agentId, UUID zoneId, Utilisateur dga) {
         exigerDga(dga, "affecter un agent à une zone");
         Agent agent = charger(agentId);
+        exigerModificationDirecte(agent, "AGENT_MODIFICATION_PAR_DEMANDE",
+                "POST /api/v1/agents/{id}/demandes-modification");
         agent.setZoneId(zoneId);
         agent = agentRepository.save(agent);
         serviceAudit.tracer(TypeOperation.AGENT_CREATION_PAR_DGA, "agent", agent.getId(), null,
@@ -305,6 +363,7 @@ public class ServiceAgentImpl implements ServiceAgent {
     @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
     public List<AuditLigneDto> operations(UUID id, Instant depuis, Instant jusqua, Utilisateur demandeur) {
         charger(id);
+        verifierAgentVisible(id, demandeur);
         Specification<JournalAudit> spec = (root, query, cb) -> {
             var predicat = cb.and(cb.equal(root.get("entite"), "agent"), cb.equal(root.get("entiteId"), id));
             if (depuis != null) {
@@ -333,5 +392,20 @@ public class ServiceAgentImpl implements ServiceAgent {
             sb.append(CARACTERES_MOT_DE_PASSE.charAt(ALEATOIRE.nextInt(CARACTERES_MOT_DE_PASSE.length())));
         }
         return sb.toString();
+    }
+
+    /**
+     * Protection des routes de modification directe (workflow V19, §24) : un profil soumis est verrouillé, un profil
+     * validé ne se modifie et ne change de statut que par demande — refus quel que soit le rôle de l'appelant.
+     */
+    private static void exigerModificationDirecte(Agent agent, String code, String routeDemande) {
+        if (agent.getStatutValidation() == StatutValidationEntite.EN_ATTENTE_VALIDATION) {
+            throw new ExceptionConflit("AGENT_EN_VALIDATION",
+                    "Ce profil d'agent est en cours de validation : il est verrouillé jusqu'à la décision.");
+        }
+        if (agent.getStatutValidation() == StatutValidationEntite.VALIDE) {
+            throw new ExceptionConflit(code, "Ce profil d'agent est validé : la modification passe par une demande ("
+                    + routeDemande + ").");
+        }
     }
 }

@@ -217,6 +217,26 @@ Contrat non confirmé, à valider avant codage. Structure la chaîne hiérarchiq
 
 `/audit` est en lecture seule : aucune méthode d'écriture ni de purge n'est exposée, quel que soit le rôle.
 
+## 10 bis. Temps réel
+
+| Méthode | Chemin |
+|---|---|
+| GET | `/temps-reel/flux` — `text/event-stream`, authentifié par l'en-tête `Authorization` (jamais de jeton dans l'URL) |
+
+Événements : `connecte` à l'ouverture, puis `changement` `{domaine, id, adherentId, typeChangement, horodatage}` avec
+`domaine` ∈ `adherent`, `agent`, `paiement`, `bilan_caisse`, `workflow`, `adhesion`. Diffusés **après commit**
+uniquement, et seulement aux abonnés qui portent une permission de lecture du domaine. Aucun contenu métier : le
+client relit la ressource par sa route ordinaire, qui applique permissions et périmètre. Le flux se ferme après
+10 minutes (`cositi.temps-reel.duree-flux-ms`) et doit être rouvert avec un jeton valide ; commentaire de battement
+toutes les 25 s ; au plus 5 flux par utilisateur (le plus ancien est fermé).
+
+Événement `notification` (V21) : chaque notification déposée (`ServiceNotification`) est poussée **après commit** à
+son **seul destinataire**, avec son contenu (`NotificationDto` : `id`, `type`, `titre`, `corps`, `entite`, `entiteId`,
+`lue`, `creeLe`) — elle lui appartient. Le client l'affiche aussitôt et ouvre l'écran de l'objet notifié. Un
+destinataire nominatif n'est jamais re-notifié par son rôle (`notifierRolesSauf`).
+
+`GET /paiements/{id}/affectations` (V21) : chaque ligne porte aussi `composanteCode` et `composanteLibelle`.
+
 ## 11. Santé et exploitation
 
 | Chemin | Accès |

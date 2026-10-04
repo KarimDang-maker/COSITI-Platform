@@ -23,4 +23,11 @@ public interface ServiceAffectationPaiement {
     void verifierInvariant(UUID paiementId);
 
     List<AffectationDto> lister(UUID paiementId);
+
+    /**
+     * Après une correction de montant approuvée sur un paiement validé (workflow V19, §12) : refait l'affectation
+     * par défaut. Refuse (409) si le paiement porte une répartition manuelle — elle doit être refaite explicitement
+     * par {@link #affecterManuellement}, jamais recalculée silencieusement.
+     */
+    List<AffectationDto> reaffecterApresCorrection(UUID paiementId, Utilisateur auteur);
 }

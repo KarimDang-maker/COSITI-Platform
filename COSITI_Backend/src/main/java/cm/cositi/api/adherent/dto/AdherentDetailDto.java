@@ -2,6 +2,8 @@ package cm.cositi.api.adherent.dto;
 
 import cm.cositi.api.adherent.entite.Adherent;
 import cm.cositi.api.adherent.entite.StatutAdherent;
+import cm.cositi.api.adherent.entite.StatutControleDga;
+import cm.cositi.api.workflow.entite.StatutValidationEntite;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -31,7 +33,12 @@ public record AdherentDetailDto(
         StatutAdherent statut,
         boolean inscriptionPayee,
         boolean archive,
-        Long version
+        Long version,
+        /** Statut de validation du dossier (workflow) : VALIDE = officiel, modifications par demande uniquement. */
+        StatutValidationEntite statutValidation,
+        /** Contrôle documentaire DGA (V20) — un adhérent ACTIF peut être EN_ATTENTE_DGA. */
+        StatutControleDga statutControleDga,
+        java.time.Instant activeLe
 ) {
     /**
      * Sans libellé de zone : forme utilisée pour les instantanés d'audit « avant/après », où seul
@@ -47,6 +54,7 @@ public record AdherentDetailDto(
                 a.getSexe(), a.getTelephonePrincipal(), a.getTelephoneSecondaire(), a.getNumeroCni(), a.getNumeroCnps(),
                 a.getActiviteId(), a.getZoneId(), zoneLibelle, a.getAssociationId(), a.getLocalisation(), a.getQuartier(),
                 a.getVille(), a.getLatitude(), a.getLongitude(), a.getDateAdhesion(), a.getStatut(),
-                a.isInscriptionPayee(), a.isArchive(), a.getVersion());
+                a.isInscriptionPayee(), a.isArchive(), a.getVersion(), a.getStatutValidation(),
+                a.getStatutControleDga(), a.getActiveLe());
     }
 }

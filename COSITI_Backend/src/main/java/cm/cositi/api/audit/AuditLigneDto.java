@@ -12,10 +12,11 @@ public record AuditLigneDto(
         String entite,
         UUID entiteId,
         String motif,
-        String resultat
+        String resultat,
+        String correlationId
 ) {
     public static AuditLigneDto depuis(JournalAudit j) {
         return new AuditLigneDto(j.getId(), j.getHorodatage(), j.getUtilisateurId(), j.getUtilisateurIdentifiant(),
-                j.getTypeOperation(), j.getEntite(), j.getEntiteId(), j.getMotif(), j.getResultat());
+                j.getTypeOperation(), j.getEntite(), j.getEntiteId(), j.getMotif(), j.getResultat(), j.getCorrelationId());
     }
 }

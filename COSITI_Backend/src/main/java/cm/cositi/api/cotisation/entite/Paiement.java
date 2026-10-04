@@ -67,6 +67,15 @@ public class Paiement extends EntiteAuditable {
     @Column(name = "motif_incoherence", columnDefinition = "TEXT")
     private String motifIncoherence;
 
+    @Column(name = "motif_rejet", columnDefinition = "TEXT")
+    private String motifRejet;
+
+    @Column(name = "rejete_par")
+    private UUID rejetePar;
+
+    @Column(name = "rejete_le")
+    private Instant rejeteLe;
+
     @Column(name = "remise_caisse_id")
     private UUID remiseCaisseId;
 
@@ -190,6 +199,36 @@ public class Paiement extends EntiteAuditable {
         this.motifIncoherence = null;
     }
 
+    /** Saisie préparatoire (#14) : le paiement reste modifiable tant qu'il n'est pas soumis. */
+    public void marquerBrouillon() {
+        this.statut = StatutPaiement.BROUILLON;
+    }
+
+    /** Soumission à validation (#14) : BROUILLON -> A_CONTROLER, champs sensibles verrouillés ensuite. */
+    public void soumettre() {
+        this.statut = StatutPaiement.A_CONTROLER;
+    }
+
+    /** Rejet définitif par un validateur (#17). */
+    public void rejeter(String motif, UUID validateurId) {
+        this.statut = StatutPaiement.REJETE;
+        this.motifRejet = motif;
+        this.rejetePar = validateurId;
+        this.rejeteLe = Instant.now();
+    }
+
+    public String getMotifRejet() {
+        return motifRejet;
+    }
+
+    public UUID getRejetePar() {
+        return rejetePar;
+    }
+
+    public Instant getRejeteLe() {
+        return rejeteLe;
+    }
+
     public UUID getRemiseCaisseId() {
         return remiseCaisseId;
     }
@@ -216,6 +255,10 @@ public class Paiement extends EntiteAuditable {
 
     public void modifierDatePaiement(LocalDate nouvelleDate) {
         this.datePaiement = nouvelleDate;
+    }
+
+    public void modifierModePaiement(String modePaiement) {
+        this.modePaiement = modePaiement;
     }
 
     public void modifierReferenceTransaction(String reference) {

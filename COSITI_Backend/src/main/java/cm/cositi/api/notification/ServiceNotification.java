@@ -29,6 +29,13 @@ public interface ServiceNotification {
      */
     int notifierRoles(List<String> codesRoles, String type, String titre, String corps, String entite, UUID entiteId);
 
+    /**
+     * Comme {@link #notifierRoles}, sans redéposer la notification à {@code dejaNotifie} : la personne déjà prévenue
+     * nominativement ne la reçoit pas une seconde fois au titre de son rôle.
+     */
+    int notifierRolesSauf(List<String> codesRoles, UUID dejaNotifie, String type, String titre, String corps,
+                          String entite, UUID entiteId);
+
     ReponsePaginee<NotificationDto> mesNotifications(boolean seulementNonLues, Pageable pageable,
                                                      Utilisateur demandeur);
 

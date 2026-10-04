@@ -48,6 +48,7 @@ public class ServiceCalculDroitsImpl implements ServiceCalculDroits {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServiceCalculDroitsImpl.class);
     private static final String CLE_PARAMETRE_SURPAIEMENT = "TRAITEMENT_SURPAIEMENT";
+    static final String CLE_COMPOSANTES_IMPUTABLES = "DROITS_COMPOSANTES_IMPUTABLES";
 
     private final PeriodeDroitsRepository periodeDroitsRepository;
     private final AdherentRepository adherentRepository;
@@ -89,6 +90,39 @@ public class ServiceCalculDroitsImpl implements ServiceCalculDroits {
         UUID adherentId = (UUID) ligne.get("adherent_id");
 
         return imputerInterne(adherentId, montant, affectationPaiementId, "SYSTEME");
+    }
+
+    @Override
+    @Transactional
+    public List<PeriodeDroitsDto> imputerPaiement(UUID paiementId) {
+        List<Object> parametres = new ArrayList<>();
+        parametres.add(paiementId);
+        String filtre = filtreComposantes(parametres);
+        List<Map<String, Object>> lignes = jdbcTemplate.queryForList("""
+                SELECT p.adherent_id AS adherent_id, COALESCE(SUM(ap.montant), 0) AS montant,
+                       (array_agg(ap.id ORDER BY (c.code = 'CNPS') DESC, ap.cree_le))[1] AS source
+                FROM affectation_paiement ap
+                JOIN paiement p ON p.id = ap.paiement_id
+                JOIN composante_affectation c ON c.id = ap.composante_id
+                WHERE p.id = ?""" + filtre + " GROUP BY p.adherent_id", parametres.toArray());
+        if (lignes.isEmpty()) {
+            LOG.warn("Paiement {} sans affectation imputable : aucune période de droits ouverte.", paiementId);
+            return List.of();
+        }
+        Map<String, Object> ligne = lignes.get(0);
+        return imputerInterne((UUID) ligne.get("adherent_id"), (BigDecimal) ligne.get("montant"),
+                (UUID) ligne.get("source"), "SYSTEME");
+    }
+
+    /** {@code AND c.code IN (...)} sur les composantes imputables (paramètre {@code DROITS_COMPOSANTES_IMPUTABLES}). */
+    private String filtreComposantes(List<Object> parametres) {
+        List<String> codes = java.util.Arrays.stream(serviceParametre.texte(CLE_COMPOSANTES_IMPUTABLES).split(","))
+                .map(String::trim).filter(c -> !c.isEmpty()).toList();
+        if (codes.isEmpty()) {
+            return " AND false";
+        }
+        parametres.addAll(codes);
+        return " AND c.code IN (" + String.join(", ", java.util.Collections.nCopies(codes.size(), "?")) + ")";
     }
 
     private List<PeriodeDroitsDto> imputerInterne(UUID adherentId, BigDecimal montant, UUID sourceAffectationId,
@@ -197,6 +231,10 @@ public class ServiceCalculDroitsImpl implements ServiceCalculDroits {
         BigDecimal soldeAvantSeuil = seuilCnps == null ? BigDecimal.ZERO
                 : seuilCnps.subtract(cumulCotise).max(BigDecimal.ZERO);
 
+        if (!serviceParametre.estValide(CLE_COMPOSANTES_IMPUTABLES)) {
+            avertissements.add("Les composantes du versement qui ouvrent des droits (DROITS_COMPOSANTES_IMPUTABLES) ne "
+                    + "sont pas validées par la COSITI — le montant total du versement est imputé.");
+        }
         if (!serviceParametre.estValide(CLE_PARAMETRE_SURPAIEMENT)) {
             avertissements.add("Le traitement d'un éventuel reliquat de versement (TRAITEMENT_SURPAIEMENT) "
                     + "n'est pas validé par le DAF — un reliquat récent, s'il existe, reste non imputé.");
@@ -237,18 +275,25 @@ public class ServiceCalculDroitsImpl implements ServiceCalculDroits {
             periodeDroitsRepository.save(p);
         }
 
+        // Un paiement = une imputation (somme des composantes imputables), dans l'ordre chronologique — même règle
+        // que l'imputation à la validation (imputerPaiement).
+        List<Object> parametres = new ArrayList<>();
+        parametres.add(adherentId);
+        String filtre = filtreComposantes(parametres);
         List<Map<String, Object>> affectationsARejouer = jdbcTemplate.queryForList("""
-                SELECT ap.id AS affectation_id, ap.montant AS montant
+                SELECT p.id AS paiement_id, SUM(ap.montant) AS montant,
+                       (array_agg(ap.id ORDER BY (c.code = 'CNPS') DESC, ap.cree_le))[1] AS source
                 FROM affectation_paiement ap
                 JOIN paiement p ON p.id = ap.paiement_id
-                WHERE p.adherent_id = ? AND p.statut IN ('VALIDE','RAPPROCHE') AND p.archive = false
-                ORDER BY p.date_paiement ASC, ap.cree_le ASC
-                """, adherentId);
+                JOIN composante_affectation c ON c.id = ap.composante_id
+                WHERE p.adherent_id = ? AND p.statut IN ('VALIDE','RAPPROCHE') AND p.archive = false""" + filtre + """
+                 GROUP BY p.id, p.date_paiement
+                ORDER BY p.date_paiement ASC, MIN(ap.cree_le) ASC
+                """, parametres.toArray());
 
         for (Map<String, Object> ligne : affectationsARejouer) {
-            UUID affectationId = (UUID) ligne.get("affectation_id");
-            BigDecimal montant = (BigDecimal) ligne.get("montant");
-            imputerInterne(adherentId, montant, affectationId, auteur.getIdentifiant());
+            imputerInterne(adherentId, (BigDecimal) ligne.get("montant"), (UUID) ligne.get("source"),
+                    auteur.getIdentifiant());
         }
 
         serviceAudit.tracer(TypeOperation.DROITS_RECALCUL, "adherent", adherentId, existantes.size(),

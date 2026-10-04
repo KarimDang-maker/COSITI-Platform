@@ -62,6 +62,9 @@ class ServiceAgentImplTest {
     @Mock
     private ApplicationEventPublisher publicateurEvenements;
 
+    @Mock
+    private cm.cositi.api.parametre.ServiceParametre serviceParametre;
+
     private ServiceAgentImpl service;
     private Utilisateur dga;
     private Utilisateur nonDga;
@@ -69,7 +72,8 @@ class ServiceAgentImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceAgentImpl(agentRepository, historiqueRepository, utilisateurRepository, roleRepository,
-                encodeurMotDePasse, jdbcTemplate, serviceAudit, journalAuditRepository, publicateurEvenements);
+                encodeurMotDePasse, jdbcTemplate, serviceAudit, journalAuditRepository, publicateurEvenements,
+                serviceParametre);
 
         dga = new Utilisateur("dga1", "hash", "DGA Un");
         setId(dga, UUID.randomUUID());
@@ -101,6 +105,64 @@ class ServiceAgentImplTest {
         setId(a, UUID.randomUUID());
         a.setUtilisateurId(utilisateurId);
         return a;
+    }
+
+    // ------------------------------------------------------------------ Périmètre de lecture (ORGANISATION_PERIMETRE_AGENTS)
+
+    private Utilisateur agentTerrain(UUID agentId, String role) throws Exception {
+        Utilisateur u = new Utilisateur("terrain", "hash", "Terrain");
+        setId(u, UUID.randomUUID());
+        u.ajouterRole(roleAvecCode(role));
+        u.setAgentId(agentId);
+        return u;
+    }
+
+    @Test
+    void parDefautUnAgentVoitTousLesAgents() throws Exception {
+        Agent autre = agentAvecId(UUID.randomUUID(), null);
+        when(agentRepository.findById(autre.getId())).thenReturn(java.util.Optional.of(autre));
+        when(serviceParametre.texte("ORGANISATION_PERIMETRE_AGENTS")).thenReturn("TOUS");
+
+        var dto = service.consulter(autre.getId(), agentTerrain(UUID.randomUUID(), "AGENT_TERRAIN"));
+
+        org.assertj.core.api.Assertions.assertThat(dto.id()).isEqualTo(autre.getId());
+    }
+
+    @Test
+    void enPerimetreRestreintUnAgentNeVoitPasUnAutreAgent() throws Exception {
+        Agent autre = agentAvecId(UUID.randomUUID(), null);
+        when(agentRepository.findById(autre.getId())).thenReturn(java.util.Optional.of(autre));
+        when(serviceParametre.texte("ORGANISATION_PERIMETRE_AGENTS")).thenReturn("SOI_ET_SUPERVISES");
+        Utilisateur agent = agentTerrain(UUID.randomUUID(), "AGENT_TERRAIN");
+
+        assertThatThrownBy(() -> service.consulter(autre.getId(), agent))
+                .isInstanceOf(ExceptionAutorisation.class)
+                .hasFieldOrPropertyWithValue("code", "AGENT_HORS_PERIMETRE");
+    }
+
+    @Test
+    void enPerimetreRestreintLeChefVoitLesAgentsQuIlSupervise() throws Exception {
+        Agent supervise = agentAvecId(UUID.randomUUID(), null);
+        UUID chefId = UUID.randomUUID();
+        when(agentRepository.findById(supervise.getId())).thenReturn(java.util.Optional.of(supervise));
+        when(serviceParametre.texte("ORGANISATION_PERIMETRE_AGENTS")).thenReturn("SOI_ET_SUPERVISES");
+        when(jdbcTemplate.query(org.mockito.ArgumentMatchers.contains("chef_agent_id"),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<UUID>>any(),
+                org.mockito.ArgumentMatchers.eq(chefId))).thenReturn(java.util.List.of(supervise.getId()));
+
+        var dto = service.consulter(supervise.getId(), agentTerrain(chefId, "CHEF_AGENT_TERRAIN"));
+
+        org.assertj.core.api.Assertions.assertThat(dto.id()).isEqualTo(supervise.getId());
+    }
+
+    @Test
+    void laDgaVoitToujoursTousLesAgents() throws Exception {
+        Agent autre = agentAvecId(UUID.randomUUID(), null);
+        when(agentRepository.findById(autre.getId())).thenReturn(java.util.Optional.of(autre));
+
+        service.consulter(autre.getId(), dga);
+
+        org.mockito.Mockito.verifyNoInteractions(serviceParametre);
     }
 
     @Test
@@ -218,5 +280,42 @@ class ServiceAgentImplTest {
         assertThat(resultat.actif()).isFalse();
         verify(serviceAudit).tracer(eq(TypeOperation.AGENT_CHANGEMENT_STATUT), eq("agent"), eq(agent.getId()),
                 eq(true), eq(false), eq("Congé longue durée"));
+    }
+
+    // ------------------------------------------------------------------ Workflow V19 : routes directes protégées
+
+    @Test
+    void modifierRefuseUnProfilValide() throws Exception {
+        Agent agent = agentAvecId(UUID.randomUUID(), UUID.randomUUID());
+        agent.setStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
+        when(agentRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+
+        assertThatThrownBy(() -> service.modifier(agent.getId(),
+                new ModificationAgentDto("Nouveau Nom", "690000009", null, null), dga))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "AGENT_MODIFICATION_PAR_DEMANDE");
+    }
+
+    @Test
+    void changerStatutRefuseUnProfilValide() throws Exception {
+        Agent agent = agentAvecId(UUID.randomUUID(), UUID.randomUUID());
+        agent.setStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
+        when(agentRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+
+        assertThatThrownBy(() -> service.changerStatut(agent.getId(), new ChangerStatutAgentDto(false, "Départ"), dga))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "AGENT_CHANGEMENT_STATUT_PAR_DEMANDE");
+    }
+
+    @Test
+    void modifierRefuseUnProfilEnCoursDeValidation() throws Exception {
+        Agent agent = agentAvecId(UUID.randomUUID(), UUID.randomUUID());
+        agent.setStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.EN_ATTENTE_VALIDATION);
+        when(agentRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+
+        assertThatThrownBy(() -> service.modifier(agent.getId(),
+                new ModificationAgentDto("Nouveau Nom", "690000009", null, null), dga))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "AGENT_EN_VALIDATION");
     }
 }

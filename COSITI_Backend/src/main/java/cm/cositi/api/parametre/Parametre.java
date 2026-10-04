@@ -90,6 +90,16 @@ public class Parametre {
         return !"V".equalsIgnoreCase(statutValidation);
     }
 
+    /**
+     * Confirmation d'une règle par la COSITI ({@code V}/{@code A} → {@code C}). Seul chemin de changement du statut :
+     * la valeur n'est pas modifiée, la décision est tracée par l'appelant (audit REGLE_VALIDATION).
+     */
+    public void confirmer(String auteur) {
+        this.statutValidation = "C";
+        this.modifieLe = Instant.now();
+        this.modifiePar = auteur;
+    }
+
     public Instant getModifieLe() {
         return modifieLe;
     }

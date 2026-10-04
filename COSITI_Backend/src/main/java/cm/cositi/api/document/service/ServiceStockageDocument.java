@@ -2,6 +2,7 @@ package cm.cositi.api.document.service;
 
 import cm.cositi.api.document.dto.ContenuDocument;
 import cm.cositi.api.document.dto.DocumentDto;
+import cm.cositi.api.document.dto.OptionsTeleversementDto;
 import cm.cositi.api.document.dto.RattachementDto;
 import cm.cositi.api.document.entite.StatutDocument;
 import cm.cositi.api.document.entite.TypeDocument;
@@ -16,6 +17,10 @@ public interface ServiceStockageDocument {
 
     DocumentDto televerser(MultipartFile fichier, TypeDocument type, RattachementDto rattachement,
                             Utilisateur auteur);
+
+    /** Variante avec validité et remplacement versionné (§21-22). */
+    DocumentDto televerser(MultipartFile fichier, TypeDocument type, RattachementDto rattachement,
+                           OptionsTeleversementDto options, Utilisateur auteur);
 
     /** Journalise la consultation ({@code DOCUMENT_CONSULTATION}) avant de rendre le contenu. */
     ContenuDocument telecharger(UUID documentId, Utilisateur demandeur);

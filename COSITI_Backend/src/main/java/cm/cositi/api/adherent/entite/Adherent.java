@@ -2,6 +2,7 @@ package cm.cositi.api.adherent.entite;
 
 import cm.cositi.api.commun.entite.EntiteArchivable;
 import cm.cositi.api.commun.validation.DonneeSensible;
+import cm.cositi.api.workflow.entite.StatutValidationEntite;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -89,6 +90,29 @@ public class Adherent extends EntiteArchivable {
 
     @Column(name = "consentement_donnees_le")
     private Instant consentementDonneesLe;
+
+    /** État du contrôle documentaire DGA (V20). */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_controle_dga", nullable = false, length = 30)
+    private StatutControleDga statutControleDga = StatutControleDga.NON_SOUMIS;
+
+    @Column(name = "active_le")
+    private Instant activeLe;
+
+    @Column(name = "active_par")
+    private UUID activePar;
+
+    /** Première transmission à la DGA : clé du comptage des dossiers soumis, jamais réécrite (V20). */
+    @Column(name = "premiere_soumission_dga_le")
+    private Instant premiereSoumissionDgaLe;
+
+    @Column(name = "derniere_soumission_dga_le")
+    private Instant derniereSoumissionDgaLe;
+
+    /** Statut de validation du dossier (workflow V19), distinct du statut métier {@link #statut}. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_validation", nullable = false, length = 30)
+    private StatutValidationEntite statutValidation = StatutValidationEntite.BROUILLON;
 
     @Version
     @Column(name = "version", nullable = false)
@@ -270,6 +294,55 @@ public class Adherent extends EntiteArchivable {
 
     public Long getVersion() {
         return version;
+    }
+
+    public StatutControleDga getStatutControleDga() {
+        return statutControleDga;
+    }
+
+    public void setStatutControleDga(StatutControleDga statutControleDga) {
+        this.statutControleDga = statutControleDga;
+    }
+
+    public Instant getActiveLe() {
+        return activeLe;
+    }
+
+    public UUID getActivePar() {
+        return activePar;
+    }
+
+    /** Activation par le Gestionnaire des comptes (V20) : statut métier ACTIF, auteur et date conservés. */
+    public void activer(UUID gestionnaireId) {
+        this.statut = StatutAdherent.ACTIF;
+        this.activeLe = Instant.now();
+        this.activePar = gestionnaireId;
+    }
+
+    public Instant getPremiereSoumissionDgaLe() {
+        return premiereSoumissionDgaLe;
+    }
+
+    public Instant getDerniereSoumissionDgaLe() {
+        return derniereSoumissionDgaLe;
+    }
+
+    /** Transmission au contrôle DGA : la première date n'est jamais réécrite (comptage sans double comptage). */
+    public void marquerSoumisDga() {
+        Instant maintenant = Instant.now();
+        if (this.premiereSoumissionDgaLe == null) {
+            this.premiereSoumissionDgaLe = maintenant;
+        }
+        this.derniereSoumissionDgaLe = maintenant;
+        this.statutControleDga = StatutControleDga.EN_ATTENTE_DGA;
+    }
+
+    public StatutValidationEntite getStatutValidation() {
+        return statutValidation;
+    }
+
+    public void setStatutValidation(StatutValidationEntite statutValidation) {
+        this.statutValidation = statutValidation;
     }
 
     public String getNomComplet() {

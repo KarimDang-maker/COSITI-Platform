@@ -66,6 +66,10 @@ public class JournalAudit {
     @Column(name = "resultat", nullable = false, updatable = false, length = 20)
     private String resultat;
 
+    /** Identifiant de corrélation de la requête (V21, §42) — relie l'audit aux journaux techniques. */
+    @Column(name = "correlation_id", updatable = false, length = 80)
+    private String correlationId;
+
     protected JournalAudit() {
     }
 
@@ -84,6 +88,7 @@ public class JournalAudit {
         this.adresseIp = adresseIp;
         this.userAgent = userAgent;
         this.resultat = resultat;
+        this.correlationId = cm.cositi.api.audit.ContexteAudit.correlationId();
     }
 
     public UUID getId() {
@@ -124,6 +129,10 @@ public class JournalAudit {
 
     public String getMotif() {
         return motif;
+    }
+
+    public String getCorrelationId() {
+        return correlationId;
     }
 
     public String getResultat() {
