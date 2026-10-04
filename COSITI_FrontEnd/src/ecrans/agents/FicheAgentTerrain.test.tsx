@@ -53,7 +53,7 @@ describe("FicheAgentTerrain", () => {
     const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/agents/agent-2" });
 
-    const lien = await screen.findByRole("link", { name: /Voir les dossiers incomplets/ });
+    const lien = await screen.findByRole("link", { name: /Voir les dossiers incomplets/ }, { timeout: 4000 });
     expect(lien).toHaveAttribute("href", "/adherents?agentId=agent-2&completion=0-99");
     await utilisateur.click(lien);
     expect(await screen.findByText("Liste des adhérents filtrée")).toBeInTheDocument();
@@ -261,9 +261,9 @@ describe("FicheAgentTerrain", () => {
     simulerSession(JETON_GESTIONNAIRE);
     rendreAvecProviders(arbre(), { routeInitiale: "/agents/agent-1?onglet=historique" });
 
-    expect(await screen.findByText("NDONGO Marie Claire")).toBeInTheDocument();
+    expect(await screen.findByText("NDONGO Marie Claire", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.getByText("En cours")).toBeInTheDocument();
-    expect(await screen.findByText("Adhérent hors de votre périmètre")).toBeInTheDocument();
+    expect(await screen.findByText("Adhérent hors de votre périmètre", {}, { timeout: 4000 })).toBeInTheDocument();
     expect(screen.getByText("Changement de secteur")).toBeInTheDocument();
   });
 

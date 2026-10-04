@@ -89,6 +89,8 @@ export type ValeursCoordonnees = z.infer<typeof schemaCoordonnees>;
 export const schemaProfessionnel = z.object({
   activiteId: z.string().min(1, "L'activité est obligatoire."),
   numeroCnps: z.string().trim().optional(),
+  /** V21 : choisie dans le référentiel `GET /associations` ; vide = aucune association. */
+  associationId: z.string().optional(),
 });
 
 export type ValeursProfessionnel = z.infer<typeof schemaProfessionnel>;

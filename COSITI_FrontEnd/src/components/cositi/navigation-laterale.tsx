@@ -1,5 +1,6 @@
 import { Link, NavLink } from "react-router";
 import {
+  Scale,
   Users,
   MapPinned,
   Wallet,
@@ -13,7 +14,11 @@ import {
   History,
   Settings,
   UserRoundCog,
+  Landmark,
+  ListChecks,
   type LucideIcon,
+  Coins,
+  FileSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/ContexteAuth";
@@ -34,6 +39,8 @@ interface EntreeNavigation {
    * l'API reste seule décisionnaire (`AGENTS.md` règle 1).
    */
   permission?: CodePermission;
+  /** Au moins une de ces permissions. */
+  unePermissionParmi?: readonly CodePermission[];
 }
 
 interface SectionNavigation {
@@ -59,12 +66,16 @@ const SECTIONS: readonly SectionNavigation[] = [
       { chemin: TABLEAU_DE_BORD, libelle: "Tableau de bord", icone: LayoutDashboard },
       // `V12__rapports_daf_exports_j10.sql` : PCA, DAF, DG et DGA uniquement.
       { chemin: "/rapports", libelle: "Rapports", icone: FileText, permission: "RAPPORT_DAF:LIRE" },
+      // Workflow V19 : toute la chaîne métier propose ou décide ; ADHERENT:LIRE est porté par tous les rôles métier.
+      { chemin: "/validations", libelle: "Centre de validation", icone: ListChecks, permission: "ADHERENT:LIRE" },
     ],
   },
   {
     titre: "Adhérents",
     entrees: [
       { chemin: "/adherents", libelle: "Adhérents", icone: Users, permission: "ADHERENT:LIRE" },
+      // `V20__frais_adhesion_activation_controle_dga.sql` : PCA, DG, DGA, Gestionnaire.
+      { chemin: "/controles-dga", libelle: "Contrôle DGA", icone: FileSearch, permission: "CONTROLE_DGA:LIRE" },
       // Confirmé réel depuis `V8__permissions_j5_j6.sql` — voir `Conception/SUIVI_EXECUTION.md`.
       { chemin: "/droits", libelle: "Droits", icone: ScrollText, permission: "DROITS:LIRE" },
       // `V9__permissions_j7_cnps_documents.sql` : lecture ouverte à PCA, DG, DGA,
@@ -91,6 +102,10 @@ const SECTIONS: readonly SectionNavigation[] = [
     titre: "Finances",
     entrees: [
       { chemin: "/cotisations", libelle: "Cotisations", icone: Wallet, permission: "PAIEMENT:LIRE" },
+      // V20 : PCA, DG, DGA, DAF, Gestionnaire.
+      { chemin: "/frais-adhesion", libelle: "Frais d'adhésion", icone: Coins, permission: "FRAIS_ADHESION:LIRE" },
+      // `V18__cotisations_rejet_bilan_caisse.sql` : PCA, DG, DGA, DAF, Gestionnaire.
+      { chemin: "/bilans-caisse", libelle: "Bilan de caisse", icone: Landmark, permission: "BILAN_CAISSE:LIRE" },
       // La file de contrôle DAF (J5) réutilise le même contrat que Cotisations
       // (`GET /paiements`, filtré sur `statut=A_CONTROLER`) — même permission
       // de lecture, pas de code dédié inventé pour la seule visibilité du menu.
@@ -103,6 +118,13 @@ const SECTIONS: readonly SectionNavigation[] = [
       { chemin: "/audit", libelle: "Audit", icone: History, permission: "AUDIT:CONSULTER" },
       // `V13__administration_securite_j11.sql` : Super Administrateur uniquement.
       { chemin: "/administration", libelle: "Administration", icone: Settings, permission: "ADMINISTRATION:LIRE" },
+      // V21 : décision du PCA (`REGLE:VALIDER`), consultation par l'administration.
+      {
+        chemin: "/regles",
+        libelle: "Règles à valider",
+        icone: Scale,
+        unePermissionParmi: ["ADMINISTRATION:LIRE", "REGLE:VALIDER"],
+      },
     ],
   },
 ];
@@ -134,6 +156,7 @@ export function NavigationLaterale({ repliee = false, onNaviguer, className }: N
     ...section,
     entrees: section.entrees
       .filter((entree) => !entree.permission || aLaPermission(entree.permission))
+      .filter((entree) => !entree.unePermissionParmi || entree.unePermissionParmi.some((p) => aLaPermission(p)))
       .filter((entree) => entree.chemin !== TABLEAU_DE_BORD || cheminDashboard !== null)
       .map((entree) => (entree.chemin === TABLEAU_DE_BORD ? { ...entree, chemin: cheminDashboard! } : entree)),
   })).filter((section) => section.entrees.length > 0);

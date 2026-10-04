@@ -103,6 +103,20 @@ export function EcranAudit() {
           <span className="text-sm text-texte-doux">{row.original.motif ?? "—"}</span>
         ),
       },
+      {
+        id: "correlation",
+        header: "Corrélation",
+        // V21 : même identifiant dans les journaux serveur et les erreurs affichées (« traceId ») — sert à relier
+        // une plainte utilisateur à la ligne d'audit correspondante.
+        cell: ({ row }) =>
+          row.original.correlationId ? (
+            <span className="ref text-xs" title={row.original.correlationId}>
+              {row.original.correlationId.slice(0, 8)}
+            </span>
+          ) : (
+            "—"
+          ),
+      },
     ],
     [],
   );

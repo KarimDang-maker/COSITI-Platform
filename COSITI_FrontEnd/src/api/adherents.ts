@@ -14,6 +14,7 @@
 import { client } from "@/api/client";
 import type { EnveloppeListe } from "@/api/pagination";
 import type { TypeDocument } from "@/api/documents";
+import type { StatutValidationEntite } from "@/api/workflow";
 
 export type StatutAdherent = "PREINSCRIT" | "ACTIF" | "EN_RETARD" | "INACTIF" | "REACTIVE" | "RADIE";
 export type Sexe = "M" | "F";
@@ -46,6 +47,11 @@ export interface Adherent {
   readonly archive?: boolean;
   /** Version de concurrence optimiste, renvoyée telle quelle au `PUT /adherents/{id}` (#13). */
   readonly version?: number | null;
+  /**
+   * Workflow V19 : `VALIDE` = dossier officiel, modifiable uniquement par demande ; `EN_ATTENTE_VALIDATION` =
+   * verrouillé. Absent d'une API antérieure à V19 : l'écran garde alors la modification directe.
+   */
+  readonly statutValidation?: StatutValidationEntite;
   /** Champ de cache toléré pour l'affichage — l'agent référent réel vit dans `affectation_portefeuille` (`01_SCHEMA_BDD.md`). */
   readonly agentReferentNom?: string | null;
 }
@@ -439,6 +445,24 @@ export interface Activite {
  */
 export function listerActivites() {
   return client.get<Activite[]>("/activites");
+}
+
+/** Association partenaire (V21, `AssociationDto`) — référentiel en lecture seule, tenu côté serveur. */
+export interface Association {
+  readonly id: string;
+  readonly code: string;
+  readonly nom: string;
+  readonly type: string | null;
+  readonly contactNom: string | null;
+  readonly contactTelephone: string | null;
+  readonly zoneId: string | null;
+  readonly dateConvention: string | null;
+  readonly active: boolean;
+}
+
+/** `GET /associations` (`ADHERENT:LIRE`) : actives et inactives, triées par nom. */
+export function listerAssociations() {
+  return client.get<Association[]>("/associations");
 }
 
 /** Un pack de cotisation du référentiel COSITI (table `pack`, deux lignes livrées par la migration V2). */

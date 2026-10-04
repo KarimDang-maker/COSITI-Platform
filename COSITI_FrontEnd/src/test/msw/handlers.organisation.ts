@@ -17,6 +17,8 @@ export let AGENTS_TEST: Agent[] = [
     chefAgentId: null,
     objectifCollecteMensuel: 500000,
     actif: true,
+    statutValidation: "VALIDE",
+    version: 2,
   },
   {
     id: "agent-2",
@@ -28,6 +30,8 @@ export let AGENTS_TEST: Agent[] = [
     chefAgentId: "agent-1",
     objectifCollecteMensuel: 400000,
     actif: true,
+    statutValidation: "BROUILLON",
+    version: 0,
   },
   {
     id: "agent-3",
@@ -39,6 +43,8 @@ export let AGENTS_TEST: Agent[] = [
     chefAgentId: null,
     objectifCollecteMensuel: null,
     actif: false,
+    statutValidation: "VALIDE",
+    version: 4,
   },
 ];
 
@@ -206,6 +212,13 @@ export const handlersOrganisation = [
   http.put("/api/v1/agents/:id", async ({ params, request }) => {
     const agent = AGENTS_TEST.find((a) => a.id === params.id);
     if (!agent) return agentIntrouvable();
+    // Workflow V19 : profil validé → demande de modification obligatoire.
+    if (agent.statutValidation === "VALIDE") {
+      return HttpResponse.json(
+        { code: "AGENT_MODIFICATION_PAR_DEMANDE", message: "Ce profil est validé : passez par une demande de modification.", traceId: "t", avertissements: [] },
+        { status: 409 },
+      );
+    }
     const corps = (await request.json()) as Partial<Agent>;
     return HttpResponse.json({ ...agent, ...corps });
   }),
@@ -213,6 +226,12 @@ export const handlersOrganisation = [
   http.post("/api/v1/agents/:id/statut", async ({ params, request }) => {
     const agent = AGENTS_TEST.find((a) => a.id === params.id);
     if (!agent) return agentIntrouvable();
+    if (agent.statutValidation === "VALIDE") {
+      return HttpResponse.json(
+        { code: "AGENT_CHANGEMENT_STATUT_PAR_DEMANDE", message: "Ce profil est validé : passez par une demande de changement de statut.", traceId: "t", avertissements: [] },
+        { status: 409 },
+      );
+    }
     const corps = (await request.json()) as { actif: boolean; motif: string };
     if (!corps.motif) {
       return HttpResponse.json(

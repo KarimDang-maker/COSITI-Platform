@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { BoutonEntete } from "@/components/cositi/bouton-entete";
 import { useCompteNonLues, useMarquerNotificationLue, useNotifications } from "@/hooks/useNotifications";
-import { cheminNotification, type Notification } from "@/api/notifications";
+import { cheminNotification, libelleActionNotification, type Notification } from "@/api/notifications";
 import { formaterDateHeure } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -16,15 +16,15 @@ import { cn } from "@/lib/utils";
  * Cloche de notifications de l'en-tête (J8), au format du gabarit : en-tête
  * de panneau, liste à pastilles, point « non lue ».
  *
- * Une notification arrive d'une action faite par quelqu'un d'autre — un compte
- * rendu transmis, un écart de caisse constaté. Le compteur est donc rafraîchi
- * périodiquement (voir `useCompteNonLues`), mais volontairement sans temps
- * réel : la connexion terrain est lente et ce n'est pas une donnée critique.
+ * Une notification arrive d'une action faite par quelqu'un d'autre — une
+ * demande à valider, un dossier à contrôler, un écart de caisse. Elle est
+ * poussée à son destinataire par le flux temps réel : une alerte apparaît
+ * aussitôt (`ecrans/notifications/AlertesNotifications.tsx`) et la cloche se
+ * recharge ; un rechargement périodique sert de filet si le flux est coupé.
  *
- * Ouvrir une notification la marque lue et navigue vers l'objet concerné quand
- * un écran existe pour lui ; sinon elle est seulement marquée lue, plutôt que
- * de mener à un lien mort. Aucun lien « Voir toutes » : aucun écran de liste
- * complète n'est spécifié.
+ * Ouvrir une notification la marque lue et navigue vers l'écran où y répondre
+ * (`cheminNotification`), annoncé par le libellé d'action ; sans écran, elle
+ * est seulement marquée lue, plutôt que de mener à un lien mort.
  */
 export function ClocheNotifications() {
   const navigate = useNavigate();
@@ -97,6 +97,9 @@ export function ClocheNotifications() {
                   </span>
                   <span className="block text-xs text-texte-doux">{notification.corps}</span>
                   <span className="block text-2xs text-texte-doux">{formaterDateHeure(notification.creeLe)}</span>
+                  {cheminNotification(notification) && (
+                    <span className="block text-xs font-semibold text-primaire">{libelleActionNotification(notification)} →</span>
+                  )}
                 </span>
                 {!notification.lue && (
                   <span className="mt-1.5 size-2 shrink-0 rounded-full bg-marque" aria-hidden="true" />

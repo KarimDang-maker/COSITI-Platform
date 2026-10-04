@@ -7,6 +7,8 @@ import { AccesNonAutorise } from "@/ecrans/AccesNonAutorise";
 interface GardeRouteProps {
   /** Permission requise pour cette route. Absente = simple exigence de session active. */
   permission?: CodePermission;
+  /** Variante « au moins une de ces permissions » (ex. lecture des règles : administration ou validation). */
+  unePermissionParmi?: readonly CodePermission[];
   children: ReactNode;
 }
 
@@ -19,7 +21,7 @@ interface GardeRouteProps {
  * échoueront de toute façon en `403` — l'autorisation réelle reste décidée
  * par l'API à chaque requête.
  */
-export function GardeRoute({ permission, children }: GardeRouteProps) {
+export function GardeRoute({ permission, unePermissionParmi, children }: GardeRouteProps) {
   const { statut, aLaPermission } = useAuth();
   const emplacement = useLocation();
 
@@ -36,6 +38,9 @@ export function GardeRoute({ permission, children }: GardeRouteProps) {
   }
 
   if (permission && !aLaPermission(permission)) {
+    return <AccesNonAutorise />;
+  }
+  if (unePermissionParmi && !unePermissionParmi.some((p) => aLaPermission(p))) {
     return <AccesNonAutorise />;
   }
 

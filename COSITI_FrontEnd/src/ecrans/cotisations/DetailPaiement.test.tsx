@@ -43,7 +43,13 @@ describe("DetailPaiement", () => {
     expect(bouton).toBeEnabled();
     await utilisateur.click(bouton);
 
-    await waitFor(() => expect(screen.getByText("Validé")).toBeInTheDocument());
+    // #16 : contrôle complet avant validation — le dialogue rappelle reçu, montant, mode.
+    const dialogue = await screen.findByRole("alertdialog");
+    expect(within(dialogue).getByText("REC-000001")).toBeInTheDocument();
+    expect(within(dialogue).getByText("5 000 FCFA")).toBeInTheDocument();
+    await utilisateur.click(within(dialogue).getByRole("button", { name: "Confirmer la validation" }));
+
+    expect(await screen.findByText("Paiement validé.")).toBeInTheDocument();
   });
 
   it("exige un motif avant de confirmer l'annulation, en rappelant montant/date/adhérent", async () => {

@@ -184,8 +184,9 @@ describe("FicheAdherent", () => {
     expect(within(dialogue).getByLabelText("Latitude")).toBeInTheDocument();
     // Champ non manquant : absent du parcours.
     expect(within(dialogue).queryByLabelText("Ville")).not.toBeInTheDocument();
-    // Clé sans saisie possible (pas de référentiel d'associations) : signalée, jamais ignorée.
-    expect(within(dialogue).getByText("À renseigner depuis la fiche")).toBeInTheDocument();
+    // V21 : l'association se choisit dans le référentiel `GET /associations` (elle n'est plus « à renseigner depuis la fiche »).
+    expect(within(dialogue).getByLabelText("Association")).toBeInTheDocument();
+    expect(within(dialogue).queryByText("À renseigner depuis la fiche")).not.toBeInTheDocument();
 
     await utilisateur.type(within(dialogue).getByLabelText("Numéro CNI"), "112233445");
     await utilisateur.click(within(dialogue).getByRole("checkbox"));
@@ -201,22 +202,23 @@ describe("FicheAdherent", () => {
     expect(await screen.findByText(/Dossier complété/)).toBeInTheDocument();
   });
 
-  it("renvoie la fiche complète au PUT de l'identité, pour ne rien effacer (#13)", async () => {
+  it("renvoie la fiche complète au PUT de l'identité d'un dossier en brouillon, pour ne rien effacer (#13)", async () => {
     simulerSession(JETON_GESTIONNAIRE);
     const ecritures = espionnerEcritures();
     const utilisateur = userEvent.setup();
-    rendreAvecProviders(arbre(), { routeInitiale: "/adherents/adh-1" });
+    // adh-2 est en brouillon : la modification directe reste ouverte (workflow V19).
+    rendreAvecProviders(arbre(), { routeInitiale: "/adherents/adh-2" });
 
     await utilisateur.click(await screen.findByRole("button", { name: /Modifier l'identité/ }));
     const dialogue = await screen.findByRole("dialog");
     const prenoms = within(dialogue).getByLabelText(/Prénoms/);
     await utilisateur.clear(prenoms);
-    await utilisateur.type(prenoms, "Marie");
+    await utilisateur.type(prenoms, "Paul Henri");
     await utilisateur.click(within(dialogue).getByRole("button", { name: "Enregistrer" }));
 
-    await waitFor(() => expect(ecritures.some((e) => e.methode === "PUT" && e.chemin === "/api/v1/adherents/adh-1")).toBe(true));
+    await waitFor(() => expect(ecritures.some((e) => e.methode === "PUT" && e.chemin === "/api/v1/adherents/adh-2")).toBe(true));
     const corps = ecritures.find((e) => e.methode === "PUT")!.corps as Record<string, unknown>;
-    expect(corps).toMatchObject({ nom: "NDONGO", prenoms: "Marie", telephonePrincipal: "677000937", localisation: "Marché central", ville: "Douala" });
+    expect(corps).toMatchObject({ nom: "ATANGANA", prenoms: "Paul Henri", telephonePrincipal: "690112233", localisation: "Marché Mokolo", ville: "Yaoundé" });
   });
 
   it("affiche le résumé des cotisations et la situation de droits dans l'onglet Cotisations (#28)", async () => {
@@ -242,12 +244,13 @@ describe("FicheAdherent", () => {
     expect(screen.getByText("Dossier CNPS")).toBeInTheDocument();
   });
 
-  it("liste les documents et les pièces obligatoires manquantes (#18, #19, #20)", async () => {
+  it("liste les documents et la checklist documentaire tirée de la matrice (#18, #19, #20, V21)", async () => {
     simulerSession(JETON_GESTIONNAIRE);
     rendreAvecProviders(arbre(), { routeInitiale: "/adherents/adh-2?onglet=documents" });
 
-    expect(await screen.findByText("Acte de naissance — manquante")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Ajouter cette pièce" })).toBeInTheDocument();
+    const checklist = await screen.findByRole("list", { name: "Checklist documentaire" });
+    expect(within(checklist).getByText("Acte de naissance")).toBeInTheDocument();
+    expect(within(checklist).getAllByRole("button", { name: "Ajouter cette pièce" }).length).toBeGreaterThan(0);
     expect(await screen.findByText("Documents déposés")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Ajouter un document/ })).toBeInTheDocument();
   });
@@ -282,7 +285,10 @@ describe("FicheAdherent", () => {
     simulerSession(JETON_AGENT);
     rendreAvecProviders(arbre(), { routeInitiale: "/adherents/adh-1" });
 
-    expect(await screen.findByRole("button", { name: /Modifier l'identité/ })).toBeInTheDocument();
+    // adh-1 est validé : l'Agent ne modifie plus directement, il demande une modification (workflow V19).
+    expect(await screen.findByRole("button", { name: /Demander une modification/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Modifier l'identité/ })).not.toBeInTheDocument();
+    // La complétion des champs vides reste ouverte sur un dossier validé.
     expect(await screen.findByRole("button", { name: "Compléter le dossier" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Changer le statut/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Archiver/ })).not.toBeInTheDocument();

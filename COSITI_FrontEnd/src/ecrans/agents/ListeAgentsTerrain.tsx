@@ -176,6 +176,14 @@ export function ListeAgentsTerrain() {
         enableSorting: false,
         cell: ({ row }) => <BadgeStatut domaine="agent" code={row.original.actif ? "ACTIF" : "INACTIF"} />,
       },
+      {
+        // Workflow V19 : brouillon, en attente, validé… — distinct du statut actif/inactif.
+        id: "validation",
+        header: "Validation",
+        enableSorting: false,
+        cell: ({ row }) =>
+          row.original.statutValidation ? <BadgeStatut domaine="statutValidation" code={row.original.statutValidation} /> : "—",
+      },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `libelleZone` dépend de `zones`
     [volumes, zones],

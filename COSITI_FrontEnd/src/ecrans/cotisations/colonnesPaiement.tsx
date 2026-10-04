@@ -2,8 +2,10 @@ import { AlertTriangle } from "lucide-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { estModeMobileMoney, type Paiement } from "@/api/paiements";
-import { abregerIdentifiant, formaterDate, formaterMontant } from "@/lib/format";
+import { estModeMobileMoney, type ChampTriPaiement, type Paiement } from "@/api/paiements";
+import { formaterDate, formaterMontant } from "@/lib/format";
+import { CelluleAdherentPaiement } from "@/ecrans/cotisations/CelluleAdherentPaiement";
+
 
 /**
  * Colonnes communes du domaine « Paiement » (J4, réutilisées par le contrôle
@@ -13,22 +15,41 @@ import { abregerIdentifiant, formaterDate, formaterMontant } from "@/lib/format"
  * un seul endroit la définit, tous les écrans qui listent des paiements la
  * consomment.
  */
+/**
+ * Colonne triable → champ de la liste blanche `CHAMPS_TRI` de `GET /paiements`. Le tri est toujours serveur :
+ * un écran qui affiche ces colonnes traduit le tri du tableau avec {@link triServeurPaiement}.
+ */
+export const TRI_PAR_COLONNE_PAIEMENT: Readonly<Record<string, ChampTriPaiement>> = {
+  numeroRecu: "NUMERO_RECU",
+  datePaiement: "DATE_PAIEMENT",
+  montant: "MONTANT",
+  statut: "STATUT",
+};
+
+export const COLONNE_PAR_TRI_PAIEMENT: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(TRI_PAR_COLONNE_PAIEMENT).map(([colonne, champ]) => [champ, colonne]),
+);
+
 export function colonnesPaiementBase(): ColumnDef<Paiement>[] {
   return [
-    { id: "numeroRecu", header: "Reçu", cell: ({ row }) => <span className="ref">{row.original.numeroRecu}</span> },
+    { id: "numeroRecu", header: "Reçu", accessorKey: "numeroRecu", enableSorting: true, cell: ({ row }) => <span className="ref">{row.original.numeroRecu}</span> },
     {
       id: "adherentId",
       header: "Adhérent",
-      cell: ({ row }) => <span className="ref">{abregerIdentifiant(row.original.adherentId)}</span>,
+      cell: ({ row }) => <CelluleAdherentPaiement adherentId={row.original.adherentId} />,
     },
     {
       id: "datePaiement",
+      // Sans accesseur, TanStack ne déclare pas la colonne triable : le clic de tri était sans effet.
+      accessorKey: "datePaiement",
       header: "Date",
       enableSorting: true,
       cell: ({ row }) => formaterDate(row.original.datePaiement),
     },
     {
       id: "montant",
+      // Sans accesseur, TanStack ne déclare pas la colonne triable : le clic de tri était sans effet.
+      accessorKey: "montant",
       header: "Montant",
       enableSorting: true,
       cell: ({ row }) => <span className="chiffre">{formaterMontant(row.original.montant)}</span>,
@@ -60,6 +81,13 @@ export function colonnesPaiementBase(): ColumnDef<Paiement>[] {
         );
       },
     },
-    { id: "statut", header: "Statut", cell: ({ row }) => <BadgeStatut domaine="paiement" code={row.original.statut} /> },
+    {
+      id: "statut",
+      // Sans accesseur, TanStack ne déclare pas la colonne triable : le clic de tri était sans effet.
+      accessorKey: "statut",
+      header: "Statut",
+      enableSorting: true,
+      cell: ({ row }) => <BadgeStatut domaine="paiement" code={row.original.statut} />,
+    },
   ];
 }

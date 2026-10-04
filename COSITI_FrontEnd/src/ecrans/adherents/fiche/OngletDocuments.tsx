@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, FileUp } from "lucide-react";
+import { Download, FileUp, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { CarteSection } from "@/components/cositi/carte-section";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
@@ -11,12 +11,12 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useChangerStatutDocument, useDocuments, useTelechargerDocument } from "@/hooks/useDocuments";
-import { useDocumentsManquants, useInvalidationAdherent } from "@/hooks/useAdherents";
+import { useInvalidationAdherent } from "@/hooks/useAdherents";
 import { LIBELLES_TYPE_DOCUMENT, type Document, type StatutDocument, type TypeDocument } from "@/api/documents";
 import { estErreurApi } from "@/api/erreurs";
-import { formaterDateHeure } from "@/lib/format";
-import { CLASSES_TEINTE } from "@/lib/statuts";
+import { formaterDate, formaterDateHeure, formaterNombre } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ChecklistDocumentaire } from "@/ecrans/adhesion/ChecklistDocumentaire";
 
 interface OngletDocumentsProps {
   adherentId: string;
@@ -25,45 +25,43 @@ interface OngletDocumentsProps {
 }
 
 /**
- * Documents de l'adhérent (#19), pièces obligatoires manquantes (#18) et dépôt d'une pièce (#20). Aucune
- * URL de contenu n'est construite : chaque consultation repasse par l'API authentifiée et journalisée.
+ * Documents de l'adhérent (#19), checklist documentaire (#18, V21 : `GET /adherents/{id}/checklist-documentaire`,
+ * tirée de la matrice — plus aucune liste locale de pièces) et dépôt ou remplacement versionné d'une pièce (#20).
+ * Les versions remplacées restent listées, en historique. Aucune URL de contenu n'est construite : chaque
+ * consultation repasse par l'API authentifiée et journalisée.
  */
 export function OngletDocuments({ adherentId, peutTeleverser, peutVerifier }: OngletDocumentsProps) {
   const documents = useDocuments({ adherentId });
-  const manquants = useDocumentsManquants(adherentId);
   const telecharger = useTelechargerDocument();
   const changerStatut = useChangerStatutDocument();
   // Un dépôt ou une vérification change les pièces manquantes et l'état du dossier de l'adhérent.
   const invaliderAdherent = useInvalidationAdherent();
-  const [depot, setDepot] = useState<{ ouvert: boolean; type?: TypeDocument }>({ ouvert: false });
+  const [depot, setDepot] = useState<{
+    ouvert: boolean;
+    type?: TypeDocument;
+    remplace?: { documentId: string; libelle: string };
+  }>({ ouvert: false });
   const [decision, setDecision] = useState<{ document: Document; statut: StatutDocument } | null>(null);
 
   return (
     <div className="space-y-6">
-      <CarteSection titre="Pièces obligatoires" contenuClassName="space-y-3">
-        {manquants.isLoading && <Skeleton className="h-10 w-full" />}
-        {manquants.isError && (
-          <Alerte teinte="danger">
-            <p>La liste des pièces manquantes n'a pas pu être chargée.</p>
-          </Alerte>
-        )}
-        {manquants.data && manquants.data.length === 0 && (
-          <p className="font-semibold text-succes-fort">Toutes les pièces obligatoires ont été fournies.</p>
-        )}
-        {manquants.data && manquants.data.length > 0 && (
-          <ul className="space-y-2" aria-label="Pièces obligatoires manquantes">
-            {manquants.data.map((type) => (
-              <li key={type} className={cn("flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3", CLASSES_TEINTE.attention)}>
-                <span className="font-semibold">{LIBELLES_TYPE_DOCUMENT[type] ?? type} — manquante</span>
-                {peutTeleverser && (
-                  <Button size="sm" variant="outline" onClick={() => setDepot({ ouvert: true, type })}>
-                    Ajouter cette pièce
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+      <CarteSection
+        titre="Checklist documentaire"
+        description="Pièces attendues par la matrice documentaire en vigueur, et leur dernier contrôle par la DGA."
+      >
+        <ChecklistDocumentaire
+          adherentId={adherentId}
+          onAction={
+            peutTeleverser
+              ? (action) =>
+                  setDepot({
+                    ouvert: true,
+                    type: action.type,
+                    remplace: action.remplaceDocumentId ? { documentId: action.remplaceDocumentId, libelle: action.libelle } : undefined,
+                  })
+              : undefined
+          }
+        />
       </CarteSection>
 
       <CarteSection
@@ -93,7 +91,9 @@ export function OngletDocuments({ adherentId, peutTeleverser, peutVerifier }: On
               <TableRow>
                 <TableHead>Type</TableHead>
                 <TableHead>Fichier</TableHead>
+                <TableHead>Version</TableHead>
                 <TableHead>Statut</TableHead>
+                <TableHead>Validité</TableHead>
                 <TableHead>Analyse</TableHead>
                 <TableHead>Déposé le</TableHead>
                 <TableHead>
@@ -103,11 +103,28 @@ export function OngletDocuments({ adherentId, peutTeleverser, peutVerifier }: On
             </TableHeader>
             <TableBody>
               {documents.data.map((document) => (
-                <TableRow key={document.id}>
+                <TableRow key={document.id} className={cn(document.statut === "REMPLACE" && "text-texte-doux-fort")}>
                   <TableCell>{LIBELLES_TYPE_DOCUMENT[document.typeDocument] ?? document.typeDocument}</TableCell>
                   <TableCell className="max-w-48 truncate">{document.nomFichierOriginal}</TableCell>
                   <TableCell>
+                    <span className="chiffre">v{formaterNombre(document.versionDocument ?? 1)}</span>
+                    {document.motifRemplacement && (
+                      <span className="block max-w-40 truncate text-xs text-texte-doux-fort" title={document.motifRemplacement}>
+                        {document.motifRemplacement}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     <BadgeStatut domaine="document" code={document.statut} />
+                  </TableCell>
+                  <TableCell>
+                    {document.expire ? (
+                      <BadgeStatut domaine="statutPiece" code="EXPIRE" />
+                    ) : document.valideJusquau ? (
+                      `jusqu'au ${formaterDate(document.valideJusquau)}`
+                    ) : (
+                      "—"
+                    )}
                   </TableCell>
                   <TableCell>
                     <BadgeStatut domaine="analyseAntivirus" code={document.analyseAntivirus} />
@@ -131,6 +148,26 @@ export function OngletDocuments({ adherentId, peutTeleverser, peutVerifier }: On
                           Télécharger
                         </Button>
                       )}
+                      {peutTeleverser && document.statut !== "REMPLACE" && document.statut !== "ARCHIVE" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setDepot({
+                              ouvert: true,
+                              type: document.typeDocument,
+                              remplace: {
+                                documentId: document.id,
+                                libelle: LIBELLES_TYPE_DOCUMENT[document.typeDocument] ?? document.typeDocument,
+                              },
+                            })
+                          }
+                          aria-label={`Remplacer ${document.nomFichierOriginal}`}
+                        >
+                          <RefreshCcw className="size-4" aria-hidden="true" />
+                          Remplacer
+                        </Button>
+                      )}
                       {peutVerifier && document.statut === "AJOUTE" && (
                         <>
                           <Button size="sm" variant="outline" onClick={() => setDecision({ document, statut: "VERIFIE" })}>
@@ -152,11 +189,12 @@ export function OngletDocuments({ adherentId, peutTeleverser, peutVerifier }: On
 
       {peutTeleverser && (
         <DialogueTeleverserDocument
-          key={depot.type ?? "libre"}
+          key={`${depot.type ?? "libre"}-${depot.remplace?.documentId ?? "nouveau"}`}
           ouvert={depot.ouvert}
           onOuvertChange={(ouvert) => setDepot((precedent) => ({ ...precedent, ouvert }))}
           cible={{ adherentId }}
           typeImpose={depot.type}
+          remplace={depot.remplace}
           onTeleverse={() => invaliderAdherent(adherentId)}
         />
       )}

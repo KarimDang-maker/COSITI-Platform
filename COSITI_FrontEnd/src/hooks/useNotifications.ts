@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEtatTempsReel } from "@/app/contexteTempsReel";
 import {
   compterNonLues,
   listerNotifications,
@@ -21,10 +22,13 @@ export function useNotifications(filtres: { seulementNonLues?: boolean; page?: n
  * `outils/dev/README.md`), et ce compteur n'est pas une donnée temps réel.
  */
 export function useCompteNonLues() {
+  // Les notifications arrivent par le flux temps réel ; ce rechargement n'est qu'un filet de sécurité, resserré
+  // quand le flux est coupé pour qu'une notification ne reste jamais invisible longtemps.
+  const etatFlux = useEtatTempsReel();
   return useQuery({
     queryKey: [CLE, "non-lues"],
     queryFn: () => compterNonLues(),
-    refetchInterval: 120_000,
+    refetchInterval: etatFlux === "connecte" ? 120_000 : 30_000,
     refetchOnWindowFocus: true,
   });
 }

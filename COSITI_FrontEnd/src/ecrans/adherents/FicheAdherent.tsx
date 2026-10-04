@@ -27,8 +27,11 @@ import { OngletCotisations } from "@/ecrans/adherents/fiche/OngletCotisations";
 import { OngletCnps } from "@/ecrans/adherents/fiche/OngletCnps";
 import { OngletDocuments } from "@/ecrans/adherents/fiche/OngletDocuments";
 import { OngletHistorique } from "@/ecrans/adherents/fiche/OngletHistorique";
+import { BandeauWorkflow, HistoriqueValidation } from "@/ecrans/workflow/BandeauWorkflow";
+import { DialogueDemandeModification } from "@/ecrans/workflow/DialogueDemandeModification";
+import { OngletAdhesion } from "@/ecrans/adhesion/OngletAdhesion";
 
-type Onglet = "profil" | "professionnel" | "cotisations" | "cnps" | "documents" | "historique";
+type Onglet = "profil" | "adhesion" | "professionnel" | "cotisations" | "cnps" | "documents" | "historique" | "validation";
 
 /**
  * Fiche adhérent (#12). L'en-tête garde visibles le nom, le matricule, le statut et les actions
@@ -93,17 +96,50 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
   const [identiteOuverte, setIdentiteOuverte] = useState(false);
   const [statutOuvert, setStatutOuvert] = useState(false);
   const [archivageOuvert, setArchivageOuvert] = useState(false);
+  const [demandeModification, setDemandeModification] = useState<{ champs: readonly string[] } | null>(null);
+
+  // Workflow V19. Le serveur refuse toute modification directe d'un dossier validé (409
+  // ADHERENT_MODIFICATION_PAR_DEMANDE) ou en attente : l'écran propose alors la voie autorisée. Sans
+  // `statutValidation` (API antérieure à V19), la modification directe reste proposée.
+  const statutValidation = adherent.statutValidation;
+  const officiel = statutValidation === "VALIDE";
+  const enAttente = statutValidation === "EN_ATTENTE_VALIDATION";
+  const modificationDirecte = !statutValidation || statutValidation === "BROUILLON" || statutValidation === "CORRECTION_DEMANDEE" || statutValidation === "REJETE";
+  const peutModifierDirectement = peutModifier && modificationDirecte;
+  const peutDemanderModification = peutModifier && officiel;
+
+  /** Valeurs officielles au format serveur, pour la demande de modification. */
+  const valeursOfficielles: Record<string, string | null> = {
+    nom: adherent.nom,
+    prenoms: adherent.prenoms,
+    dateNaissance: adherent.dateNaissance,
+    sexe: adherent.sexe,
+    telephonePrincipal: adherent.telephonePrincipal,
+    telephoneSecondaire: adherent.telephoneSecondaire,
+    numeroCni: adherent.numeroCni,
+    numeroCnps: adherent.numeroCnps,
+    activiteId: adherent.activiteId,
+    localisation: adherent.localisation,
+    quartier: adherent.quartier,
+    ville: adherent.ville,
+    latitude: adherent.latitude === null || adherent.latitude === undefined ? null : String(adherent.latitude),
+    longitude: adherent.longitude === null || adherent.longitude === undefined ? null : String(adherent.longitude),
+    statut: adherent.statut,
+  };
 
   const nom = formaterNomComplet(adherent.nom, adherent.prenoms);
   const matricule = formaterMatricule(adherent.matricule);
 
   const ongletsVisibles: Onglet[] = [
     "profil",
+    // Parcours d'adhésion (V20) : frais, activation, contrôle DGA — lu par `ADHERENT:LIRE`, actions par permission.
+    "adhesion",
     "professionnel",
     ...(peutLireDroits || peutLirePaiements ? (["cotisations"] as const) : []),
     ...(peutLireResume || peutLireCnps ? (["cnps"] as const) : []),
     ...(peutLireDocuments ? (["documents"] as const) : []),
     "historique",
+    ...(statutValidation ? (["validation"] as const) : []),
   ];
   const ongletDemande = parametres.get("onglet") as Onglet | null;
   const onglet: Onglet = ongletDemande && ongletsVisibles.includes(ongletDemande) ? ongletDemande : "profil";
@@ -152,16 +188,28 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
             filAriane={[{ libelle: "Adhérents", chemin: "/adherents" }, { libelle: "Fiche adhérent" }]}
             actions={
               <>
-                {peutModifier && (
+                {peutModifierDirectement && (
                   <Button variant="outline" onClick={() => setIdentiteOuverte(true)}>
                     <PencilLine className="size-4" aria-hidden="true" />
                     Modifier l'identité
                   </Button>
                 )}
-                {peutChangerStatut && (
+                {peutDemanderModification && (
+                  <Button variant="outline" onClick={() => setDemandeModification({ champs: [] })}>
+                    <PencilLine className="size-4" aria-hidden="true" />
+                    Demander une modification
+                  </Button>
+                )}
+                {peutChangerStatut && modificationDirecte && (
                   <Button variant="outline" onClick={() => setStatutOuvert(true)}>
                     <RefreshCcw className="size-4" aria-hidden="true" />
                     Changer le statut
+                  </Button>
+                )}
+                {peutChangerStatut && peutDemanderModification && (
+                  <Button variant="outline" onClick={() => setDemandeModification({ champs: ["statut"] })}>
+                    <RefreshCcw className="size-4" aria-hidden="true" />
+                    Demander un changement de statut
                   </Button>
                 )}
                 {peutArchiver && !adherent.archive && (
@@ -175,20 +223,45 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
           />
         </div>
 
+        {statutValidation && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-texte-doux-fort">Validation du dossier :</span>
+            <BadgeStatut domaine="statutValidation" code={statutValidation} />
+          </div>
+        )}
+        {statutValidation && (
+          <BandeauWorkflow
+            typeEntite="ADHERENT"
+            entiteId={adherent.id}
+            designation={`${nom} (${matricule})`}
+            officialisation={{
+              texte:
+                "Ce dossier n'est pas encore officiel. Il le devient par le parcours d'adhésion : frais d'adhésion enregistré, activation par le Gestionnaire des comptes, puis contrôle des documents par la DGA.",
+              libelleAction: "Ouvrir le parcours d'adhésion",
+              onAction: () => changerOnglet("adhesion"),
+            }}
+            onDemanderModification={peutDemanderModification ? () => setDemandeModification({ champs: [] }) : undefined}
+          />
+        )}
+
         <Tabs value={onglet} onValueChange={changerOnglet}>
           <TabsList className="flex-wrap">
             <TabsTrigger value="profil">Profil</TabsTrigger>
+            <TabsTrigger value="adhesion">Adhésion</TabsTrigger>
             <TabsTrigger value="professionnel">Professionnel</TabsTrigger>
             {ongletsVisibles.includes("cotisations") && <TabsTrigger value="cotisations">Cotisations</TabsTrigger>}
             {ongletsVisibles.includes("cnps") && <TabsTrigger value="cnps">CNPS</TabsTrigger>}
             {ongletsVisibles.includes("documents") && <TabsTrigger value="documents">Documents</TabsTrigger>}
             <TabsTrigger value="historique">Historique</TabsTrigger>
+            {ongletsVisibles.includes("validation") && <TabsTrigger value="validation">Validation</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="profil" className="space-y-6">
             <BlocDossier
               adherentId={adherent.id}
-              peutModifier={peutModifier}
+              // La complétion reste ouverte sur un dossier validé (champs vides uniquement, contrôle serveur),
+              // jamais pendant la validation.
+              peutModifier={peutModifier && !enAttente}
               onVoirDocuments={peutLireDocuments ? () => changerOnglet("documents") : undefined}
             />
             <CarteSection titre="Identité">
@@ -203,13 +276,23 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
               </dl>
             </CarteSection>
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <CarteCoordonnees adherentId={adherent.id} peutModifier={peutModifier} />
+              <CarteCoordonnees adherentId={adherent.id} peutModifier={peutModifierDirectement} />
               <CarteAgentResponsable adherentId={adherent.id} nomAdherent={nom} peutAffecter={peutAffecter} />
             </div>
           </TabsContent>
 
+          <TabsContent value="adhesion">
+            {onglet === "adhesion" && (
+              <OngletAdhesion
+                adherentId={adherent.id}
+                designation={`${nom} (${matricule})`}
+                onVoirDocuments={peutLireDocuments ? () => changerOnglet("documents") : undefined}
+              />
+            )}
+          </TabsContent>
+
           <TabsContent value="professionnel">
-            {onglet === "professionnel" && <CarteProfessionnel adherentId={adherent.id} peutModifier={peutModifier} />}
+            {onglet === "professionnel" && <CarteProfessionnel adherentId={adherent.id} peutModifier={peutModifierDirectement} />}
           </TabsContent>
 
           {ongletsVisibles.includes("cotisations") && (
@@ -248,10 +331,33 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
           )}
 
           <TabsContent value="historique">{onglet === "historique" && <OngletHistorique adherentId={adherent.id} />}</TabsContent>
+
+          {ongletsVisibles.includes("validation") && (
+            <TabsContent value="validation">
+              {onglet === "validation" && <HistoriqueValidation typeEntite="ADHERENT" entiteId={adherent.id} />}
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
-      {peutModifier && <DialogueModifierIdentite adherent={adherent} ouvert={identiteOuverte} onOuvertChange={setIdentiteOuverte} />}
+      {peutModifierDirectement && (
+        <DialogueModifierIdentite adherent={adherent} ouvert={identiteOuverte} onOuvertChange={setIdentiteOuverte} />
+      )}
+      {peutDemanderModification && demandeModification && (
+        <DialogueDemandeModification
+          ouvert
+          onOuvertChange={(ouvert) => !ouvert && setDemandeModification(null)}
+          typeEntite="ADHERENT"
+          operation="ADHERENT_MODIFICATION"
+          entiteId={adherent.id}
+          designation={`${nom} (${matricule})`}
+          valeursActuelles={valeursOfficielles}
+          version={adherent.version}
+          referentiels={{ activites }}
+          cibleDocument={{ adherentId: adherent.id }}
+          champsInitiaux={demandeModification.champs}
+        />
+      )}
       {peutChangerStatut && (
         <DialogueChangerStatut
           adherentId={adherent.id}

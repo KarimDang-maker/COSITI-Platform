@@ -9,7 +9,7 @@ import { Alerte } from "@/components/cositi/alerte";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useActivites, useModifierProfessionnel, usePacks, useProfilProfessionnel } from "@/hooks/useAdherents";
+import { useActivites, useAssociations, useModifierProfessionnel, usePacks, useProfilProfessionnel } from "@/hooks/useAdherents";
 import type { ProfilProfessionnel } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterMontant } from "@/lib/format";
@@ -30,6 +30,7 @@ export function CarteProfessionnel({ adherentId, peutModifier }: CarteProfession
   const { data, isLoading, isError, error } = useProfilProfessionnel(adherentId);
   const { data: activites } = useActivites();
   const { data: packs } = usePacks();
+  const { data: associations } = useAssociations();
   const [edition, setEdition] = useState(false);
 
   if (isLoading) {
@@ -71,7 +72,14 @@ export function CarteProfessionnel({ adherentId, peutModifier }: CarteProfession
       <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <LigneChamp libelle="Activité" valeur={activite?.libelle ?? (data.activiteId ? "Activité inconnue du référentiel" : "—")} />
         <LigneChamp libelle="Numéro CNPS" valeur={data.numeroCnps ?? "—"} />
-        <LigneChamp libelle="Association" valeur={data.associationId ? "Rattaché à une association" : "Aucune"} />
+        <LigneChamp
+          libelle="Association"
+          valeur={
+            data.associationId
+              ? (associations?.find((a) => a.id === data.associationId)?.nom ?? "Association inconnue du référentiel")
+              : "Aucune"
+          }
+        />
         <LigneChamp
           libelle="Pack de cotisation"
           valeur={
@@ -103,6 +111,7 @@ function FormulaireProfessionnel({
 }) {
   const modifier = useModifierProfessionnel(adherentId);
   const { data: activites } = useActivites();
+  const { data: associations } = useAssociations();
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
   const {
     register,
@@ -111,7 +120,11 @@ function FormulaireProfessionnel({
     formState: { errors },
   } = useForm<ValeursProfessionnel>({
     resolver: zodResolver(schemaProfessionnel),
-    defaultValues: { activiteId: initiales.activiteId ?? "", numeroCnps: initiales.numeroCnps ?? "" },
+    defaultValues: {
+      activiteId: initiales.activiteId ?? "",
+      numeroCnps: initiales.numeroCnps ?? "",
+      associationId: initiales.associationId ?? "",
+    },
   });
 
   async function soumettre(valeurs: ValeursProfessionnel) {
@@ -120,8 +133,8 @@ function FormulaireProfessionnel({
       await modifier.mutateAsync({
         activiteId: valeurs.activiteId,
         numeroCnps: videVersNull(valeurs.numeroCnps),
-        // Le `PUT` remplace l'association : on renvoie celle qui est enregistrée, jamais `null` par omission.
-        associationId: initiales.associationId,
+        // Le `PUT` remplace l'association : la valeur choisie est renvoyée explicitement (« Aucune » = `null`).
+        associationId: valeurs.associationId ? valeurs.associationId : null,
       });
       toast.success("Informations professionnelles enregistrées.");
       onTerminer();
@@ -168,6 +181,34 @@ function FormulaireProfessionnel({
           </ChampFormulaire>
           <ChampFormulaire id="pro-numeroCnps" libelle="Numéro CNPS" facultatif>
             {(attributs) => <Input {...attributs} {...register("numeroCnps")} />}
+          </ChampFormulaire>
+          <ChampFormulaire
+            id="pro-associationId"
+            libelle="Association"
+            facultatif
+            aide={associations && associations.length === 0 ? "Aucune association n'est encore enregistrée dans le référentiel." : undefined}
+          >
+            {(attributs) => (
+              <Controller
+                control={control}
+                name="associationId"
+                render={({ field }) => (
+                  <SelectRecherche
+                    id={attributs.id}
+                    options={[
+                      { valeur: "", libelle: "Aucune association" },
+                      ...(associations ?? [])
+                        .filter((a) => a.active || a.id === initiales.associationId)
+                        .map((a) => ({ valeur: a.id, libelle: a.active ? a.nom : `${a.nom} (inactive)` })),
+                    ]}
+                    valeur={field.value ?? ""}
+                    onChange={field.onChange}
+                    ariaDescribedBy={attributs["aria-describedby"]}
+                    placeholder="Aucune association"
+                  />
+                )}
+              />
+            )}
           </ChampFormulaire>
         </div>
         {erreurServeur && (

@@ -272,8 +272,27 @@ export const handlersCnps = [
   // ------------------------------------------------------------- Documents
 
   http.post("/api/v1/documents", ({ request }) => {
-    const type = new URL(request.url).searchParams.get("type") ?? "AUTRE";
-    return HttpResponse.json({ ...DOCUMENT_TEST, typeDocument: type }, { status: 201 });
+    const url = new URL(request.url);
+    const type = url.searchParams.get("type") ?? "AUTRE";
+    // V21 : un remplacement exige un motif ; la nouvelle pièce porte la version suivante.
+    const remplace = url.searchParams.get("remplaceDocumentId");
+    if (remplace && !url.searchParams.get("motifRemplacement")) {
+      return HttpResponse.json(
+        { code: "DOCUMENT_MOTIF_REMPLACEMENT_REQUIS", message: "Le motif du remplacement est obligatoire.", traceId: "t-doc", avertissements: [] },
+        { status: 422 },
+      );
+    }
+    return HttpResponse.json(
+      {
+        ...DOCUMENT_TEST,
+        typeDocument: type,
+        versionDocument: remplace ? 2 : 1,
+        remplaceDocumentId: remplace,
+        motifRemplacement: url.searchParams.get("motifRemplacement"),
+        valideJusquau: url.searchParams.get("valideJusquau"),
+      },
+      { status: 201 },
+    );
   }),
 
   http.get("/api/v1/documents", () => HttpResponse.json([DOCUMENT_TEST])),

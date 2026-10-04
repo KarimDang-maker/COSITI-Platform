@@ -1,6 +1,11 @@
 import "@testing-library/jest-dom/vitest";
 import { afterAll, afterEach, beforeAll } from "vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
+
+// `findBy*` / `waitFor` attendent 1 s par défaut. Sous la charge de la suite complète (24 fichiers en parallèle
+// sur 4 cœurs), un écran à plusieurs requêtes dépasse parfois ce délai sans aucun défaut fonctionnel — les mêmes
+// tests passent isolément. 4 s laissent de la marge sans masquer un vrai blocage (`testTimeout` : 15 s).
+configure({ asyncUtilTimeout: 4000 });
 import { serveur } from "@/test/msw/serveur";
 import { effacerJetonAcces } from "@/auth/jeton";
 

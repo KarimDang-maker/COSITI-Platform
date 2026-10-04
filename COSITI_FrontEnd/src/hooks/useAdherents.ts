@@ -5,6 +5,7 @@ import {
   completerProfil,
   creerAdherent,
   listerActivites,
+  listerAssociations,
   listerAdherents,
   listerPacks,
   modifierAdherent,
@@ -251,6 +252,16 @@ export function useArchiverAdherent(id: string) {
 }
 
 /** Référentiel des activités. Stable : mis en cache cinq minutes, comme les zones. */
+/** Référentiel des associations (V21) : seules les actives sont proposées à la saisie. */
+export function useAssociations(actif = true) {
+  return useQuery({
+    queryKey: [CLE_ADHERENTS, "associations"],
+    queryFn: listerAssociations,
+    staleTime: 5 * 60 * 1000,
+    enabled: actif,
+  });
+}
+
 export function useActivites() {
   return useQuery({
     queryKey: [CLE_ADHERENTS, "activites"],

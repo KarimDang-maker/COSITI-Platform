@@ -224,6 +224,78 @@ async function telechargerFichier(
   };
 }
 
+/** Un message reçu d'un flux `text/event-stream` : nom d'évènement (`message` par défaut) et données brutes. */
+export interface MessageFlux {
+  readonly evenement: string;
+  readonly donnees: string;
+}
+
+/**
+ * Découpe un tampon SSE en messages complets (séparés par une ligne vide) et renvoie le reste inachevé.
+ * Les commentaires (`: battement`) et les champs `id` / `retry` sont ignorés.
+ */
+export function decouperMessagesFlux(tampon: string): { messages: MessageFlux[]; reste: string } {
+  const blocs = tampon.replace(/\r\n?/g, "\n").split("\n\n");
+  const reste = blocs.pop() ?? "";
+  const messages: MessageFlux[] = [];
+  for (const bloc of blocs) {
+    let evenement = "message";
+    const donnees: string[] = [];
+    for (const ligne of bloc.split("\n")) {
+      if (ligne.startsWith("event:")) evenement = ligne.slice(6).trim();
+      else if (ligne.startsWith("data:")) donnees.push(ligne.slice(5).replace(/^ /, ""));
+    }
+    if (donnees.length > 0) messages.push({ evenement, donnees: donnees.join("\n") });
+  }
+  return { messages, reste };
+}
+
+/**
+ * Flux Server-Sent Events authentifié (`GET /temps-reel/flux`). `EventSource` ne sait pas porter l'en-tête
+ * `Authorization` et le jeton ne doit jamais passer dans l'URL (journaux, historique) : le flux est donc lu
+ * par `fetch` en streaming, dans ce module comme tout autre accès réseau. Rotation du jeton sur 401 comme
+ * les autres appels. La promesse se résout quand le serveur ferme le flux (expiration normale) ou à
+ * l'annulation du `signal` ; elle est rejetée sur une erreur réseau ou HTTP — l'appelant décide de la reconnexion.
+ */
+async function ecouterFlux(
+  chemin: string,
+  surMessage: (message: MessageFlux) => void,
+  options: OptionsRequete = {},
+  dejaTenteApresRafraichissement = false,
+): Promise<void> {
+  const traceId = genererTraceId();
+  const enTetes: Record<string, string> = { Accept: "text/event-stream", "X-Trace-Id": traceId };
+  const jeton = obtenirJetonAcces();
+  if (jeton) enTetes.Authorization = `Bearer ${jeton}`;
+
+  const reponse = await fetch(`${BASE_URL}${chemin}`, {
+    method: "GET",
+    headers: enTetes,
+    credentials: "include",
+    cache: "no-store",
+    signal: options.signal,
+  });
+
+  if (reponse.status === 401 && !dejaTenteApresRafraichissement) {
+    const succes = await rafraichir();
+    if (succes) return ecouterFlux(chemin, surMessage, options, true);
+    throw await construireErreur(reponse, traceId);
+  }
+  if (!reponse.ok || !reponse.body) throw await construireErreur(reponse, traceId);
+
+  const lecteur = reponse.body.getReader();
+  const decodeur = new TextDecoder();
+  let tampon = "";
+  for (;;) {
+    const { done, value } = await lecteur.read();
+    if (done) return;
+    tampon += decodeur.decode(value, { stream: true });
+    const { messages, reste } = decouperMessagesFlux(tampon);
+    tampon = reste;
+    for (const message of messages) surMessage(message);
+  }
+}
+
 export const client = {
   get: <T>(chemin: string, options: OptionsRequete = {}) =>
     executer<T>(chemin, "GET", undefined, options),
@@ -240,6 +312,8 @@ export const client = {
   postFormulaire: <T>(chemin: string, formulaire: FormData, options: OptionsRequete = {}) =>
     executer<T>(chemin, "POST", formulaire, options),
   telechargerFichier,
+  /** Flux temps réel (`hooks/useTempsReel.ts`). */
+  ecouterFlux,
   /**
    * Reprise de session au démarrage, via le cookie `HttpOnly` de rafraîchissement.
    *

@@ -16,11 +16,20 @@
  */
 import { client, type FichierRecu } from "@/api/client";
 
-/** `TypeDocument` (backend). */
-export type TypeDocument = "CNI" | "ACTE_NAISSANCE" | "PREUVE_PAIEMENT" | "ACCUSE_CNPS" | "AUTRE";
+/** `TypeDocument` (backend). Les quatre derniers types viennent de la matrice documentaire V21. */
+export type TypeDocument =
+  | "CNI"
+  | "ACTE_NAISSANCE"
+  | "PREUVE_PAIEMENT"
+  | "ACCUSE_CNPS"
+  | "JUSTIFICATIF_RESIDENCE"
+  | "PIECE_PROFESSIONNELLE"
+  | "PIECE_CNPS"
+  | "FORMULAIRE_ADHESION"
+  | "AUTRE";
 
-/** `StatutDocument` (backend). Domaine `document` de `src/lib/statuts.ts`. */
-export type StatutDocument = "AJOUTE" | "VERIFIE" | "REJETE" | "ARCHIVE";
+/** `StatutDocument` (backend). Domaine `document` de `src/lib/statuts.ts`. `REMPLACE` : version conservée (V21). */
+export type StatutDocument = "AJOUTE" | "VERIFIE" | "REJETE" | "ARCHIVE" | "REMPLACE";
 
 /** `AnalyseAntivirus` (backend). Domaine `analyseAntivirus` de `src/lib/statuts.ts`. */
 export type AnalyseAntivirus = "EN_ATTENTE" | "PROPRE" | "INFECTE";
@@ -30,6 +39,10 @@ export const LIBELLES_TYPE_DOCUMENT: Readonly<Record<TypeDocument, string>> = {
   ACTE_NAISSANCE: "Acte de naissance",
   PREUVE_PAIEMENT: "Preuve de paiement",
   ACCUSE_CNPS: "Accusé CNPS",
+  JUSTIFICATIF_RESIDENCE: "Justificatif de résidence",
+  PIECE_PROFESSIONNELLE: "Pièce professionnelle",
+  PIECE_CNPS: "Pièce CNPS",
+  FORMULAIRE_ADHESION: "Formulaire d'adhésion",
   AUTRE: "Autre document",
 };
 
@@ -53,6 +66,25 @@ export interface Document {
   readonly telechargeable: boolean;
   readonly creeLe: string;
   readonly creePar: string | null;
+  /** Versionnement (V21, §22) : n° de version, version remplacée et motif du remplacement. */
+  readonly versionDocument?: number;
+  readonly remplaceDocumentId?: string | null;
+  readonly motifRemplacement?: string | null;
+  /** Validité (V21, §21) quand elle s'applique au type de pièce ; `expire` est calculé par le serveur. */
+  readonly valideDu?: string | null;
+  readonly valideJusquau?: string | null;
+  readonly expire?: boolean;
+  readonly verifiePar?: string | null;
+  readonly verifieLe?: string | null;
+  readonly commentaireVerification?: string | null;
+}
+
+/** Options du téléversement (V21) : validité de la pièce et remplacement versionné (motif obligatoire). */
+export interface OptionsTeleversement {
+  valideDu?: string;
+  valideJusquau?: string;
+  remplaceDocumentId?: string;
+  motifRemplacement?: string;
 }
 
 export interface CibleDocument {
@@ -75,11 +107,16 @@ function parametres(valeurs: Record<string, unknown>): string {
  * en partie JSON du multipart : une partie JSON impose au client de fixer un `Content-Type` par partie, ce
  * que les navigateurs gèrent de façon inégale.
  */
-export function televerserDocument(fichier: File, type: TypeDocument, cible: CibleDocument) {
+export function televerserDocument(
+  fichier: File,
+  type: TypeDocument,
+  cible: CibleDocument,
+  options: OptionsTeleversement = {},
+) {
   const formulaire = new FormData();
   formulaire.append("fichier", fichier);
   return client.postFormulaire<Document>(
-    `/documents${parametres({ type, ...cible })}`,
+    `/documents${parametres({ type, ...cible, ...options })}`,
     formulaire,
   );
 }

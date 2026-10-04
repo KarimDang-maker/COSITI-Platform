@@ -128,8 +128,11 @@ export function NouvelAdherent() {
         confirmationDoublonIgnore: confirmationDoublonIgnore || undefined,
       });
       // Le matricule est généré par le serveur (#11) : il n'est connu qu'ici, on l'annonce aussitôt.
-      toast.success(`Adhérent créé — matricule ${adherent.matricule}.`);
-      navigate(`/adherents/${adherent.id}`);
+      // V20/V21 : le dossier devient officiel par le parcours d'adhésion (frais, activation, contrôle DGA). La fiche
+      // s'ouvre directement sur l'onglet « Adhésion », où le frais collecté par l'agent s'enregistre aussitôt — sans
+      // trancher la question `[V]` D-10 (saisie du frais dans le formulaire de création).
+      toast.success(`Adhérent créé — matricule ${adherent.matricule}. Enregistrez maintenant le frais d'adhésion collecté.`);
+      navigate(`/adherents/${adherent.id}?onglet=adhesion`);
     } catch (e) {
       if (estErreurApi(e) && e.code === "ADHERENT_DOUBLON_POTENTIEL") {
         const candidats = Array.isArray(e.details?.candidats) ? (e.details.candidats as CandidatDoublon[]) : [];

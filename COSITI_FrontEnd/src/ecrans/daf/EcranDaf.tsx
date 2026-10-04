@@ -18,11 +18,15 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth, usePermission } from "@/auth/ContexteAuth";
-import { usePaiements, useValiderPaiement, useSignalerIncoherencePaiement } from "@/hooks/usePaiements";
-import type { ModePaiement, Paiement } from "@/api/paiements";
+import { usePaiements, useRejeterPaiement, useValiderPaiement, useSignalerIncoherencePaiement } from "@/hooks/usePaiements";
+import type { ChampTriPaiement, ModePaiement, Paiement } from "@/api/paiements";
 import { estErreurApi } from "@/api/erreurs";
 import { abregerIdentifiant, formaterDate, formaterMontant } from "@/lib/format";
-import { colonnesPaiementBase } from "@/ecrans/cotisations/colonnesPaiement";
+import {
+  COLONNE_PAR_TRI_PAIEMENT,
+  TRI_PAR_COLONNE_PAIEMENT,
+  colonnesPaiementBase,
+} from "@/ecrans/cotisations/colonnesPaiement";
 
 const OPTIONS_MODE: readonly { valeur: ModePaiement; libelle: string }[] = [
   { valeur: "ESPECES", libelle: "Espèces" },
@@ -62,7 +66,9 @@ function ActionsControle({ paiement }: ActionsControleProps) {
   const peutSignaler = usePermission("PAIEMENT:SIGNALER_INCOHERENCE");
   const confirmer = useValiderPaiement();
   const signaler = useSignalerIncoherencePaiement();
+  const rejeter = useRejeterPaiement();
   const [dialogueOuvert, setDialogueOuvert] = useState(false);
+  const [rejetOuvert, setRejetOuvert] = useState(false);
 
   if (!peutConfirmer && !peutSignaler) return null;
 
@@ -114,6 +120,39 @@ function ActionsControle({ paiement }: ActionsControleProps) {
         </Button>
       )}
 
+      {/* #17 — rejet définitif et motivé, distinct du signalement d'incohérence (corrigible). */}
+      {peutConfirmer && !estCreateur && (
+        <Button size="sm" variant="outline" onClick={() => setRejetOuvert(true)}>
+          Rejeter
+        </Button>
+      )}
+
+      <DialogueConfirmation
+        ouvert={rejetOuvert}
+        onOuvertChange={setRejetOuvert}
+        titre={`Rejeter le paiement ${paiement.numeroRecu}`}
+        description={
+          <div className="space-y-2">
+            {rappelValeurs}
+            <p>Le rejet est définitif ; le paiement sort de la file et le motif est conservé dans son historique.</p>
+          </div>
+        }
+        motifRequis
+        libelleMotif="Motif du rejet"
+        libelleConfirmation="Rejeter le paiement"
+        varianteDestructive
+        enCours={rejeter.isPending}
+        onConfirmer={async (motif) => {
+          try {
+            await rejeter.mutateAsync({ id: paiement.id, motif: motif ?? "" });
+            toast.success(`Paiement ${paiement.numeroRecu} rejeté.`);
+            setRejetOuvert(false);
+          } catch (e) {
+            toast.error(estErreurApi(e) ? e.message : "Le rejet a échoué.");
+          }
+        }}
+      />
+
       <DialogueConfirmation
         ouvert={dialogueOuvert}
         onOuvertChange={setDialogueOuvert}
@@ -150,15 +189,42 @@ function ActionsControle({ paiement }: ActionsControleProps) {
 export function EcranDaf() {
   const [parametres, definirParametres] = useSearchParams();
   const navigate = useNavigate();
-  const [tri, setTri] = useState<SortingState>([]);
-
+  // Workflow V19 : les corrections de cotisations soumises ou validées attendent le DAF dans le centre de validation.
+  const peutValiderCorrections = usePermission("PAIEMENT:VALIDER");
   const modePaiement = (parametres.get("modePaiement") as ModePaiement | null) ?? undefined;
   const page = Number(parametres.get("page") ?? "0");
+  const triParam = parametres.get("tri") as ChampTriPaiement | null;
+  const direction: "ASC" | "DESC" = parametres.get("direction") === "DESC" ? "DESC" : "ASC";
 
+  // File de validation (#15) : les plus anciens d'abord par défaut ; tri serveur (liste blanche).
   const filtres = useMemo(
-    () => ({ statut: "A_CONTROLER" as const, modePaiement, page, taille: TAILLE_PAGE }),
-    [modePaiement, page],
+    () => ({
+      statut: "A_CONTROLER" as const,
+      modePaiement,
+      page,
+      taille: TAILLE_PAGE,
+      tri: triParam ?? ("DATE_PAIEMENT" as const),
+      direction: triParam ? direction : ("ASC" as const),
+    }),
+    [modePaiement, page, triParam, direction],
   );
+  const tri: SortingState =
+    triParam && COLONNE_PAR_TRI_PAIEMENT[triParam] ? [{ id: COLONNE_PAR_TRI_PAIEMENT[triParam]!, desc: direction === "DESC" }] : [];
+
+  function changerTri(suivant: SortingState) {
+    const premier = suivant[0];
+    const champ = premier ? TRI_PAR_COLONNE_PAIEMENT[premier.id] : undefined;
+    const suivants = new URLSearchParams(parametres);
+    if (champ) {
+      suivants.set("tri", champ);
+      suivants.set("direction", premier?.desc ? "DESC" : "ASC");
+    } else {
+      suivants.delete("tri");
+      suivants.delete("direction");
+    }
+    suivants.delete("page");
+    definirParametres(suivants, { replace: true });
+  }
 
   const { data, isLoading, isError, error } = usePaiements(filtres);
 
@@ -194,6 +260,13 @@ export function EcranDaf() {
         <EnTetePage
           titre="Contrôle DAF"
           description="Paiements en attente de contrôle (statut « À contrôler »)."
+          actions={
+            peutValiderCorrections && (
+              <Button variant="outline" onClick={() => navigate("/validations?typeEntite=PAIEMENT")}>
+                Corrections de cotisations à valider
+              </Button>
+            )
+          }
         />
 
         {/* Barre hors du tableau : le filtre reste modifiable quand la file est vide ou en chargement. */}
@@ -243,7 +316,7 @@ export function EcranDaf() {
             lignes={data.contenu}
             cleLigne={(p) => p.id}
             tri={tri}
-            onChangerTri={setTri}
+            onChangerTri={changerTri}
             onActiverLigne={(p) => navigate(`/cotisations/${p.id}`)}
             libelleLigne={(p) => `Ouvrir le paiement ${p.numeroRecu}`}
             pied={

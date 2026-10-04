@@ -60,7 +60,11 @@ export function DialogueAjouterAgent({ ouvert, onOuvertChange, onAgentCree }: Di
         zoneId: valeurs.zoneId,
         objectifCollecteMensuel: valeurs.objectifCollecteMensuel ? Number(valeurs.objectifCollecteMensuel) : undefined,
       });
-      toast.success(`Agent ${agent.nomComplet} créé.`);
+      toast.success(
+        agent.statutValidation === "BROUILLON"
+          ? `Profil de ${agent.nomComplet} créé en brouillon : soumettez-le pour validation depuis sa fiche.`
+          : `Agent ${agent.nomComplet} créé.`,
+      );
       setMotDePasseInitial(agent.motDePasseInitial ?? null);
       setAgentCreeId(agent.id);
       reset();

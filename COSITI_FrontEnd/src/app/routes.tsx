@@ -12,6 +12,14 @@ import { FicheAgentTerrain } from "@/ecrans/agents/FicheAgentTerrain";
 import { JournalCotisations } from "@/ecrans/cotisations/JournalCotisations";
 import { NouveauPaiement } from "@/ecrans/cotisations/NouveauPaiement";
 import { DetailPaiement } from "@/ecrans/cotisations/DetailPaiement";
+import { EcranBilanCaisse } from "@/ecrans/cotisations/EcranBilanCaisse";
+import { EcranCentreValidation } from "@/ecrans/workflow/EcranCentreValidation";
+import { EcranFileControleDga } from "@/ecrans/adhesion/EcranFileControleDga";
+import { EcranControleDga } from "@/ecrans/adhesion/EcranControleDga";
+import { EcranFraisAdhesion } from "@/ecrans/adhesion/EcranFraisAdhesion";
+import { EcranRegles } from "@/ecrans/regles/EcranRegles";
+import { OuvertureFraisAdhesion, OuvertureBilanCaisse } from "@/ecrans/notifications/OuverturesNotification";
+import { FicheDemandeValidation } from "@/ecrans/workflow/FicheDemandeValidation";
 import { EcranDaf } from "@/ecrans/daf/EcranDaf";
 import { EcranDroits } from "@/ecrans/droits/EcranDroits";
 import { ListeDossiersCnps } from "@/ecrans/cnps/ListeDossiersCnps";
@@ -191,6 +199,87 @@ export function RoutesApplication() {
         element={
           <GardeRoute permission="PAIEMENT:CREER">
             <NouveauPaiement />
+          </GardeRoute>
+        }
+      />
+      {/* Workflow de correction, validation et traçabilité (V19) : la liste et le détail sont filtrés par le
+          serveur selon le périmètre et les permissions de lecture de chaque module. */}
+      <Route
+        path="/validations"
+        element={
+          <GardeRoute permission="ADHERENT:LIRE">
+            <EcranCentreValidation />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/validations/:id"
+        element={
+          <GardeRoute permission="ADHERENT:LIRE">
+            <FicheDemandeValidation />
+          </GardeRoute>
+        }
+      />
+
+      {/* Parcours d'adhésion (V20) : contrôle documentaire DGA (lecture PCA, DG, DGA, Gestionnaire) et frais
+          d'adhésion (lecture PCA, DG, DGA, DAF, Gestionnaire). Les actions sont décidées par le serveur. */}
+      <Route
+        path="/controles-dga"
+        element={
+          <GardeRoute permission="CONTROLE_DGA:LIRE">
+            <EcranFileControleDga />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/controles-dga/:id"
+        element={
+          <GardeRoute permission="CONTROLE_DGA:LIRE">
+            <EcranControleDga />
+          </GardeRoute>
+        }
+      />
+      {/* Ouverture d'un objet notifié qui n'a pas d'écran propre : résolu puis redirigé vers l'écran où agir. */}
+      <Route
+        path="/frais-adhesion/:id"
+        element={
+          <GardeRoute permission="ADHERENT:LIRE">
+            <OuvertureFraisAdhesion />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/bilans-caisse/ouvrir/:id"
+        element={
+          <GardeRoute permission="BILAN_CAISSE:LIRE">
+            <OuvertureBilanCaisse />
+          </GardeRoute>
+        }
+      />
+      {/* Règles en attente de validation (V21) : lecture ADMINISTRATION:LIRE ou REGLE:VALIDER, décision PCA. */}
+      <Route
+        path="/regles"
+        element={
+          <GardeRoute unePermissionParmi={["ADMINISTRATION:LIRE", "REGLE:VALIDER"]}>
+            <EcranRegles />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/frais-adhesion"
+        element={
+          <GardeRoute permission="FRAIS_ADHESION:LIRE">
+            <EcranFraisAdhesion />
+          </GardeRoute>
+        }
+      />
+
+      {/* Module cotisations #29 à #33 — lecture PCA, DG, DGA, DAF, Gestionnaire (V18). */}
+      <Route
+        path="/bilans-caisse"
+        element={
+          <GardeRoute permission="BILAN_CAISSE:LIRE">
+            <EcranBilanCaisse />
           </GardeRoute>
         }
       />

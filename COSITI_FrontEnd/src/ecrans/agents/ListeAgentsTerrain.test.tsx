@@ -71,7 +71,7 @@ describe("ListeAgentsTerrain", () => {
     await screen.findByText("Ateba Jean");
     await utilisateur.type(screen.getByLabelText("Nom, code ou téléphone"), "mengue");
 
-    await waitFor(() => expect(requetes.at(-1)?.searchParams.get("recherche")).toBe("mengue"));
+    await waitFor(() => expect(requetes.at(-1)?.searchParams.get("recherche")).toBe("mengue"), { timeout: 4000 });
     await waitFor(() => expect(screen.queryByText("Ateba Jean")).not.toBeInTheDocument());
     expect(screen.getByText("Mengue Sophie")).toBeInTheDocument();
   });

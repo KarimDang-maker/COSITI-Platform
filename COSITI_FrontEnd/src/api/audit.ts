@@ -18,6 +18,8 @@ export interface LigneAudit {
   readonly entiteId: string | null;
   readonly motif: string | null;
   readonly resultat: string;
+  /** V21 : identifiant de corrélation de la requête (`X-Trace-Id`), aussi présent dans les journaux serveur. */
+  readonly correlationId?: string | null;
 }
 
 export interface FiltresAudit {

@@ -216,10 +216,15 @@ listes et les domaines dépendants (`cnps`, `documents`) ; une affectation
 invalide aussi `organisation`. Aucun calcul métier côté client : complétion,
 éligibilité, cumuls, pièces manquantes viennent de l'API.
 
-Temps réel (#35) : le backend publie `AdherentModifieEvent` après commit mais
-n'expose aucun canal SSE/WebSocket en V1 — l'actualisation repose sur
-l'invalidation TanStack Query. Rien n'est construit côté client tant que le
-mécanisme n'est pas retenu.
+Temps réel (#35) : `AdherentModifieEvent` est relayé après commit par le flux
+SSE `GET /temps-reel/flux` ; la fiche et les listes ouvertes chez les autres
+utilisateurs se rechargent (voir « Mise à jour en temps réel » ci-dessous).
+
+Onglet **Adhésion** (V20) : voir « Parcours d'adhésion » ci-dessous. Un dossier
+en brouillon n'est plus « soumis pour validation » (`POST /adherents/{id}/soumettre`
+refusé, `ADHERENT_VALIDATION_PAR_CONTROLE_DGA`) : le bandeau renvoie vers
+l'onglet Adhésion. Le changement de statut ne propose plus « Actif » à un
+préinscrit (`ADHERENT_ACTIVATION_PAR_ROUTE_DEDIEE`).
 
 Non construit : changement de pack (`POST /adherents/{id}/pack`) — V15
 réserve ce circuit à une proposition Gestionnaire validée par le DAF, que
@@ -356,7 +361,8 @@ le rôle DGA (double verrou serveur).
 
 Toute mutation invalide le domaine `organisation` (liste, fiche, répartition,
 sélecteurs) et le domaine `adherents`. Temps réel (#25) : `AgentModifieEvent`
-n'est que journalisé après commit — aucune souscription côté client.
+est relayé par le flux SSE. Synthèse : carte « Frais d'adhésion collectés »
+(`GET /frais-adhesion/agents/{id}/synthese`, `FRAIS_ADHESION:LIRE`).
 
 ## J4 — Cotisations
 
@@ -446,6 +452,254 @@ reçu (`GET /paiements/{id}/recu`), affectations manuelles
 `INCOHERENCE` ajouté à `src/lib/statuts.ts` (domaine `paiement`) : code réel
 de `cm.cositi.api.cotisation.entite.StatutPaiement` absent de la version
 précédente de la table — complété, pas redéfini.
+
+## Workflow de correction, validation et traçabilité (Maker–Checker, V19)
+
+Référence : `COSITI_V1_BACKEND_UI_UX_MISE_A_JOUR_3_MODULES_WORKFLOW.md` (checklist §51 et §51 bis tenue à
+jour). Routes réelles : `/demandes-validation/...` et, par module, `/{adherents|agents|paiements}/{id}/
+statut-validation`, `/historique-validation`, `/soumettre`, `/demandes-modification` (`/demandes-correction`
+pour une cotisation), `/agents/{id}/demandes-changement-statut`. Code : `src/api/workflow.ts`,
+`src/hooks/useWorkflow.ts`, `src/ecrans/workflow/`.
+
+**Principe** : proposition → justification → vérification → décision → application → audit. Le demandeur ne
+décide jamais de sa propre demande ; la valeur officielle reste inchangée jusqu'à l'approbation. Les boutons
+suivent `GET /auth/moi` et l'état renvoyé par le serveur (`modifiableDirectement`, demande ouverte) ; toute
+décision est revérifiée par l'API (permission, rôle DAF pour la finance, auteur ≠ validateur, état, version).
+
+### `/validations` — `EcranCentreValidation`
+
+| | |
+|---|---|
+| Accès | `GardeRoute permission="ADHERENT:LIRE"` (tous les rôles métier) — entrée « Centre de validation » |
+| Onglets | « À traiter » (`/en-attente` : demandes décidables, jamais les siennes), « Mes demandes » (`mesDemandes=true`), « Toutes les demandes » |
+| Filtres | module, statut, type de demande — dans l'URL, pagination serveur |
+
+### `/validations/:id` — `FicheDemandeValidation`
+
+En-tête : référence, type, statut ; actions selon le rôle — validateur habilité : « Demander correction »,
+« Rejeter » (motif obligatoire), « Approuver » (désactivés avec explication pour l'auteur) ; demandeur :
+« Soumettre », « Resoumettre » (valeurs proposées corrigeables), « Annuler la demande ». Cartes : demande
+(donnée concernée, dates, motif), comparaison « Valeur officielle actuelle / Valeur proposée » (« avant /
+appliquée » après approbation, « valeur soumise » pour une validation initiale), justificatifs (consultation
+authentifiée, ajout par téléversement puis rattachement), chronologie des transitions. Un utilisateur sans
+autorité voit « Action non disponible ». Conflit de version : message et « Recharger ».
+
+### Intégration dans les fiches
+
+| Fiche | Brouillon / correction demandée / rejeté | En attente | Validé (officiel) |
+|---|---|---|---|
+| Adhérent | modification directe ; « Soumettre pour validation » (vérification : complétion, pièces) | bandeau, aucune modification directe, complétion suspendue | « Demander une modification », « Demander un changement de statut » ; complétion des champs vides seulement |
+| Agent | « Modifier », « Désactiver » ; « Soumettre pour validation » | bandeau | « Demander une modification », « Demander la désactivation / réactivation » |
+| Cotisation | brouillon : « Modifier » | demande de correction ouverte : « Valider » désactivé | soumise, incohérente ou validée : « Demander une correction » (DAF) |
+
+Onglet « Validation » (adhérent, agent) et carte « Validations et demandes de modification » (cotisation) :
+`GET .../historique-validation`. Liste des agents : colonne « Validation ».
+
+## Parcours d'adhésion : frais, activation, contrôle DGA (V20)
+
+Référence : `COSITI_V1_SPECIFICATION_COMPLETE_FRAIS_ADHESION_ACTIVATION_CONTROLE_DGA.md` (DoD §24 cochée). Routes
+réelles : `/adherents/{id}/frais-adhesion|activation|activer|statut-activation|soumettre-dga|synthese-workflow|
+controle-dga|controles-dga`, `/controles-dga/...`, `/frais-adhesion/...`. Code : `src/api/adhesion.ts`,
+`src/hooks/useAdhesion.ts`, `src/ecrans/adhesion/`. Domaines de statut : `fraisAdhesion`, `controleDgaAdherent`,
+`tourControleDga`, `correspondance`, `decisionControleDga`, `ecartFrais`, `documentControle`, `operationAdhesion`.
+
+**Aucun calcul côté client** : montant unitaire, attendu, écart, conditions d'activation, compteurs du contrôle,
+dossiers distincts soumis et `detailCalcul` viennent du serveur.
+
+### Onglet « Adhésion » de `/adherents/:id` — `OngletAdhesion`
+
+| Carte | Contenu | Action (permission) |
+|---|---|---|
+| Parcours d'adhésion | Frise : frais enregistré → activé → transmis DGA → documents contrôlés ; **deux badges distincts** statut du compte / contrôle DGA | — |
+| Frais d'adhésion | Référence, statut, attendu, reçu, écart, agent collecteur, dates, anomalie et résolution | « Enregistrer le frais » (`FRAIS_ADHESION:ENREGISTRER`) : agent obligatoire (agent responsable proposé), montant reçu prérempli avec le montant serveur, date ≤ aujourd'hui, relecture, clé d'idempotence ; « Valider l'encaissement », « Résoudre l'anomalie » (`FRAIS_ADHESION:VALIDER`, masqués pour l'auteur) ; « Signaler une anomalie » (`FRAIS_ADHESION:SIGNALER`, motif obligatoire) |
+| Activation et contrôle | Dates d'activation et de transmission ; contrôle courant (référence, tour, compteurs, décision) ; lien vers le contrôle | « Vérifier et activer » (`ADHERENT:ACTIVER`) : conditions serveur ✓ / ✗ avec caractère bloquant, confirmation des doublons quand c'est le seul blocage ; « Transmettre / Retransmettre à la DGA » |
+| Historique des contrôles | Tours précédents (`CONTROLE_DGA:LIRE`) | — |
+
+### `/controles-dga` — `EcranFileControleDga` (`CONTROLE_DGA:LIRE` — PCA, DG, DGA, Gestionnaire)
+
+Indicateurs serveur : dossiers distincts soumis, retransmissions, en attente DGA, informations en anomalie.
+Filtres dans l'URL : statut (« À traiter » par défaut = en attente ou en cours), période de transmission, « avec
+anomalie seulement ». Tableau : contrôle, adhérent (nom + matricule), agent collecteur, gestionnaire, date, tour,
+documents vérifiés, anomalies, statut. Ligne → contrôle.
+
+### `/controles-dga/:id` — `EcranControleDga`
+
+Résumé (compteurs serveur, dates, décision). « Démarrer le contrôle » (`CONTROLE_DGA:EFFECTUER`, statut en attente).
+Une carte par document : pièce téléchargeable (`DOCUMENT:LIRE`), « Document manquant », « Illisible » (commentaire
+obligatoire, appliqué à toutes ses informations) ; tableau « Enregistré dans COSITI / Lu sur le document /
+Résultat / Commentaire », « Correspond » en un clic, « Autre résultat… » (valeur lue obligatoire pour « ne
+correspond pas », commentaire obligatoire hors « correspond »). Finalisation : « Valider le dossier », « Demander
+une correction », « Rejeter » (commentaire obligatoire sauf validation, clé d'idempotence) ; avertissement quand les
+compteurs reçus montrent des anomalies ou des informations non vérifiées, refus serveur affiché. Journal du
+contrôle (`GET /controles-dga/{id}/journal`). L'utilisateur qui a transmis le dossier ne voit aucune action
+(`CONTROLE_DGA_AUTO_CONTROLE_INTERDIT` imposé par le serveur). Conflit de version : message dédié.
+
+### `/frais-adhesion` — `EcranFraisAdhesion` (`FRAIS_ADHESION:LIRE` — PCA, DG, DGA, DAF, Gestionnaire)
+
+Montant unitaire en description (`GET /frais-adhesion/configuration`, bandeau si règle non confirmée). Filtres
+période et agent dans l'URL. **Rapprochement** : « dossiers distincts soumis × montant unitaire = montant attendu »
+en trois blocs, `detailCalcul` du serveur, montant enregistré, écart en chiffres **et en toutes lettres**, alerte
+d'écarts, tableau des dossiers en écart (`ecartFrais`), frais hors soumission. Synthèse de la période (nombre,
+attendu, reçu, écart, par statut). Liste paginée filtrable (statut, écarts seulement) avec les actions du DAF.
+
+## Mise à jour en temps réel
+
+Flux SSE `GET /api/v1/temps-reel/flux` (backend `cm.cositi.api.tempsreel`), lu par `fetch` en streaming dans
+`api/client.ts` (`ecouterFlux`) — `EventSource` ne peut pas porter l'en-tête `Authorization`, et le jeton ne passe
+jamais dans l'URL. `app/FournisseurTempsReel.tsx` ouvre **un** flux par onglet tant que la session est connectée ;
+`hooks/useTempsReel.ts` regroupe les signaux (300 ms) et invalide les familles de requêtes de
+`CLES_PAR_DOMAINE` (`api/tempsReel.ts`). Le signal ne porte aucune donnée métier : la ressource est relue par
+l'API, qui applique permissions et périmètre. Reconnexion immédiate à la fermeture normale (toutes les 10 minutes,
+jeton relu), progressive (2 s → 30 s) après une erreur, puis invalidation complète. En-tête : indicateur
+« En direct / Connexion… / Hors ligne » (`IndicateurTempsReel`, libellé écrit, `role="status"`). La cloche de
+notifications garde son rechargement périodique comme filet de sécurité.
+
+## V21 — Règles à valider, matrice documentaire et notifications actionnables
+
+Journal : `journal_des_actions_frontEnd/2026-10-02_V21_reduction_regles_en_attente_frontend.md`.
+
+### `/regles` — `EcranRegles`
+
+| | |
+|---|---|
+| Accès | `GardeRoute unePermissionParmi={["ADMINISTRATION:LIRE", "REGLE:VALIDER"]}` — entrée « Règles à valider » (section Système) |
+| Contrat API | `GET /regles/en-attente`, `POST /regles/parametres/{cle}/valider`, `GET /exigences-documentaires`, `PUT /regles/exigences/{id}`, `POST /regles/exigences/{id}/valider` |
+
+Indicateurs serveur (paramètres à valider, propositions, exigences à confirmer). Onglet « Règles provisoires » :
+nature, règle, valeur appliquée, statut, dernière modification ; « Confirmer » (`REGLE:VALIDER`, PCA) avec la
+référence de la décision COSITI comme motif obligatoire — la valeur ne change pas. Onglet « Matrice documentaire »
+(`?onglet=matrice`) : rubrique, pièce ou information, niveau, contrôle DGA, bloquante, période, statut ; « Modifier »
+(`DialogueModifierExigence` : niveau, condition, DGA, activation, période, motif, version, conflit signalé) et
+« Confirmer » (rappel : une pièce obligatoire confirmée devient bloquante). Sans `REGLE:VALIDER` : consultation seule.
+
+### Checklist documentaire — `ChecklistDocumentaire`
+
+`GET /adherents/{id}/checklist-documentaire`. Par pièce : niveau, statut calculé (`statutPiece`), « Bloque
+l'activation », version, validité, contrôle DGA, condition, règle non confirmée signalée ; par information : valeur
+COSITI et dernier résultat DGA. Compteurs, `pretPourActivation`, avertissements. Actions « Ajouter cette pièce » /
+« Remplacer » (`DOCUMENT:TELEVERSER`). Affichée dans l'onglet **Documents** (remplace `documents-manquants`), l'onglet
+**Adhésion** (carte « Pièces justificatives ») et le dialogue d'activation (« Pièces à traiter »).
+
+### Documents — téléversement V21
+
+Types proposés depuis la matrice en vigueur (`GET /exigences-documentaires?enVigueur=true`) plus « Autre » ;
+caractère de la pièce rappelé ; « Valable du / jusqu'au » facultatifs ; **remplacement** d'une pièce (version
+active) avec motif obligatoire — l'ancienne version reste listée, au statut « Remplacé ». Colonnes « Version » et
+« Validité » (« Expirée ») dans le tableau des documents.
+
+### Compléments d'écrans existants
+
+- Contrôle DGA : résultat « Non applicable » (sans motif) ; « Valider le dossier » suit `validable`, les `blocages`
+  serveur sont listés ; carte « Correction demandée par la DGA » avec « Corriger le dossier et retransmettre » pour le
+  Gestionnaire (`ADHERENT:ACTIVER`).
+- Fiche adhérent : association choisie dans `GET /associations` (Informations professionnelles et Compléter le
+  dossier) ; après création, ouverture sur l'onglet Adhésion.
+- Cotisation validée : carte « Répartition du versement » (`GET /paiements/{id}/affectations`, libellé de composante
+  et règle appliquée renvoyés par le serveur).
+- Audit : colonne « Corrélation » (`correlationId`).
+
+### Notifications actionnables
+
+Une notification est poussée à son destinataire par le flux temps réel (message `notification`, après commit) :
+`AlertesNotifications` (sous le routeur) affiche aussitôt une alerte de 15 s avec un bouton d'action
+(`libelleActionNotification` : « Traiter la demande », « Contrôler le dossier », « Corriger le dossier »…) qui marque
+la notification lue et ouvre l'écran où répondre (`cheminNotification`). La cloche affiche la même action. Routes
+d'ouverture des objets sans écran propre : `/frais-adhesion/:id` (→ onglet Adhésion de l'adhérent) et
+`/bilans-caisse/ouvrir/:id` (→ `/bilans-caisse?date=`), avec message et lien de repli si l'objet est inaccessible.
+
+## Module « Gestion des cotisations » (36 fonctionnalités)
+
+Référence : `COSITI_GESTIONNAIRE_FRONTEND_UI_UX_97_FONCTIONNALITES.md §3`. Les
+routes cibles `/cotisations/...` du document sont servies par le backend sous
+`/paiements/...` (convention J4) et `/bilans-caisse/...` ; c'est ce contrat réel
+qui est branché. **Cette section prévaut sur les sections J4/J5 ci-dessus.**
+
+Statuts ajoutés à `src/lib/statuts.ts` : `REJETE` (domaine `paiement`),
+domaines `bilanCaisse` (`SAISI`, `VALIDE`, `ANOMALIE`) et `operationPaiement`
+(historique). Chaque mutation invalide le domaine `paiements`, les bilans de
+caisse, les adhérents (résumé des cotisations), les droits et les statistiques
+d'agent. Temps réel (#36) : `PaiementModifieEvent` est relayé par le flux SSE
+(paiements et bilans de caisse).
+
+**Défaut corrigé** : les colonnes triables du journal et de la file DAF
+n'avaient pas d'accesseur ; TanStack ne les déclarait pas triables et le clic
+de tri était sans effet. Le tri est maintenant serveur, sur la liste blanche
+`DATE_PAIEMENT|MONTANT|NUMERO_RECU|STATUT|DATE_SAISIE`.
+
+### `/cotisations` — `JournalCotisations`
+
+| # | UI |
+|---|---|
+| 1, 6, 7 | Tableau paginé et trié par le serveur ; filtres statut (7 statuts officiels), mode, période `dateDu`/`dateAu` (une période inversée n'est pas envoyée, un bandeau l'explique) ; tout dans l'URL, chaque filtre en puce retirable |
+| 2 | `?adherentId=` (lien depuis la fiche adhérent ou la fiche paiement) |
+| 3 | Champ « Matricule de l'adhérent », temporisé, `adherentMatricule` serveur |
+| 4, 28 | Filtre « Agent encaisseur » (`ORGANISATION:LIRE`) ; lien vers la synthèse de l'agent (`/agents/:id`) |
+| 5 | Champ « N° de reçu ou référence », temporisé, `reference` serveur ; état vide explicite si introuvable |
+| — | Colonne adhérent : nom + matricule relus par `GET /adherents/{id}` (identifiant abrégé si hors périmètre) |
+| 27 | Onglet « Statistiques du jour » : date de référence, nombre et montant, tableaux par statut et par mode |
+| 34 | « Exporter (CSV) » (`EXPORT:PAIEMENTS` — DAF, DG, DGA) : dialogue rappelant les critères réellement appliqués (statut, période) et ceux que l'export ignore |
+
+### `/cotisations/nouveau` — `NouveauPaiement` (`PAIEMENT:CREER` — Agent, Gestionnaire)
+
+- #12 : carte de l'adhérent choisi (nom, matricule, statut, zone) avant l'envoi.
+- #11 : montant contrôlé en forme (strictement positif), date bornée à aujourd'hui ;
+  erreurs serveur placées sur le champ concerné (`champ`).
+- #13 : `POST /paiements/verifier-doublon` avant l'envoi. Référence déjà
+  utilisée → erreur sur le champ, rien n'est envoyé ; doublons potentiels →
+  dialogue listant les paiements du serveur, « Enregistrer quand même ». Si le
+  contrôle préalable échoue techniquement, l'enregistrement reste possible (le
+  serveur refait le contrôle bloquant).
+- #9, #14 : « Enregistrer le paiement » (entre dans la file de contrôle) ou
+  « Enregistrer comme brouillon » (`?brouillon=true`).
+- #10, #35 : numéro de reçu annoncé après création ; clé `Idempotency-Key`
+  générée au montage et réutilisée pour tout nouvel essai ; boutons désactivés
+  pendant l'envoi.
+
+### `/cotisations/:id` — `DetailPaiement`
+
+Actions proposées selon la permission **et** le statut courant (le serveur
+reste juge et son refus est affiché tel quel) :
+
+| Action | Permission | Statut |
+|---|---|---|
+| Soumettre au contrôle (#14) | `PAIEMENT:CREER` | `BROUILLON` |
+| Valider (#16) — dialogue de contrôle complet (reçu, adhérent, montant, date, mode, référence) | `PAIEMENT:VALIDER` (DAF) | `A_CONTROLER`, désactivé pour l'auteur |
+| Rejeter (#17) — motif obligatoire, définitif | `PAIEMENT:VALIDER` | `A_CONTROLER`, `INCOHERENCE`, désactivé pour l'auteur |
+| Corriger / Modifier (#19) — revue **avant / après**, seuls les champs modifiés envoyés ; motif obligatoire sauf brouillon | `PAIEMENT:CORRIGER`, ou `PAIEMENT:CREER` pour l'auteur d'un brouillon | `BROUILLON`, `A_CONTROLER`, `INCOHERENCE` |
+| Annuler (motif) | `PAIEMENT:ANNULER` | tout sauf `ANNULE`, `REJETE` |
+| Signaler une incohérence | `PAIEMENT:SIGNALER_INCOHERENCE` | `A_CONTROLER` |
+| Confirmer la collecte | `PAIEMENT:CONFIRMER_CHEF` | — (motif désormais en paramètre de requête : il était envoyé dans le corps et ignoré) |
+
+Cartes : Informations (montant, date, mode, référence, adhérent et agent liés à
+leur fiche, auteur et date de saisie, confirmation du Chef) ; « Cotisations de
+l'adhérent » (#20 validé, #21 en attente → journal filtré, #22 reste avant
+seuil, #23 progression, #26 — `DROITS:LIRE` + `PAIEMENT:LIRE`) ; « Historique
+des statuts » (#18). Bandeaux : brouillon, incohérence, rejet (motif et date).
+
+### `/daf` — `EcranDaf` (file à valider, #15)
+
+File `statut=A_CONTROLER`, plus anciens d'abord, tri serveur. Actions de
+ligne : Confirmer (#16), Signaler une incohérence, **Rejeter** (#17, motif).
+
+### `/bilans-caisse` — `EcranBilanCaisse` (#29 à #33)
+
+| | |
+|---|---|
+| Accès | `GardeRoute permission="BILAN_CAISSE:LIRE"` (PCA, DG, DGA, DAF, Gestionnaire) — entrée « Bilan de caisse » |
+| Contrat API | `GET /paiements/bilan-journalier`, `GET/POST /bilans-caisse`, `POST /bilans-caisse/{date}/valider`, `/anomalie` |
+
+Date du bilan dans l'URL. Carte « Bilan numérique » (#29) : paiements, total
+enregistré, montant **à retrouver en caisse**, définition provisoire (modes et
+statuts inclus, avertissement `[V]`), détail par mode, heure de génération.
+Carte « Rapprochement » (#31) : statut, numérique, caisse, écart en grands
+chiffres **et en toutes lettres** (« Manque / Excédent en caisse », « Aucun
+écart »), alerte si des paiements ont changé depuis la saisie, motif
+d'anomalie, validation. Actions : « Saisir la caisse physique » (#30,
+`BILAN_CAISSE:SAISIR` — Gestionnaire ; aucun bilan ou anomalie ; saisie puis
+relecture des deux montants), « Valider le bilan » (#32, `BILAN_CAISSE:VALIDER`
+— DAF ; `version` transmise), « Signaler une anomalie » (#33, description
+obligatoire). Décision masquée à l'auteur de la saisie. Historique paginé des
+bilans, filtrable par statut ; une ligne ouvre la date.
 
 ---
 

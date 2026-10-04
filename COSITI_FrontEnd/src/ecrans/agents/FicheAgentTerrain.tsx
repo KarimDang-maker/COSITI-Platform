@@ -23,8 +23,11 @@ import { OngletPortefeuille } from "@/ecrans/agents/fiche/OngletPortefeuille";
 import { OngletCnpsAgent } from "@/ecrans/agents/fiche/OngletCnpsAgent";
 import { OngletActivite } from "@/ecrans/agents/fiche/OngletActivite";
 import { OngletHistoriquePortefeuille } from "@/ecrans/agents/fiche/OngletHistoriquePortefeuille";
+import { DialogueDemandeStatutAgent } from "@/ecrans/agents/fiche/DialogueDemandeStatutAgent";
+import { BandeauWorkflow, HistoriqueValidation } from "@/ecrans/workflow/BandeauWorkflow";
+import { DialogueDemandeModification } from "@/ecrans/workflow/DialogueDemandeModification";
 
-type Onglet = "synthese" | "portefeuille" | "cnps" | "activite" | "historique";
+type Onglet = "synthese" | "portefeuille" | "cnps" | "activite" | "historique" | "validation";
 
 /**
  * Fiche d'un agent de terrain (#3). Identité, portefeuille et activité sont séparés en onglets ; les
@@ -74,8 +77,27 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
   const [modificationOuverte, setModificationOuverte] = useState(false);
   const [statutOuvert, setStatutOuvert] = useState(false);
   const [chefOuvert, setChefOuvert] = useState(false);
+  const [demandeModificationOuverte, setDemandeModificationOuverte] = useState(false);
+  const [demandeStatutOuverte, setDemandeStatutOuverte] = useState(false);
 
-  const ongletsVisibles: Onglet[] = ["synthese", "portefeuille", ...(peutLireCnps ? (["cnps"] as const) : []), "activite", "historique"];
+  // Workflow V19 : un profil validé ne se modifie plus directement (409 AGENT_MODIFICATION_PAR_DEMANDE,
+  // AGENT_CHANGEMENT_STATUT_PAR_DEMANDE) ; un profil en attente est verrouillé. Sans `statutValidation`
+  // (API antérieure), la modification directe reste proposée.
+  const statutValidation = agent.statutValidation;
+  const officiel = statutValidation === "VALIDE";
+  const modificationDirecte =
+    !statutValidation || statutValidation === "BROUILLON" || statutValidation === "CORRECTION_DEMANDEE" || statutValidation === "REJETE";
+  const peutModifierDirectement = peutGerer && modificationDirecte;
+  const peutDemander = peutGerer && officiel;
+
+  const ongletsVisibles: Onglet[] = [
+    "synthese",
+    "portefeuille",
+    ...(peutLireCnps ? (["cnps"] as const) : []),
+    "activite",
+    "historique",
+    ...(statutValidation ? (["validation"] as const) : []),
+  ];
   const demande = parametres.get("onglet") as Onglet | null;
   const onglet: Onglet = demande && ongletsVisibles.includes(demande) ? demande : "synthese";
 
@@ -110,16 +132,28 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
           filAriane={[{ libelle: "Agents de terrain", chemin: "/agents" }, { libelle: "Fiche agent" }]}
           actions={
             <>
-              {peutGerer && (
+              {peutModifierDirectement && (
                 <Button variant="outline" onClick={() => setModificationOuverte(true)}>
                   <PencilLine className="size-4" aria-hidden="true" />
                   Modifier
                 </Button>
               )}
-              {peutGerer && (
+              {peutModifierDirectement && (
                 <Button variant="outline" onClick={() => setStatutOuvert(true)}>
                   <Power className="size-4" aria-hidden="true" />
                   {agent.actif ? "Désactiver" : "Réactiver"}
+                </Button>
+              )}
+              {peutDemander && (
+                <Button variant="outline" onClick={() => setDemandeModificationOuverte(true)}>
+                  <PencilLine className="size-4" aria-hidden="true" />
+                  Demander une modification
+                </Button>
+              )}
+              {peutDemander && (
+                <Button variant="outline" onClick={() => setDemandeStatutOuverte(true)}>
+                  <Power className="size-4" aria-hidden="true" />
+                  {agent.actif ? "Demander la désactivation" : "Demander la réactivation"}
                 </Button>
               )}
               {peutDesignerChef && agent.actif && !estChef && (
@@ -131,6 +165,22 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
             </>
           }
         />
+
+        {statutValidation && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-texte-doux-fort">Validation du profil :</span>
+            <BadgeStatut domaine="statutValidation" code={statutValidation} />
+          </div>
+        )}
+        {statutValidation && (
+          <BandeauWorkflow
+            typeEntite="AGENT"
+            entiteId={agent.id}
+            designation={`${agent.nomComplet} (${agent.codeAgent})`}
+            peutSoumettre={peutGerer}
+            onDemanderModification={peutDemander ? () => setDemandeModificationOuverte(true) : undefined}
+          />
+        )}
 
         <CarteSection titre="Identité">
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-4">
@@ -162,6 +212,7 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
             {peutLireCnps && <TabsTrigger value="cnps">CNPS</TabsTrigger>}
             <TabsTrigger value="activite">Activité</TabsTrigger>
             <TabsTrigger value="historique">Historique du portefeuille</TabsTrigger>
+            {ongletsVisibles.includes("validation") && <TabsTrigger value="validation">Validation</TabsTrigger>}
           </TabsList>
 
           <TabsContent value="synthese">
@@ -177,10 +228,36 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
           <TabsContent value="historique">
             {onglet === "historique" && <OngletHistoriquePortefeuille agentId={agent.id} peutLireAdherents={peutLireAdherents} />}
           </TabsContent>
+          {ongletsVisibles.includes("validation") && (
+            <TabsContent value="validation">
+              {onglet === "validation" && <HistoriqueValidation typeEntite="AGENT" entiteId={agent.id} />}
+            </TabsContent>
+          )}
         </Tabs>
       </div>
 
-      {peutGerer && (
+      {peutDemander && (
+        <>
+          <DialogueDemandeModification
+            ouvert={demandeModificationOuverte}
+            onOuvertChange={setDemandeModificationOuverte}
+            typeEntite="AGENT"
+            operation="AGENT_MODIFICATION"
+            entiteId={agent.id}
+            designation={`${agent.nomComplet} (${agent.codeAgent})`}
+            valeursActuelles={{
+              nomComplet: agent.nomComplet,
+              telephone: agent.telephone,
+              zoneId: agent.zoneId,
+              objectifCollecteMensuel: agent.objectifCollecteMensuel === null ? null : String(agent.objectifCollecteMensuel),
+            }}
+            version={agent.version}
+            referentiels={{ zones }}
+          />
+          <DialogueDemandeStatutAgent agent={agent} ouvert={demandeStatutOuverte} onOuvertChange={setDemandeStatutOuverte} />
+        </>
+      )}
+      {peutModifierDirectement && (
         <>
           <DialogueModifierAgent agent={agent} ouvert={modificationOuverte} onOuvertChange={setModificationOuverte} />
           <DialogueStatutAgent agent={agent} ouvert={statutOuvert} onOuvertChange={setStatutOuvert} />

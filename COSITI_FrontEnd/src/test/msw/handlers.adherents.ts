@@ -39,6 +39,8 @@ export const ADHERENTS_TEST: readonly Adherent[] = [
     statut: "ACTIF",
     inscriptionPayee: true,
     agentReferentNom: "Ateba Jean",
+    statutValidation: "VALIDE",
+    version: 3,
   },
   {
     id: "adh-2",
@@ -62,6 +64,8 @@ export const ADHERENTS_TEST: readonly Adherent[] = [
     statut: "EN_RETARD",
     inscriptionPayee: true,
     agentReferentNom: null,
+    statutValidation: "BROUILLON",
+    version: 1,
   },
 ];
 
@@ -107,6 +111,21 @@ export const CHAMPS_MANQUANTS_TEST: readonly ChampManquant[] = [
 
 export const AVERTISSEMENT_COMPLETION =
   "La liste des champs de complétion (CHAMPS_COMPLETION_ADHERENT) n'est pas validée par la COSITI.";
+
+/** Workflow V19 : toute modification directe d'un dossier validé est refusée (`ServiceAdherentImpl`). */
+function refusDossierValide(id: unknown) {
+  const adherent = ADHERENTS_TEST.find((a) => a.id === id);
+  if (adherent?.statutValidation !== "VALIDE") return null;
+  return HttpResponse.json(
+    {
+      code: "ADHERENT_MODIFICATION_PAR_DEMANDE",
+      message: "Ce dossier est validé : toute modification passe par une demande de modification.",
+      traceId: "t-wf",
+      avertissements: [],
+    },
+    { status: 409 },
+  );
+}
 
 function introuvable() {
   return HttpResponse.json(
@@ -183,6 +202,8 @@ export const handlersAdherents = [
   }),
 
   http.put("/api/v1/adherents/:id", async ({ params, request }) => {
+    const refus = refusDossierValide(params.id);
+    if (refus) return refus;
     const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
     if (!adherent) return introuvable();
     const corps = (await request.json()) as CorpsModificationAdherent;
@@ -190,6 +211,8 @@ export const handlersAdherents = [
   }),
 
   http.post("/api/v1/adherents/:id/statut", async ({ params, request }) => {
+    const refus = refusDossierValide(params.id);
+    if (refus) return refus;
     const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
     if (!adherent) return introuvable();
     const corps = (await request.json()) as { statut: string; motif: string };
@@ -331,6 +354,8 @@ export const handlersAdherents = [
   }),
 
   http.put("/api/v1/adherents/:id/coordonnees", async ({ params, request }) => {
+    const refus = refusDossierValide(params.id);
+    if (refus) return refus;
     const adherent = ADHERENTS_TEST.find((a) => a.id === params.id);
     if (!adherent) return introuvable();
     const corps = (await request.json()) as CorpsModificationCoordonnees;

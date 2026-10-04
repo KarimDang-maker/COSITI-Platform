@@ -40,7 +40,11 @@ export function DialogueChangerStatut({ adherentId, nomAdherent, statutActuel, o
   const [etape, setEtape] = useState<"saisie" | "confirmation">("saisie");
   const [erreur, setErreur] = useState<string | null>(null);
 
-  const options = (Object.keys(STATUTS.adherent) as StatutAdherent[]).filter((code) => code !== statutActuel);
+  // V20 : un préinscrit ne devient pas « Actif » par un changement de statut (409 ADHERENT_ACTIVATION_PAR_ROUTE_DEDIEE),
+  // mais par l'activation du parcours d'adhésion. L'option est retirée plutôt que proposée pour être refusée.
+  const options = (Object.keys(STATUTS.adherent) as StatutAdherent[]).filter(
+    (code) => code !== statutActuel && !(statutActuel === "PREINSCRIT" && code === "ACTIF"),
+  );
 
   function fermer(valeur: boolean) {
     if (!valeur) {

@@ -77,6 +77,8 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       // retirée (§3 : audit global réservé au PCA et au Super Administrateur).
       "ORGANISATION:AFFECTER_PORTEFEUILLE",
       "ORGANISATION:GERER_ZONES",
+      // V19 : le Gestionnaire valide les dossiers adhérents (jamais ses propres demandes).
+      "ADHERENT:VALIDER",
       "DROITS:LIRE",
       // V9__permissions_j7_cnps_documents.sql : le Gestionnaire des comptes est
       // le rôle opérationnel du domaine CNPS (Roles des acteurs.md §7).
@@ -100,6 +102,14 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       // V12 : exports de son domaine. Aucune permission RAPPORT_DAF:* — REC-H12.
       "EXPORT:ADHERENTS",
       "EXPORT:CNPS",
+      // V18 : le Gestionnaire compte et saisit la caisse physique du bilan journalier.
+      "BILAN_CAISSE:LIRE",
+      "BILAN_CAISSE:SAISIR",
+      // V20 : le Gestionnaire enregistre le frais collecté, active l'adhérent et suit le contrôle DGA.
+      "ADHERENT:ACTIVER",
+      "FRAIS_ADHESION:LIRE",
+      "FRAIS_ADHESION:ENREGISTRER",
+      "CONTROLE_DGA:LIRE",
     ],
     doitChangerMotDePasse: false,
   },
@@ -125,6 +135,16 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "TABLEAU_BORD:DGA",
       "RAPPORT_DAF:LIRE",
       "EXPORT:ADHERENTS",
+      "EXPORT:PAIEMENTS",
+      "BILAN_CAISSE:LIRE",
+      // V19 : la DGA valide dossiers adhérents et profils d'agents.
+      "ADHERENT:VALIDER",
+      "AGENT:VALIDER",
+      // V20 : la DGA contrôle les documents et peut signaler une anomalie de frais.
+      "FRAIS_ADHESION:LIRE",
+      "FRAIS_ADHESION:SIGNALER",
+      "CONTROLE_DGA:LIRE",
+      "CONTROLE_DGA:EFFECTUER",
     ],
     doitChangerMotDePasse: false,
   },
@@ -153,6 +173,13 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "RAPPORT_DAF:PRODUIRE",
       "RAPPORT_DAF:TRANSMETTRE",
       "EXPORT:PAIEMENTS",
+      // V18 : le DAF valide le bilan journalier ou y signale une anomalie.
+      "BILAN_CAISSE:LIRE",
+      "BILAN_CAISSE:VALIDER",
+      // V20 : le DAF valide l'encaissement du frais d'adhésion (jamais le sien).
+      "FRAIS_ADHESION:LIRE",
+      "FRAIS_ADHESION:VALIDER",
+      "FRAIS_ADHESION:SIGNALER",
     ],
     doitChangerMotDePasse: false,
   },
@@ -195,6 +222,12 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "CNPS:LIRE",
       "DOCUMENT:LIRE",
       "TABLEAU_BORD:PCA",
+      "BILAN_CAISSE:LIRE",
+      // V20 : supervision en lecture.
+      "FRAIS_ADHESION:LIRE",
+      "CONTROLE_DGA:LIRE",
+      // V21 : le PCA confirme les règles en attente de validation.
+      "REGLE:VALIDER",
     ],
     doitChangerMotDePasse: false,
   },

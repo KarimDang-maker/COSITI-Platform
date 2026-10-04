@@ -4,6 +4,8 @@ import { AuthProvider } from "@/auth/ContexteAuth";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { RoutesApplication } from "@/app/routes";
+import { FournisseurTempsReel } from "@/app/FournisseurTempsReel";
+import { AlertesNotifications } from "@/ecrans/notifications/AlertesNotifications";
 
 const clientRequetes = new QueryClient({
   defaultOptions: {
@@ -21,12 +23,15 @@ export function App() {
   return (
     <QueryClientProvider client={clientRequetes}>
       <AuthProvider>
-        <TooltipProvider>
-          <BrowserRouter>
-            <RoutesApplication />
-          </BrowserRouter>
-          <Toaster />
-        </TooltipProvider>
+        <FournisseurTempsReel>
+          <TooltipProvider>
+            <BrowserRouter>
+              <RoutesApplication />
+              <AlertesNotifications />
+            </BrowserRouter>
+            <Toaster />
+          </TooltipProvider>
+        </FournisseurTempsReel>
       </AuthProvider>
     </QueryClientProvider>
   );

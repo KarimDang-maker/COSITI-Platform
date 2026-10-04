@@ -19,8 +19,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChampFormulaire } from "@/components/cositi/champ-formulaire";
 import { ChampDate } from "@/components/cositi/champ-date";
+import { SelectRecherche } from "@/components/cositi/select-recherche";
 import { Alerte } from "@/components/cositi/alerte";
-import { useChampsManquants, useCompleterProfil } from "@/hooks/useAdherents";
+import { useAssociations, useChampsManquants, useCompleterProfil } from "@/hooks/useAdherents";
 import type { CorpsCompletionProfil, Sexe } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
 import { schemaLatitude, schemaLongitude, schemaTelephoneFacultatif, sansVide, texteVersNombre } from "@/ecrans/adherents/schemas";
@@ -40,6 +41,8 @@ const CLES_SAISISSABLES = new Set([
   "VILLE",
   "GEOLOCALISATION",
   "CONSENTEMENT",
+  // V21 : référentiel `GET /associations` exposé.
+  "ASSOCIATION",
 ]);
 
 const schema = z.object({
@@ -50,6 +53,7 @@ const schema = z.object({
   numeroCnps: z.string().trim().optional(),
   quartier: z.string().trim().optional(),
   ville: z.string().trim().optional(),
+  associationId: z.string().optional(),
   latitude: schemaLatitude,
   longitude: schemaLongitude,
   consentementDonnees: z.boolean(),
@@ -70,6 +74,7 @@ interface DialogueCompleterDossierProps {
 export function DialogueCompleterDossier({ adherentId, ouvert, onOuvertChange }: DialogueCompleterDossierProps) {
   const { data: manquants, isLoading, isError } = useChampsManquants(adherentId, ouvert);
   const completer = useCompleterProfil(adherentId);
+  const { data: associations } = useAssociations(ouvert);
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
 
   const {
@@ -100,6 +105,7 @@ export function DialogueCompleterDossier({ adherentId, ouvert, onOuvertChange }:
       numeroCnps: sansVide(valeurs.numeroCnps),
       quartier: sansVide(valeurs.quartier),
       ville: sansVide(valeurs.ville),
+      associationId: sansVide(valeurs.associationId),
       latitude: texteVersNombre(valeurs.latitude) ?? undefined,
       longitude: texteVersNombre(valeurs.longitude) ?? undefined,
       consentementDonnees: valeurs.consentementDonnees,
@@ -207,6 +213,31 @@ export function DialogueCompleterDossier({ adherentId, ouvert, onOuvertChange }:
                   {(attributs) => <Input {...attributs} {...register("ville")} />}
                 </ChampFormulaire>
               )}
+              {cles.has("ASSOCIATION") && (
+                <ChampFormulaire
+                  id="c-associationId"
+                  libelle={libelle("ASSOCIATION", "Association")}
+                  aide={associations && associations.length === 0 ? "Aucune association n'est encore enregistrée dans le référentiel." : undefined}
+                >
+                  {(attributs) => (
+                    <Controller
+                      control={control}
+                      name="associationId"
+                      render={({ field }) => (
+                        <SelectRecherche
+                          id={attributs.id}
+                          options={(associations ?? []).filter((a) => a.active).map((a) => ({ valeur: a.id, libelle: a.nom }))}
+                          valeur={field.value}
+                          onChange={field.onChange}
+                          ariaDescribedBy={attributs["aria-describedby"]}
+                          placeholder="Choisir une association"
+                          texteVide="Aucune association"
+                        />
+                      )}
+                    />
+                  )}
+                </ChampFormulaire>
+              )}
               {cles.has("GEOLOCALISATION") && (
                 <>
                   <ChampFormulaire id="c-latitude" libelle="Latitude" erreur={errors.latitude?.message}>
@@ -245,8 +276,6 @@ export function DialogueCompleterDossier({ adherentId, ouvert, onOuvertChange }:
                     <li key={c.cle}>{c.libelle}</li>
                   ))}
                 </ul>
-                {/* TODO [V] : aucun référentiel d'associations n'est exposé par l'API — l'association ne
-                    peut donc pas être choisie dans une liste. À confirmer avec la COSITI. */}
                 <p className="mt-2 text-sm">Ces informations ne peuvent pas être saisies dans ce parcours.</p>
               </Alerte>
             )}

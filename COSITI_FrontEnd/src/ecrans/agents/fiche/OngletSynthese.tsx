@@ -17,6 +17,7 @@ import {
 import { estErreurApi } from "@/api/erreurs";
 import { formaterDateHeure, formaterMoisAnnee, formaterMontant, formaterNombre } from "@/lib/format";
 import { estMoisValide, moisCourant } from "@/ecrans/agents/periode";
+import { CarteFraisAgent } from "@/ecrans/adhesion/CarteFraisAgent";
 
 interface OngletSyntheseProps {
   agentId: string;
@@ -142,6 +143,8 @@ export function OngletSynthese({ agentId, peutLirePaiements, peutLireAdherents }
             ))}
         </section>
       </CarteSection>
+
+      <CarteFraisAgent agentId={agentId} />
 
       <CarteSection titre="Dernière activité enregistrée">
         {operations.isLoading && <Skeleton className="h-10 w-full" />}

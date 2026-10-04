@@ -664,34 +664,200 @@ et demander confirmation avant la mutation.
 
 Une fonctionnalité est terminée lorsque :
 
-1.  la page/section/action UI existe ;
-2.  l'endpoint réel du contrat OpenAPI est branché ;
-3.  les types TypeScript sont alignés sur le contrat ;
-4.  TanStack Query gère les données serveur ;
-5.  les mutations invalident les requêtes dépendantes ;
-6.  les permissions sont respectées dans l'interface et imposées côté
-    backend ;
-7.  les états chargement/vide/erreur/succès sont couverts ;
-8.  les formulaires utilisent RHF + Zod lorsque nécessaire ;
-9.  les erreurs métier sont compréhensibles ;
-10. les doubles soumissions sont bloquées ;
-11. les actions sensibles demandent confirmation ;
-12. aucune règle métier critique n'est dupliquée comme autorité côté
-    frontend ;
-13. aucune donnée sensible n'est persistée inutilement dans
-    localStorage/sessionStorage ;
-14. les actions sensibles sont journalisées côté backend ;
-15. les tests couvrent le scénario nominal et les erreurs principales ;
-16. aucun endpoint fictif n'est ajouté.
+- [x] 1. la page/section/action UI existe ;
+- [x] 2. l'endpoint réel du contrat OpenAPI est branché (routes réelles, voir §8 — jamais les routes cibles
+  `/agents-terrain`, `/cotisations`, `/adhesion-fees`) ;
+- [x] 3. les types TypeScript sont alignés sur le contrat (DTO relus dans le code backend) ;
+- [x] 4. TanStack Query gère les données serveur ;
+- [x] 5. les mutations invalident les requêtes dépendantes, **et le flux temps réel invalide celles des autres
+  utilisateurs** (§8.6) ;
+- [x] 6. les permissions sont respectées dans l'interface et imposées côté backend ;
+- [x] 7. les états chargement/vide/erreur/succès sont couverts ;
+- [x] 8. les formulaires utilisent RHF + Zod lorsque nécessaire (création d'adhérent, identité, coordonnées,
+  paiement) ; les dialogues courts à un ou deux champs utilisent un état local contrôlé ;
+- [x] 9. les erreurs métier sont compréhensibles (message serveur affiché, erreur placée sur le champ) ;
+- [x] 10. les doubles soumissions sont bloquées (boutons désactivés, clés d'idempotence) ;
+- [x] 11. les actions sensibles demandent confirmation (relecture des montants, motif obligatoire) ;
+- [x] 12. aucune règle métier critique n'est dupliquée comme autorité côté frontend ;
+- [x] 13. aucune donnée sensible n'est persistée dans localStorage/sessionStorage (jeton en mémoire) ;
+- [x] 14. les actions sensibles sont journalisées côté backend (`TypeOperation`, journal d'audit) ;
+- [x] 15. les tests couvrent le scénario nominal et les erreurs principales (184 tests Vitest verts) ;
+- [x] 16. aucun endpoint fictif n'est ajouté.
 
 ## 7. Points à confirmer avant codage
 
--   Contrat réel `/api/v1/openapi` pour chaque endpoint.
--   Permissions exactes de chaque mutation.
--   Transitions d'état des cotisations.
--   Règles définitives CNPS et seuil de 15 000 FCFA.
--   Règles de correction et éventuelle annulation.
--   Mécanisme temps réel : SSE/WebSocket ou simple invalidation/refetch
-    TanStack Query.
--   Endpoint d'historique portefeuille agent s'il n'existe pas déjà.
--   Format et cycle de vie des exports.
+- [x] Contrat réel `/api/v1/openapi` pour chaque endpoint — routes réelles listées au §8.
+- [x] Permissions exactes de chaque mutation — migrations V5 à V20, rappelées dans `src/api/*.ts`.
+- [x] Transitions d'état des cotisations — `BROUILLON → A_CONTROLER → VALIDE | REJETE | INCOHERENCE`, annulation motivée.
+- [ ] Règles définitives CNPS et seuil de 15 000 FCFA — paramètres `[V]`, affichés tels que renvoyés.
+- [x] Règles de correction et éventuelle annulation — workflow Maker–Checker V19 (§8.4).
+- [x] Mécanisme temps réel — **SSE retenu** : `GET /api/v1/temps-reel/flux` (§8.6).
+- [x] Endpoint d'historique portefeuille agent — `GET /agents/{id}/portefeuille/historique`.
+- [ ] Format et cycle de vie des exports — export CSV livré ; seuls les critères acceptés par le serveur sont
+  appliqués (statut, zone, période), les autres sont signalés à l'utilisateur.
+
+## 8. État d'implémentation — fonctionnalités développées (mis à jour le 2026-10-02)
+
+Légende : ☑ livrée et testée · ◐ livrée avec une limite consignée en décision `[A]`/`[V]` dans
+`Conception/SUIVI_EXECUTION.md`. Les routes sont celles du backend réel, préfixe `/api/v1` omis.
+
+### 8.1 Gestion des adhérents — 35 / 35
+
+| # | Fonctionnalité | État | Route réelle | Écran / UX livrée |
+|---|---|---|---|---|
+| 1 | Lister les adhérents autorisés | ☑ | `GET /adherents` | `/adherents` — tableau paginé serveur, périmètre appliqué par l'API, états chargement / vide / erreur |
+| 2 | Rechercher nom/prénom | ☑ | `GET /adherents?recherche=` | Recherche temporisée (300 ms), filtre en puce retirable, conservée dans l'URL |
+| 3 | Rechercher matricule | ☑ | `GET /adherents/matricule/{matricule}` | Accès direct à la fiche ; même message si introuvable ou hors périmètre |
+| 4 | Rechercher téléphone | ☑ | `GET /adherents?telephone=` | Recherche temporisée ; nom et matricule affichés contre les homonymes |
+| 5 | Filtrer statut | ☑ | `GET /adherents?statut=` | Sélecteur, libellés de `lib/statuts.ts` |
+| 6 | Filtrer agent | ☑ | `GET /adherents?agentId=` | `SelectRecherche` sur le référentiel des agents (`ORGANISATION:LIRE`) |
+| 7 | Filtrer complétion | ☑ | `GET /adherents?completionMin=&completionMax=` | Plages ; appartenance décidée par la formule serveur |
+| 8 | Pagination/tri | ☑ | `GET /adherents?page=&taille=&tri=&direction=` | Tri serveur sur liste blanche, pagination avec total réel |
+| 9 | Créer adhérent | ☑ | `POST /adherents` | `/adherents/nouveau` — formulaire en 3 étapes RHF + Zod, récapitulatif avant envoi |
+| 10 | Vérifier doublons | ☑ | `POST /adherents/verifier-doublon` | Bandeau non bloquant à l'étape 3 ; confirmation explicite sur `409 ADHERENT_DOUBLON_POTENTIEL` |
+| 11 | Générer référence | ☑ | inclus dans `POST /adherents` | Matricule annoncé après création, bouton de copie dans la fiche |
+| 12 | Détail adhérent | ☑ | `GET /adherents/{id}` | `/adherents/:id` — en-tête collant, onglets dans l'URL |
+| 13 | Modifier profil | ☑ | `PUT /adherents/{id}` ; dossier officiel : `POST /adherents/{id}/demandes-modification` | Modification directe en brouillon ; demande de modification pour un dossier validé (V19) |
+| 14 | Calculer complétion | ☑ | `GET /adherents/{id}/completion` | Barre de complétion, valeur serveur |
+| 15 | Champs manquants | ☑ | `GET /adherents/{id}/champs-manquants` | Liste dans « Compléter le dossier » |
+| 16 | Compléter dossier | ☑ | `PATCH /adherents/{id}/profil` | Ne propose que les champs manquants |
+| 17 | État dossier | ☑ | `GET /adherents/{id}/dossier` | Bloc « Dossier » de l'onglet Profil |
+| 18 | Documents manquants | ☑ | `GET /adherents/{id}/documents-manquants` | Dépôt pré-typé par pièce manquante |
+| 19 | Consulter documents | ☑ | `GET /documents?adherentId=`, `GET /documents/{id}` | Onglet Documents, téléchargement authentifié |
+| 20 | Ajouter pièce | ☑ | `POST /documents` | Téléversement multipart, vérification / rejet motivé (`DOCUMENT:VERIFIER`) |
+| 21 | Historique | ☑ | `GET /adherents/{id}/historique` | Chronologie filtrable, inclut les étapes du parcours d'adhésion |
+| 22 | Agent responsable | ☑ | `GET /adherents/{id}/agent` | Carte « Agent responsable » |
+| 23 | Affecter agent | ☑ | `POST /portefeuilles/affecter` | Confirmation, motif facultatif |
+| 24 | Modifier affectation | ☑ | `POST /portefeuilles/transferer` | Ancien → nouvel agent, motif obligatoire |
+| 25 | Proches quota CNPS | ☑ | `GET /cnps/proches-seuil` | Onglet « Proches du seuil CNPS », bande `[V]` affichée |
+| 26 | Atteint 15 000 | ☑ | `GET /cnps/eligibles-non-immatricules` | Onglet « Éligibles CNPS » |
+| 27 | Éligibilité pré-immatriculation | ☑ | `GET /adherents/{id}/resume-cotisations` | Onglet CNPS : éligibilité distincte de la complétude |
+| 28 | Cumul cotisations | ☑ | `GET /adherents/{id}/resume-cotisations` | Onglet Cotisations : validé, en attente, reste avant seuil |
+| 29 | Infos professionnelles | ☑ | `GET /adherents/{id}/professionnel` | Onglet Professionnel |
+| 30 | Modifier infos professionnelles | ☑ | `PUT /adherents/{id}/professionnel` | Édition activité / CNPS, erreur localisée |
+| 31 | Coordonnées | ☑ | `GET /adherents/{id}/coordonnees` | Carte Coordonnées |
+| 32 | Modifier coordonnées | ☑ | `PUT /adherents/{id}/coordonnees` | Édition explicite, saisie conservée en cas d'erreur |
+| 33 | Changer statut dossier | ☑ | `POST /adherents/{id}/statut` ; dossier officiel : demande V19 | Motif obligatoire, étape de confirmation |
+| 34 | Exporter adhérents | ◐ | `POST /exports/adherents` | Le dialogue rappelle les critères appliqués (statut, zone) et signale ceux que l'export ignore |
+| 35 | Publier changement | ☑ | `GET /temps-reel/flux` (SSE) | Les listes et fiches se rechargent dès qu'un autre acteur modifie un adhérent (§8.6) |
+
+### 8.2 Gestion des agents de terrain — 25 / 25
+
+| # | Fonctionnalité | État | Route réelle | Écran / UX livrée |
+|---|---|---|---|---|
+| 1 | Lister agents terrain | ☑ | `GET /agents` (paginé) | `/agents` — tableau paginé, état vide, colonne « Validation » |
+| 2 | Rechercher agent | ☑ | `GET /agents?recherche=` | Recherche temporisée (nom, code, téléphone) |
+| 3 | Profil agent | ☑ | `GET /agents/{id}` | `/agents/:id` — en-tête, carte Identité, onglets dans l'URL |
+| 4 | Créer profil agent | ☑ | `POST /agents` | « Ajouter un agent » (DGA) ; mot de passe initial affiché une seule fois |
+| 5 | Modifier profil | ☑ | `PUT /agents/{id}` ; profil validé : demande V19 | Erreur localisée au champ |
+| 6 | Activer/désactiver | ☑ | `POST /agents/{id}/statut` ; profil validé : `POST /agents/{id}/demandes-changement-statut` | État actuel → cible, motif obligatoire |
+| 7 | Activité récente | ☑ | `GET /agents/{id}/operations` | Onglet Activité, filtre par période |
+| 8 | Compter adhérents affectés | ☑ | `GET /agents/{id}/portefeuille/resume` | Onglet Synthèse |
+| 9 | Portefeuille | ☑ | `GET /agents/{id}/portefeuille` | Onglet Portefeuille paginé, ligne → fiche adhérent |
+| 10 | Compter dossiers complets | ☑ | `GET /agents/{id}/portefeuille/resume` | Lien vers la liste filtrée |
+| 11 | Compter dossiers incomplets | ☑ | `GET /agents/{id}/portefeuille/resume` | Lien vers la liste filtrée |
+| 12 | Proches seuil CNPS | ☑ | `GET /agents/{id}/portefeuille/cnps/proches-seuil` | Onglet CNPS |
+| 13 | Éligibles CNPS | ☑ | `GET /agents/{id}/portefeuille/cnps/eligibles` | Onglet CNPS |
+| 14 | Compter contributions | ☑ | `GET /agents/{id}/cotisations-resume?periode=` | Synthèse du mois choisi |
+| 15 | Somme contributions | ☑ | `GET /agents/{id}/cotisations-resume?periode=` | Montants validés / en attente / annulés |
+| 16 | Affecter adhérent | ☑ | `POST /portefeuilles/affecter` | Adhérents sans agent de la zone, confirmation |
+| 17 | Retirer affectation | ☑ | `POST /portefeuilles/retirer` | Motif obligatoire |
+| 18 | Réaffecter adhérent | ☑ | `POST /portefeuilles/transferer` | Agent actuel → nouvel agent, motif obligatoire |
+| 19 | Distribution portefeuilles | ☑ | `GET /agents/portefeuille-distribution` | Onglet « Répartition des portefeuilles » |
+| 20 | Charge de travail | ☑ | `GET /agents/{id}/charge?periode=` | Collecte validée / objectif serveur |
+| 21 | Filtrer statut | ☑ | `GET /agents?actif=` | Filtre en puce retirable |
+| 22 | Dernière activité | ☑ | `GET /agents/{id}/operations` | Carte « Dernière activité enregistrée » |
+| 23 | Opérations agent | ☑ | `GET /agents/{id}/operations?depuis=&jusqua=` | Chronologie typée |
+| 24 | Historique portefeuille | ☑ | `GET /agents/{id}/portefeuille/historique` | Affectations ouvertes et clôturées, motif |
+| 25 | Publier activité agent | ☑ | `GET /temps-reel/flux` (SSE) | Fiche, liste et répartition rechargées dès qu'un autre acteur agit (§8.6) |
+
+Complément V20 : carte « Frais d'adhésion collectés » sur la synthèse de l'agent
+(`GET /frais-adhesion/agents/{id}/synthese`) et lien vers la liste des frais filtrée sur l'agent.
+
+### 8.3 Gestion des cotisations — 36 / 36
+
+| # | Fonctionnalité | État | Route réelle | Écran / UX livrée |
+|---|---|---|---|---|
+| 1 | Lister cotisations | ☑ | `GET /paiements` | `/cotisations` — tableau paginé et trié serveur |
+| 2 | Par adhérent | ☑ | `GET /paiements?adherentId=` | Lien depuis la fiche adhérent, bandeau « Filtré sur un adhérent » |
+| 3 | Par matricule | ☑ | `GET /paiements?adherentMatricule=` | Champ temporisé |
+| 4 | Par agent | ☑ | `GET /paiements?agentId=` | Filtre « Agent encaisseur » |
+| 5 | Par référence | ☑ | `GET /paiements?reference=` | Champ temporisé, état vide explicite |
+| 6 | Filtrer statut | ☑ | `GET /paiements?statut=` | 7 statuts officiels |
+| 7 | Filtrer période | ☑ | `GET /paiements?dateDu=&dateAu=` | Période inversée non envoyée, bandeau explicatif |
+| 8 | Détail cotisation | ☑ | `GET /paiements/{id}` | `/cotisations/:id` |
+| 9 | Créer cotisation | ☑ | `POST /paiements` | `/cotisations/nouveau`, RHF + Zod |
+| 10 | Générer référence transaction | ☑ | inclus dans `POST /paiements` | Numéro de reçu annoncé après création |
+| 11 | Valider montant | ☑ | règle serveur | Contrôle de forme seulement, erreur serveur placée sur le champ |
+| 12 | Valider adhérent | ☑ | règle serveur | Carte de l'adhérent choisi avant envoi |
+| 13 | Doublon cotisation | ☑ | `POST /paiements/verifier-doublon` | Dialogue listant les paiements similaires, « Enregistrer quand même » |
+| 14 | Soumettre validation | ☑ | `POST /paiements/{id}/soumettre` | Brouillon → file de contrôle |
+| 15 | Liste à valider | ☑ | `GET /paiements?statut=A_CONTROLER` | `/daf` — plus anciens d'abord |
+| 16 | Valider cotisation | ☑ | `POST /paiements/{id}/valider` | Dialogue de contrôle complet ; masqué pour l'auteur |
+| 17 | Rejeter cotisation | ☑ | `POST /paiements/{id}/rejeter` | Motif obligatoire, définitif |
+| 18 | Historique statuts | ☑ | `GET /paiements/{id}/historique-statuts` | Carte « Historique des statuts » |
+| 19 | Corriger opération | ☑ | `POST /paiements/{id}/corriger` ; officielle : `POST /paiements/{id}/demandes-correction` | Revue avant / après, seuls les champs modifiés envoyés |
+| 20 | Total validé | ☑ | `GET /adherents/{id}/resume-cotisations` | Carte « Cotisations de l'adhérent » |
+| 21 | Total en attente | ☑ | idem | Lien vers le journal filtré |
+| 22 | Restant avant 15 000 | ☑ | idem | Valeur serveur |
+| 23 | Progression CNPS | ☑ | idem | Barre = rapport de deux montants serveur |
+| 24 | Seuil atteint | ☑ | idem | Mention « Seuil atteint » |
+| 25 | Cotisations proches seuil | ☑ | `GET /cnps/proches-seuil` | Onglet de la liste des adhérents |
+| 26 | Résumé cotisations | ☑ | `GET /adherents/{id}/resume-cotisations` | Fiche adhérent et fiche paiement |
+| 27 | Statistiques quotidiennes | ☑ | `GET /paiements/statistiques/quotidiennes` | Onglet « Statistiques du jour » |
+| 28 | Statistiques par agent | ☑ | `GET /agents/{id}/cotisations-resume` | Synthèse de la fiche agent |
+| 29 | Rapport quotidien | ☑ | `GET /paiements/bilan-journalier` | `/bilans-caisse` — carte « Bilan numérique » |
+| 30 | Enregistrer caisse physique | ☑ | `POST /bilans-caisse` | Saisie puis relecture des deux montants |
+| 31 | Écart caisse | ☑ | `GET /bilans-caisse/{date}` | Écart en chiffres **et en toutes lettres** |
+| 32 | Valider rapprochement | ☑ | `POST /bilans-caisse/{date}/valider` | DAF, version transmise |
+| 33 | Signaler anomalie | ☑ | `POST /bilans-caisse/{date}/anomalie` | Motif obligatoire, ressaisie ouverte |
+| 34 | Exporter cotisations | ◐ | `POST /exports/paiements` | Critères appliqués (statut, période) rappelés ; les autres sont signalés |
+| 35 | Idempotence UX | ☑ | en-tête `Idempotency-Key` | Clé générée au montage, réutilisée après une erreur réseau |
+| 36 | Publier changement cotisation | ☑ | `GET /temps-reel/flux` (SSE) | Journal, file DAF, bilan et droits rechargés dès qu'un autre acteur agit (§8.6) |
+
+### 8.4 Workflow de correction, validation et traçabilité (V19) — sur les 3 modules
+
+| Fonctionnalité | Route réelle | Écran |
+|---|---|---|
+| Centre de validation (à traiter, mes demandes, toutes) | `GET /demandes-validation`, `/en-attente` | `/validations` |
+| Fiche d'une demande : comparaison avant / proposé, justificatifs, chronologie | `GET /demandes-validation/{id}` | `/validations/:id` |
+| Soumettre, approuver, rejeter, demander correction, resoumettre, annuler | `POST /demandes-validation/{id}/{action}` | Motif obligatoire au rejet et à la correction ; auteur ≠ validateur |
+| Demande de modification d'une donnée officielle | `/adherents|agents/{id}/demandes-modification`, `/paiements/{id}/demandes-correction` | Bandeau de workflow dans chaque fiche |
+| Statut et historique de validation | `/{module}/{id}/statut-validation`, `/historique-validation` | Onglet « Validation » |
+
+### 8.5 Parcours d'adhésion : frais, activation, contrôle DGA (V20)
+
+| Garantie / fonctionnalité | Route réelle | Écran / UX livrée |
+|---|---|---|
+| Adhérent identifié de façon unique | `GET /adherents/{id}`, matricule | Nom + matricule partout (fiche, file DGA, frais, écarts) |
+| Frais d'adhésion de 1 000 FCFA associé à l'adhérent | `GET/POST /adherents/{id}/frais-adhesion`, `GET /frais-adhesion/configuration` | Onglet « Adhésion » : montant attendu lu du serveur, saisie puis relecture, écart signalé |
+| Agent collecteur connu | champ `agentId` du frais | Choix obligatoire de l'agent (agent responsable proposé par défaut) ; carte sur la fiche agent |
+| Création et activation par le Gestionnaire | `GET /adherents/{id}/activation`, `POST /adherents/{id}/activer` | « Vérifier et activer » : conditions serveur ✓/✗, caractère bloquant, confirmation des doublons tracée |
+| Transmission au contrôle DGA | automatique à l'activation ; `POST /adherents/{id}/soumettre-dga` | Frise du parcours ; « Retransmettre à la DGA » après une correction demandée |
+| Statut du compte distinct du contrôle DGA | `GET /adherents/{id}/synthese-workflow` | Deux badges séparés (« Actif » / « En attente de contrôle DGA ») |
+| Vérification des documents par la DGA | `GET /controles-dga`, `POST /controles-dga/{id}/demarrer` | `/controles-dga` — file filtrable (à traiter, statut, période, anomalies) |
+| Chaque information contrôlée est traçable | `POST /controles-dga/{id}/champs/{champId}/verifier`, `GET /controles-dga/{id}/journal` | `/controles-dga/:id` — COSITI et document côte à côte, « Correspond » en un clic, journal du contrôle |
+| Anomalies explicites | idem, `POST /controles-dga/{id}/documents/{documentId}/verifier` | Valeur lue obligatoire pour « ne correspond pas », commentaire obligatoire hors « correspond », document manquant / illisible |
+| Corrections traçables | `POST /controles-dga/{id}/terminer` (`DEMANDER_CORRECTION`), historique des tours | Nouveau tour à chaque retransmission ; tours précédents consultables |
+| Dossiers soumis sans double comptage | `GET /controles-dga/synthese` | Indicateur « Dossiers distincts soumis », retransmissions comptées à part |
+| Montant théorique calculé par le backend | `GET /frais-adhesion/rapprochement` | `/frais-adhesion` — « dossiers × montant unitaire = montant attendu », `detailCalcul` affiché tel quel |
+| Rapprochement théorique / enregistré, écarts détectés | idem | Écart en chiffres et en toutes lettres, tableau des dossiers en écart, frais hors soumission |
+| Encaissement validé par le DAF, anomalies de frais | `POST /frais-adhesion/{id}/valider`, `/anomalie`, `/resoudre-anomalie` | Actions masquées pour l'auteur ; résolution motivée, correction de montant tracée |
+| Actions critiques auditées | `TypeOperation` V20 | Libellés dans le journal du contrôle et l'historique de l'adhérent |
+| Permissions imposées côté backend | `@PreAuthorize` + périmètre | L'interface masque pour le confort ; les refus 403 / 409 / 422 sont affichés |
+| Le frontend n'est jamais la source de vérité ; `/api/v1/openapi` reste le contrat | — | Aucun montant, compteur ou condition recalculé côté client |
+
+### 8.6 Mise à jour en temps réel entre les rôles
+
+- **Backend** : `GET /api/v1/temps-reel/flux` (`text/event-stream`, authentifié par l'en-tête `Authorization`).
+  `EcouteurTempsReel` relaie **après commit** `AdherentModifieEvent`, `AgentModifieEvent`,
+  `PaiementModifieEvent`, `DemandeValidationEvent` et `AdhesionEvent`. Chaque abonné ne reçoit que les domaines
+  qu'il a le droit de lire. Le message ne porte aucune donnée métier (domaine, identifiants, nature du
+  changement) : le navigateur recharge par l'API, qui applique permissions et périmètre. Le flux se ferme toutes
+  les 10 minutes et est rouvert avec un jeton frais ; battement toutes les 25 s ; 5 flux au plus par utilisateur.
+- **Frontend** : `FournisseurTempsReel` ouvre un seul flux par onglet tant que la session est connectée.
+  `useTempsReel` regroupe les signaux (300 ms) et invalide les familles de requêtes touchées. Reconnexion
+  automatique (2 s → 30 s), puis rechargement complet pour rattraper un signal manqué. Indicateur
+  « En direct / Hors ligne » dans l'en-tête, avec libellé et non la couleur seule.
+- Exemple : quand la DGA valide un contrôle, la fiche de l'adhérent ouverte chez le Gestionnaire, la file DGA et
+  le rapprochement des frais chez le DAF se mettent à jour sans recharger la page.

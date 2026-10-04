@@ -3,6 +3,7 @@ import { Maximize, Menu, Minimize, PanelLeftClose, PanelLeftOpen } from "lucide-
 import { useAuth } from "@/auth/ContexteAuth";
 import { BoutonEntete } from "@/components/cositi/bouton-entete";
 import { ClocheNotifications } from "@/components/cositi/cloche-notifications";
+import { IndicateurTempsReel } from "@/components/cositi/indicateur-temps-reel";
 import { MenuCreation } from "@/components/cositi/menu-creation";
 import { MenuUtilisateur } from "@/components/cositi/menu-utilisateur";
 
@@ -45,7 +46,8 @@ interface EnteteApplicationProps {
 /**
  * En-tête collant de la coquille (gabarit : `navbar-custom`) — fond de page
  * translucide ; à gauche, repli de la navigation et menu « Créer » ; à
- * droite, notifications et menu utilisateur avec rappel du rôle.
+ * droite, état de la mise à jour en direct, notifications et menu utilisateur
+ * avec rappel du rôle.
  *
  * La recherche globale du gabarit n'est pas reprise : aucun écran de
  * `docs/03_SPECIFICATIONS_ECRANS.md` ne la spécifie (`AGENTS.md` règle 10 —
@@ -74,6 +76,7 @@ export function EnteteApplication({ navigationRepliee, onBasculerNavigation, onO
       </div>
 
       <div className="flex items-center gap-3">
+        <IndicateurTempsReel />
         <BoutonPleinEcran />
         <ClocheNotifications />
         <MenuUtilisateur />

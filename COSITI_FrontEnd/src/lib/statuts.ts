@@ -84,6 +84,71 @@ const PAIEMENT = {
    * registre plutôt que de le redéfinir (`docs/02_DESIGN_SYSTEM.md §17`).
    */
   INCOHERENCE: { libelle: "Incohérence signalée", teinte: "danger", aide: "Une incohérence a été signalée par le DAF." },
+  /** Module cotisations #17 (V18) : rejet définitif et motivé, distinct de l'annulation. */
+  REJETE: { libelle: "Rejeté", teinte: "danger", aide: "Rejet définitif et motivé par un validateur." },
+} satisfies TableStatuts;
+
+/** Bilan journalier de caisse (module cotisations #30 à #33, `StatutBilanCaisse`). */
+const BILAN_CAISSE = {
+  SAISI: { libelle: "Saisi — à valider", teinte: "attention", aide: "Montant physique saisi, en attente de la décision du DAF." },
+  VALIDE: { libelle: "Validé", teinte: "succes", aide: "Validé par le DAF — définitif." },
+  ANOMALIE: { libelle: "Anomalie signalée", teinte: "danger", aide: "La caisse doit être recomptée puis ressaisie." },
+} satisfies TableStatuts;
+
+/**
+ * Workflow Maker–Checker (V19). Statut de validation d'un dossier adhérent ou d'un profil d'agent — distinct
+ * du statut métier (ACTIF, EN_RETARD…). Le libellé est toujours écrit : la couleur ne suffit jamais (§57).
+ */
+const STATUT_VALIDATION = {
+  BROUILLON: { libelle: "Brouillon — non soumis", teinte: "neutre", aide: "Saisie en cours : modifiable, puis à soumettre pour validation." },
+  EN_ATTENTE_VALIDATION: { libelle: "En attente de validation", teinte: "attention", aide: "Soumis : aucune modification directe jusqu'à la décision." },
+  CORRECTION_DEMANDEE: { libelle: "Correction demandée", teinte: "attention", aide: "Le validateur demande une correction avant resoumission." },
+  VALIDE: { libelle: "Validé — officiel", teinte: "succes", aide: "Donnée officielle : toute modification passe par une demande." },
+  REJETE: { libelle: "Rejeté", teinte: "danger", aide: "Refusé : à corriger puis soumettre de nouveau." },
+} satisfies TableStatuts;
+
+/** Cycle d'une demande de validation ou de modification. */
+const STATUT_DEMANDE = {
+  BROUILLON: { libelle: "Brouillon", teinte: "neutre" },
+  EN_ATTENTE_VALIDATION: { libelle: "En attente de validation", teinte: "attention" },
+  CORRECTION_DEMANDEE: { libelle: "Correction demandée", teinte: "attention" },
+  APPROUVEE: { libelle: "Approuvée — appliquée", teinte: "succes" },
+  REJETEE: { libelle: "Rejetée", teinte: "danger" },
+  ANNULEE: { libelle: "Annulée", teinte: "neutre" },
+} satisfies TableStatuts;
+
+/** Type d'une demande (`TypeOperationWorkflow`). */
+const OPERATION_WORKFLOW = {
+  ADHERENT_VALIDATION_DOSSIER: { libelle: "Validation de dossier adhérent", teinte: "info" },
+  ADHERENT_MODIFICATION: { libelle: "Modification d'adhérent", teinte: "info" },
+  AGENT_VALIDATION_PROFIL: { libelle: "Validation de profil d'agent", teinte: "info" },
+  AGENT_MODIFICATION: { libelle: "Modification d'agent", teinte: "info" },
+  AGENT_CHANGEMENT_STATUT: { libelle: "Changement de statut d'agent", teinte: "info" },
+  PAIEMENT_CORRECTION: { libelle: "Correction de cotisation", teinte: "info" },
+} satisfies TableStatuts;
+
+/** Transition enregistrée sur une demande (`ActionWorkflow`). */
+const ACTION_WORKFLOW = {
+  CREATION: { libelle: "Demande créée", teinte: "neutre" },
+  SOUMISSION: { libelle: "Soumise", teinte: "info" },
+  RESOUMISSION: { libelle: "Resoumise après correction", teinte: "info" },
+  APPROBATION: { libelle: "Approuvée", teinte: "succes" },
+  REJET: { libelle: "Rejetée", teinte: "danger" },
+  DEMANDE_CORRECTION: { libelle: "Correction demandée", teinte: "attention" },
+  ANNULATION: { libelle: "Annulée", teinte: "neutre" },
+} satisfies TableStatuts;
+
+/** Étapes de l'historique d'un paiement (`TypeOperation`, #18). */
+const OPERATION_PAIEMENT = {
+  PAIEMENT_CREATION: { libelle: "Saisie", teinte: "info" },
+  PAIEMENT_SOUMISSION: { libelle: "Soumission à validation", teinte: "info" },
+  PAIEMENT_VALIDATION: { libelle: "Validation", teinte: "succes" },
+  PAIEMENT_REJET: { libelle: "Rejet", teinte: "danger" },
+  PAIEMENT_CORRECTION: { libelle: "Correction", teinte: "attention" },
+  PAIEMENT_ANNULATION: { libelle: "Annulation", teinte: "danger" },
+  PAIEMENT_RAPPROCHEMENT: { libelle: "Rapprochement", teinte: "succes" },
+  PAIEMENT_CONFIRMATION_CHEF: { libelle: "Confirmation du Chef", teinte: "info" },
+  PAIEMENT_SIGNALEMENT_INCOHERENCE: { libelle: "Incohérence signalée", teinte: "danger" },
 } satisfies TableStatuts;
 
 const MODE_PAIEMENT = {
@@ -129,6 +194,8 @@ const DOCUMENT = {
   VERIFIE: { libelle: "Vérifié", teinte: "succes" },
   REJETE: { libelle: "Rejeté", teinte: "danger" },
   ARCHIVE: { libelle: "Archivé", teinte: "neutre" },
+  /** V21 : version remplacée par une plus récente, conservée pour l'historique. */
+  REMPLACE: { libelle: "Remplacé", teinte: "neutre", aide: "Ancienne version, conservée — plus la version active." },
 } satisfies TableStatuts;
 
 const ANALYSE_ANTIVIRUS = {
@@ -217,6 +284,9 @@ const OPERATION_ADHERENT = {
   ADHERENT_COMPLETION_PROFIL: { libelle: "Complétion du dossier", teinte: "info" },
   ADHERENT_MODIFICATION_PROFESSIONNELLE: { libelle: "Informations professionnelles", teinte: "info" },
   ADHERENT_MODIFICATION_CONTACT: { libelle: "Coordonnées", teinte: "info" },
+  // Workflow V19 : application d'une décision de validation sur le dossier.
+  ADHERENT_VALIDATION_DOSSIER: { libelle: "Dossier validé (officiel)", teinte: "succes" },
+  DEMANDE_VALIDATION_APPLICATION: { libelle: "Modification approuvée appliquée", teinte: "succes" },
 } satisfies TableStatuts;
 
 /**
@@ -238,11 +308,115 @@ const OPERATION_AGENT = {
   PORTEFEUILLE_AFFECTATION: { libelle: "Affectation d'un adhérent", teinte: "info" },
   PORTEFEUILLE_TRANSFERT: { libelle: "Transfert d'un adhérent", teinte: "attention" },
   PORTEFEUILLE_RETRAIT: { libelle: "Retrait d'un adhérent", teinte: "attention" },
+  AGENT_VALIDATION_PROFIL: { libelle: "Profil validé (officiel)", teinte: "succes" },
+  DEMANDE_VALIDATION_APPLICATION: { libelle: "Modification approuvée appliquée", teinte: "succes" },
 } satisfies TableStatuts;
 
 /* ==========================================================================
    7. Registre et résolution
    ======================================================================== */
+
+/* ==========================================================================
+   Parcours d'adhésion (V20) : frais, activation, contrôle documentaire DGA
+   ======================================================================== */
+
+/** `StatutFraisAdhesion` — cycle du frais d'adhésion de 1 000 FCFA (montant lu du serveur). */
+const FRAIS_ADHESION = {
+  ENREGISTRE: { libelle: "Enregistré — à valider", teinte: "attention", aide: "Encaissement saisi par le Gestionnaire, en attente de la validation du DAF." },
+  VALIDE: { libelle: "Encaissement validé", teinte: "succes", aide: "Encaissement confirmé par un autre utilisateur habilité." },
+  ANOMALIE: { libelle: "Anomalie signalée", teinte: "danger", aide: "Anomalie à résoudre, avec motif, avant toute validation." },
+} satisfies TableStatuts;
+
+/** `StatutControleDga` porté par l'adhérent — distinct du statut du compte (un adhérent peut être actif et en attente DGA). */
+const CONTROLE_DGA_ADHERENT = {
+  NON_SOUMIS: { libelle: "Non transmis à la DGA", teinte: "neutre", aide: "Le dossier n'a pas encore été transmis au contrôle documentaire." },
+  EN_ATTENTE_DGA: { libelle: "En attente de contrôle DGA", teinte: "attention", aide: "Activé et transmis : dans la file de la DGA." },
+  EN_VERIFICATION: { libelle: "Contrôle DGA en cours", teinte: "info", aide: "La DGA compare les informations avec les documents physiques." },
+  CORRECTION_DEMANDEE: { libelle: "Correction demandée par la DGA", teinte: "attention", aide: "Le Gestionnaire corrige le dossier puis le retransmet." },
+  VALIDE: { libelle: "Documents conformes", teinte: "succes", aide: "Contrôle DGA validé : dossier officiel." },
+  REJETE: { libelle: "Rejeté par la DGA", teinte: "danger", aide: "Contrôle documentaire rejeté, décision motivée." },
+} satisfies TableStatuts;
+
+/** `StatutControle` — un tour de contrôle DGA. */
+const TOUR_CONTROLE_DGA = {
+  EN_ATTENTE: { libelle: "En attente", teinte: "attention" },
+  EN_COURS: { libelle: "En cours", teinte: "info" },
+  CORRECTION_DEMANDEE: { libelle: "Correction demandée", teinte: "attention" },
+  VALIDE: { libelle: "Validé", teinte: "succes" },
+  REJETE: { libelle: "Rejeté", teinte: "danger" },
+} satisfies TableStatuts;
+
+/** `StatutCorrespondance` — information COSITI comparée au document physique. */
+const CORRESPONDANCE = {
+  CORRESPOND: { libelle: "Correspond", teinte: "succes" },
+  NON_CORRESPOND: { libelle: "Ne correspond pas", teinte: "danger", aide: "Anomalie : la valeur lue sur le document diffère." },
+  NON_VERIFIABLE: { libelle: "Non vérifiable", teinte: "neutre", aide: "Information absente du document : non bloquant." },
+  NON_LISIBLE: { libelle: "Illisible", teinte: "danger", aide: "Anomalie : document illisible." },
+  DOCUMENT_MANQUANT: { libelle: "Document manquant", teinte: "danger", aide: "Anomalie : document non fourni." },
+  NON_APPLICABLE: { libelle: "Non applicable", teinte: "neutre", aide: "Information sans objet pour cet adhérent : ni anomalie, ni motif." },
+} satisfies TableStatuts;
+
+/** Statut calculé d'une pièce de la checklist documentaire (V21, `StatutPiece`). */
+const STATUT_PIECE = {
+  REQUIS: { libelle: "Requise — non fournie", teinte: "danger", aide: "Pièce obligatoire à fournir." },
+  NON_FOURNI: { libelle: "Non fournie", teinte: "neutre", aide: "Pièce conditionnelle ou facultative non fournie." },
+  FOURNI: { libelle: "Fournie — à contrôler", teinte: "info", aide: "Déposée, pas encore contrôlée par la DGA." },
+  EN_VERIFICATION: { libelle: "En vérification DGA", teinte: "info" },
+  VALIDE: { libelle: "Contrôlée — conforme", teinte: "succes" },
+  NON_CONFORME: { libelle: "Non conforme", teinte: "danger", aide: "Au moins une information ne correspond pas : remplacer la pièce ou corriger le dossier." },
+  ILLISIBLE: { libelle: "Illisible", teinte: "danger", aide: "Fournir une copie lisible." },
+  EXPIRE: { libelle: "Expirée", teinte: "danger", aide: "Date de fin de validité dépassée : fournir une pièce en cours de validité." },
+  REMPLACE: { libelle: "Remplacée", teinte: "neutre" },
+  NON_APPLICABLE: { libelle: "Non applicable", teinte: "neutre" },
+} satisfies TableStatuts;
+
+/** Caractère d'une pièce dans la matrice documentaire (V21, `NiveauExigence`). */
+const NIVEAU_EXIGENCE = {
+  OBLIGATOIRE: { libelle: "Obligatoire", teinte: "marque" },
+  CONDITIONNELLE: { libelle: "Conditionnelle", teinte: "info" },
+  OPTIONNELLE: { libelle: "Facultative", teinte: "neutre" },
+  NON_APPLICABLE: { libelle: "Non applicable", teinte: "neutre" },
+} satisfies TableStatuts;
+
+/** Décision finale de la DGA sur un tour de contrôle. */
+const DECISION_CONTROLE_DGA = {
+  VALIDER: { libelle: "Valider le dossier", teinte: "succes" },
+  DEMANDER_CORRECTION: { libelle: "Demander une correction", teinte: "attention" },
+  REJETER: { libelle: "Rejeter", teinte: "danger" },
+} satisfies TableStatuts;
+
+/** Nature d'un écart du rapprochement des frais. */
+const ECART_FRAIS = {
+  SANS_FRAIS: { libelle: "Frais non enregistré", teinte: "danger", aide: "Dossier soumis à la DGA sans frais d'adhésion enregistré." },
+  MONTANT_DIFFERENT: { libelle: "Montant différent", teinte: "attention", aide: "Montant reçu différent du montant attendu." },
+  ANOMALIE_SIGNALEE: { libelle: "Anomalie signalée", teinte: "danger" },
+} satisfies TableStatuts;
+
+/** Statut d'un document dans un tour de contrôle DGA (`controle_dga_document.statut`). */
+const DOCUMENT_CONTROLE = {
+  A_VERIFIER: { libelle: "À vérifier", teinte: "neutre" },
+  CONFORME: { libelle: "Conforme", teinte: "succes" },
+  ANOMALIE: { libelle: "Anomalie", teinte: "danger" },
+} satisfies TableStatuts;
+
+/** Opérations auditées du parcours d'adhésion (`TypeOperation`, V20) — journal du contrôle et historique de l'adhérent. */
+const OPERATION_ADHESION = {
+  FRAIS_ADHESION_ENREGISTREMENT: { libelle: "Frais d'adhésion enregistré", teinte: "info" },
+  FRAIS_ADHESION_VALIDATION: { libelle: "Encaissement du frais validé", teinte: "succes" },
+  FRAIS_ADHESION_ANOMALIE_SIGNALEE: { libelle: "Anomalie de frais signalée", teinte: "danger" },
+  FRAIS_ADHESION_ANOMALIE_RESOLUE: { libelle: "Anomalie de frais résolue", teinte: "succes" },
+  ADHERENT_ACTIVATION: { libelle: "Adhérent activé", teinte: "succes" },
+  ADHERENT_SOUMISSION_DGA: { libelle: "Transmis au contrôle DGA", teinte: "info" },
+  CONTROLE_DGA_DEMARRAGE: { libelle: "Contrôle DGA démarré", teinte: "info" },
+  CONTROLE_DGA_CHAMP_VERIFIE: { libelle: "Information vérifiée", teinte: "succes" },
+  CONTROLE_DGA_NON_CONCORDANCE: { libelle: "Anomalie documentaire", teinte: "danger" },
+  CONTROLE_DGA_CORRECTION_DEMANDEE: { libelle: "Correction demandée par la DGA", teinte: "attention" },
+  CONTROLE_DGA_TERMINE: { libelle: "Contrôle DGA terminé", teinte: "marque" },
+  // V21
+  CONTROLE_DGA_RECONTROLE: { libelle: "Recontrôle DGA ouvert", teinte: "attention" },
+  DOCUMENT_REMPLACEMENT: { libelle: "Pièce remplacée", teinte: "info" },
+  DOCUMENT_VERIFICATION_DGA: { libelle: "Pièce vérifiée par la DGA", teinte: "succes" },
+} satisfies TableStatuts;
 
 export const STATUTS = {
   adherent: ADHERENT,
@@ -261,9 +435,26 @@ export const STATUTS = {
   canalRelance: CANAL_RELANCE,
   campagneRelance: CAMPAGNE_RELANCE,
   validationParametre: VALIDATION_PARAMETRE,
-  operationAdherent: OPERATION_ADHERENT,
+  // L'historique d'un adhérent inclut les étapes de son parcours d'adhésion (V20).
+  operationAdherent: { ...OPERATION_ADHERENT, ...OPERATION_ADHESION },
   agent: AGENT,
   operationAgent: OPERATION_AGENT,
+  bilanCaisse: BILAN_CAISSE,
+  operationPaiement: OPERATION_PAIEMENT,
+  statutValidation: STATUT_VALIDATION,
+  statutDemande: STATUT_DEMANDE,
+  operationWorkflow: OPERATION_WORKFLOW,
+  actionWorkflow: ACTION_WORKFLOW,
+  fraisAdhesion: FRAIS_ADHESION,
+  controleDgaAdherent: CONTROLE_DGA_ADHERENT,
+  tourControleDga: TOUR_CONTROLE_DGA,
+  correspondance: CORRESPONDANCE,
+  decisionControleDga: DECISION_CONTROLE_DGA,
+  ecartFrais: ECART_FRAIS,
+  documentControle: DOCUMENT_CONTROLE,
+  statutPiece: STATUT_PIECE,
+  niveauExigence: NIVEAU_EXIGENCE,
+  operationAdhesion: OPERATION_ADHESION,
 } as const;
 
 export type DomaineStatut = keyof typeof STATUTS;

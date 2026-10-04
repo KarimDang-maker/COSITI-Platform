@@ -5,6 +5,7 @@ import {
   telechargerDocument,
   televerserDocument,
   type CibleDocument,
+  type OptionsTeleversement,
   type StatutDocument,
   type TypeDocument,
 } from "@/api/documents";
@@ -24,9 +25,13 @@ export function useDocuments(cible: CibleDocument) {
 export function useTeleverserDocument(cible: CibleDocument) {
   const clientRequetes = useQueryClient();
   return useMutation({
-    mutationFn: (variables: { fichier: File; type: TypeDocument }) =>
-      televerserDocument(variables.fichier, variables.type, cible),
-    onSuccess: () => clientRequetes.invalidateQueries({ queryKey: [CLE] }),
+    mutationFn: (variables: { fichier: File; type: TypeDocument; options?: OptionsTeleversement }) =>
+      televerserDocument(variables.fichier, variables.type, cible, variables.options),
+    onSuccess: () => {
+      void clientRequetes.invalidateQueries({ queryKey: [CLE] });
+      // La checklist documentaire et le parcours d'adhésion dépendent des pièces déposées (V21).
+      void clientRequetes.invalidateQueries({ queryKey: ["adhesion"] });
+    },
   });
 }
 

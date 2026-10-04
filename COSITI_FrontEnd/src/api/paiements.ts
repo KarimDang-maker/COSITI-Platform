@@ -7,7 +7,15 @@
 import { client } from "@/api/client";
 import type { EnveloppeListe } from "@/api/pagination";
 
-export type StatutPaiement = "BROUILLON" | "A_CONTROLER" | "VALIDE" | "RAPPROCHE" | "ANNULE" | "INCOHERENCE";
+export type StatutPaiement =
+  | "BROUILLON"
+  | "A_CONTROLER"
+  | "VALIDE"
+  | "RAPPROCHE"
+  | "ANNULE"
+  | "INCOHERENCE"
+  /** Rejet définitif et motivé par un validateur (module cotisations #17, V18) — distinct de l'annulation. */
+  | "REJETE";
 export type ModePaiement = "ESPECES" | "ORANGE_MONEY" | "MTN_MOMO" | "VIREMENT";
 
 const MODES_MOBILE_MONEY: ReadonlySet<string> = new Set(["ORANGE_MONEY", "MTN_MOMO"]);
@@ -40,17 +48,41 @@ export interface Paiement {
   readonly confirmeLe: string | null;
   /** Motif du signalement DAF quand `statut === "INCOHERENCE"` (J5). */
   readonly motifIncoherence: string | null;
+  /** Rejet (#17) — renseignés uniquement quand `statut === "REJETE"`. */
+  readonly motifRejet?: string | null;
+  readonly rejetePar?: string | null;
+  readonly rejeteLe?: string | null;
+  /** Horodatage de la saisie. */
+  readonly creeLe?: string | null;
   readonly version: number;
 }
 
+/**
+ * Champs triables de `GET /paiements` (liste blanche `CHAMPS_TRI` de `ControleurPaiement`, #1). Tout
+ * autre nom renvoie `400 PAIEMENT_TRI_INVALIDE`.
+ */
+export type ChampTriPaiement = "DATE_PAIEMENT" | "MONTANT" | "NUMERO_RECU" | "STATUT" | "DATE_SAISIE";
+
+/** Paramètres réels de `GET /paiements` (module cotisations, #1 à #7, #15). */
 export interface FiltresPaiements {
+  /** #2 */
   adherentId?: string;
+  /** #3 — matricule de l'adhérent, recherche serveur. */
+  adherentMatricule?: string;
+  /** #4 — agent encaisseur. */
+  agentId?: string;
+  /** #5 — numéro de reçu ou référence de transaction. */
+  reference?: string;
+  /** #6, #15 (`A_CONTROLER` = file à valider). */
   statut?: StatutPaiement;
   modePaiement?: ModePaiement;
+  /** #7 — bornes incluses, `AAAA-MM-JJ` ; `400 PAIEMENT_PERIODE_INVALIDE` si `dateDu > dateAu`. */
   dateDu?: string;
   dateAu?: string;
   page?: number;
   taille?: number;
+  tri?: ChampTriPaiement;
+  direction?: "ASC" | "DESC";
 }
 
 function construireParametres(filtres: FiltresPaiements): string {
@@ -81,22 +113,99 @@ export interface CorpsEnregistrementPaiement {
   agentEncaisseurId?: string;
 }
 
-/** `cleIdempotence` est générée une fois au montage de l'écran, jamais de valeur de repli si `crypto.randomUUID` est indisponible. */
-export function enregistrerPaiement(corps: CorpsEnregistrementPaiement, cleIdempotence: string) {
-  return client.post<Paiement>("/paiements", corps, { enTetes: { "Idempotency-Key": cleIdempotence } });
+/**
+ * #9 à #12, #35. `cleIdempotence` est générée une fois au montage de l'écran, jamais de valeur de repli
+ * si `crypto.randomUUID` est indisponible ; la même clé est renvoyée après une erreur réseau, pour que le
+ * serveur rende le paiement déjà créé (200) au lieu d'en créer un second. `brouillon` : saisie
+ * préparatoire, à soumettre ensuite (#14).
+ */
+export function enregistrerPaiement(corps: CorpsEnregistrementPaiement, cleIdempotence: string, brouillon = false) {
+  return client.post<Paiement>(`/paiements${brouillon ? "?brouillon=true" : ""}`, corps, {
+    enTetes: { "Idempotency-Key": cleIdempotence },
+  });
 }
 
+/** `VerifierDoublonPaiementDto` (#13) — mêmes champs que la saisie, sans rien créer. */
+export interface CorpsVerificationDoublonPaiement {
+  adherentId: string;
+  datePaiement?: string;
+  montant?: number;
+  modePaiement: ModePaiement;
+  referenceTransaction?: string;
+}
+
+/**
+ * `ResultatDoublonPaiementDto` (#13). `referenceDejaUtilisee` : l'enregistrement **sera refusé**
+ * (`PAIEMENT_REFERENCE_DEJA_UTILISEE`). `doublonsPotentiels` : même adhérent, date, montant et mode —
+ * signalés, jamais bloquants.
+ */
+export interface ResultatDoublonPaiement {
+  readonly referenceDejaUtilisee: boolean;
+  readonly doublonsPotentiels: readonly Paiement[];
+  readonly doublonDetecte: boolean;
+}
+
+export function verifierDoublonPaiement(corps: CorpsVerificationDoublonPaiement) {
+  return client.post<ResultatDoublonPaiement>("/paiements/verifier-doublon", corps);
+}
+
+/** #14 — seul un brouillon, par son auteur (le serveur en juge). */
+export function soumettrePaiement(id: string) {
+  return client.post<Paiement>(`/paiements/${id}/soumettre`);
+}
+
+/** #16 — jamais par l'auteur de la saisie (`PAIEMENT_AUTO_VALIDATION_INTERDITE`). */
 export function validerPaiement(id: string) {
   return client.post<Paiement>(`/paiements/${id}/valider`);
+}
+
+/** #17 — définitif, motif obligatoire ; paiement à contrôler ou incohérent uniquement. */
+export function rejeterPaiement(id: string, motif: string) {
+  return client.post<Paiement>(`/paiements/${id}/rejeter`, { motif });
+}
+
+/** `HistoriqueStatutPaiementDto` (#18), reconstruit depuis le journal d'audit. */
+export interface EtapeHistoriquePaiement {
+  readonly horodatage: string;
+  readonly typeOperation: string;
+  readonly statutAvant: string | null;
+  readonly statutApres: string | null;
+  readonly acteur: string | null;
+  readonly motif: string | null;
+}
+
+export function obtenirHistoriqueStatuts(id: string) {
+  return client.get<EtapeHistoriquePaiement[]>(`/paiements/${id}/historique-statuts`);
+}
+
+/** Agrégat `{ nombre, montant }` des statistiques et du bilan. */
+export interface Agregat {
+  readonly nombre: number;
+  readonly montant: number;
+}
+
+/** `StatistiquesQuotidiennesDto` (#27), limitées au périmètre du demandeur. */
+export interface StatistiquesQuotidiennes {
+  readonly date: string;
+  readonly nombreTotal: number;
+  readonly montantTotal: number;
+  readonly parStatut: Readonly<Record<string, Agregat>>;
+  readonly parMode: Readonly<Record<string, Agregat>>;
+}
+
+/** `date` absente : aujourd'hui (serveur). */
+export function obtenirStatistiquesQuotidiennes(date?: string) {
+  return client.get<StatistiquesQuotidiennes>(`/paiements/statistiques/quotidiennes${date ? `?date=${date}` : ""}`);
 }
 
 export interface CorpsCorrectionPaiement {
   montant?: number;
   datePaiement?: string;
   referenceTransaction?: string;
-  motif: string;
+  motif?: string;
 }
 
+/** #19 — brouillon : par son auteur, motif facultatif ; soumis : `PAIEMENT:CORRIGER`, motif obligatoire. */
 export function corrigerPaiement(id: string, corps: CorpsCorrectionPaiement) {
   return client.post<Paiement>(`/paiements/${id}/corriger`, corps);
 }
@@ -135,5 +244,27 @@ export function signalerIncoherencePaiement(id: string, motif: string) {
  * frontend ne les fusionne pas.
  */
 export function confirmerParChefPaiement(id: string, motif?: string) {
-  return client.post<Paiement>(`/paiements/${id}/confirmer-chef`, motif ? { motif } : undefined);
+  // Motif en paramètre de requête (`@RequestParam`, backend) : envoyé dans le corps, il était ignoré.
+  const requete = motif ? `?motif=${encodeURIComponent(motif)}` : "";
+  return client.post<Paiement>(`/paiements/${id}/confirmer-chef${requete}`);
+}
+
+/**
+ * Ligne de répartition d'une cotisation validée (`AffectationDto`). V21 : règle confirmée « 700 FCFA minimum vers la
+ * Sécurité sociale, le reste vers l'Épargne » (`SECURITE_SOCIALE_MINIMUM_700_PUIS_EPARGNE`), calculée par le serveur.
+ * `composanteLibelle` nomme la composante ; absent d'une API antérieure, la ligne s'affiche sans nom inventé.
+ */
+export interface AffectationPaiement {
+  readonly id: string;
+  readonly paiementId: string;
+  readonly composanteId: string;
+  readonly montant: number;
+  readonly regleAppliquee: string | null;
+  readonly composanteCode?: string | null;
+  readonly composanteLibelle?: string | null;
+}
+
+/** `GET /paiements/{id}/affectations` (`PAIEMENT:LIRE`). */
+export function listerAffectations(id: string) {
+  return client.get<AffectationPaiement[]>(`/paiements/${id}/affectations`);
 }

@@ -14,6 +14,7 @@ import { client } from "@/api/client";
 import type { StatutAdherent } from "@/api/adherents";
 import type { AdherentEligibleCnps } from "@/api/cnps";
 import type { EnveloppeListe } from "@/api/pagination";
+import type { StatutValidationEntite } from "@/api/workflow";
 
 export interface Zone {
   readonly id: string;
@@ -38,6 +39,10 @@ export interface Agent {
   readonly actif: boolean;
   /** Présent uniquement dans la réponse de création — jamais consultable ensuite. */
   readonly motDePasseInitial?: string | null;
+  /** Workflow V19 : `VALIDE` = profil officiel, modifications et changement de statut par demande uniquement. */
+  readonly statutValidation?: StatutValidationEntite;
+  /** Verrouillage optimiste (V19). */
+  readonly version?: number | null;
 }
 
 export interface ChargeAgent {
