@@ -607,6 +607,29 @@ la notification lue et ouvre l'écran où répondre (`cheminNotification`). La c
 d'ouverture des objets sans écran propre : `/frais-adhesion/:id` (→ onglet Adhésion de l'adhérent) et
 `/bilans-caisse/ouvrir/:id` (→ `/bilans-caisse?date=`), avec message et lien de repli si l'objet est inaccessible.
 
+## V22 — Dossier adhérent, cotisations réparties, historiques
+
+Journal : `docs/journal_des_actions_frontEnd/2026-10-04_V22_dossier_cotisations_historique_frontend.md`.
+
+- **Fiche adhérent** : bouton « Historique » dans l'en-tête ; Identité avec numéros CNI / CNPS ; Coordonnées avec
+  WhatsApp et e-mail (lecture et édition — **les deux `PUT` renvoient toujours ces champs**, sinon ils seraient
+  effacés) ; carte **« Comptes de l'adhérent »** (`GET /synthese-cotisations`, `PAIEMENT:LIRE`) : comptes Sécurité
+  Sociale et Épargne (solde validé, en attente, opérations), cumuls, progression CNPS, « Enregistrer une cotisation »
+  (`PAIEMENT:CREER`, `/cotisations/nouveau?matricule=`).
+- **`/adherents/nouveau`** : plus de pack (choisi à la première cotisation) ; WhatsApp et e-mail facultatifs.
+- **`/cotisations/nouveau`** : étape 1 recherche par matricule (`GET /paiements/contexte-adherent`, résumé, blocages
+  serveur) ; étape 2 date, montant total, **Sécurité Sociale / Épargne** (minimums lus du serveur, reste à répartir
+  affiché), pack si `packRequis`, mode, référence, agent ; récapitulatif avant envoi ; une `Idempotency-Key` par
+  saisie ; message de succès avec le statut renvoyé par le serveur.
+- **Détail / correction d'une cotisation** : répartition enregistrée affichée ; correction de la répartition avec le
+  montant.
+- **Onglet Historique** : « Historique général » et « Historique financier » (`PAIEMENT:LIRE` ou
+  `FRAIS_ADHESION:LIRE`), période (jour / semaine / mois / année + date) et ordre envoyés au serveur, pagination
+  serveur, données sensibles masquées par le serveur, état 403 « Historique non accessible ».
+- **Accès** : « DAF » réservé à `PAIEMENT:VALIDER` ou `RAPPORT_DAF:LIRE` ; file « Contrôle DGA » à
+  `CONTROLE_DGA:LIRE` + (`CONTROLE_DGA:EFFECTUER` ou `RAPPORT_DAF:LIRE`) — navigation **et** routes ; « À traiter »
+  du centre de validation réservé aux détenteurs d'un droit de décision.
+
 ## Module « Gestion des cotisations » (36 fonctionnalités)
 
 Référence : `COSITI_GESTIONNAIRE_FRONTEND_UI_UX_97_FONCTIONNALITES.md §3`. Les

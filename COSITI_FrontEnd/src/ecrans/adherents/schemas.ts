@@ -69,9 +69,18 @@ export function nombreVersTexte(valeur: number | null | undefined): string {
    Coordonnées (#32)
    ======================================================================== */
 
+/** E-mail facultatif : contrôle de forme seulement, le serveur reste l'autorité (`@Email`). */
+export const schemaEmailFacultatif = z
+  .string()
+  .trim()
+  .optional()
+  .refine((valeur) => !valeur || /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(valeur), "L'adresse e-mail n'est pas valide.");
+
 export const schemaCoordonnees = z.object({
   telephonePrincipal: schemaTelephoneObligatoire,
   telephoneSecondaire: schemaTelephoneFacultatif,
+  whatsapp: schemaTelephoneFacultatif,
+  email: schemaEmailFacultatif,
   numeroCni: z.string().trim().optional(),
   localisation: z.string().trim().min(1, "La localisation est obligatoire."),
   quartier: z.string().trim().optional(),
@@ -127,6 +136,9 @@ export function corpsModificationDepuisFiche(
     sexe: (identite.sexe ?? null) as Sexe | null,
     telephonePrincipal: adherent.telephonePrincipal,
     telephoneSecondaire: adherent.telephoneSecondaire,
+    // V22 : le `PUT` remplace chaque champ — omis, WhatsApp et e-mail seraient effacés.
+    whatsapp: adherent.whatsapp ?? null,
+    email: adherent.email ?? null,
     numeroCni: adherent.numeroCni,
     numeroCnps: adherent.numeroCnps,
     activiteId: adherent.activiteId,

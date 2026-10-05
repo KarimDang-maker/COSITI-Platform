@@ -44,7 +44,6 @@ async function remplirRattachement(utilisateur: ReturnType<typeof userEvent.setu
   await choisir(utilisateur, "Activité", "Transporteur (Moto-taxi, Chauffeur)");
   await utilisateur.type(screen.getByLabelText("Localisation"), "Marché central");
   fireEvent.change(screen.getByLabelText("Date d'adhésion"), { target: { value: "2026-01-15" } });
-  await choisir(utilisateur, "Pack de cotisation", "Pack Essentiel 700 F/jour");
   await utilisateur.click(screen.getByRole("button", { name: "Suivant" }));
 }
 
@@ -60,21 +59,47 @@ describe("NouvelAdherent", () => {
     expect(screen.getByText("Le téléphone principal est obligatoire.")).toBeInTheDocument();
   });
 
-  it("ne propose pas un pack retiré du catalogue", async () => {
+  it("ne demande plus aucun pack à la création (V22 : il se choisit à la première cotisation)", async () => {
     simulerSessionActive();
     const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/adherents/nouveau" });
 
     await screen.findByLabelText("Nom");
     await remplirIdentite(utilisateur, "690000001");
+    expect(screen.queryByLabelText(/Pack/)).not.toBeInTheDocument();
+    await remplirRattachement(utilisateur);
+    expect(screen.getByText("Le pack de cotisation sera choisi lors de la première cotisation de l'adhérent.")).toBeInTheDocument();
+  });
 
-    await utilisateur.click(screen.getByLabelText("Pack de cotisation"));
-    const popup = await screen.findByRole("listbox");
+  it("crée l'adhérent sans pack, avec WhatsApp et e-mail", async () => {
+    simulerSessionActive();
+    let corpsRecu: Record<string, unknown> | null = null;
+    serveur.use(
+      http.post("/api/v1/adherents", async ({ request }) => {
+        corpsRecu = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: "adh-nouveau", matricule: "COSITI-00099" }, { status: 201 });
+      }),
+    );
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/adherents/nouveau" });
 
-    // L'API renvoie les packs inactifs pour que les adhérents déjà rattachés restent
-    // affichables ; ils ne doivent pas pour autant être souscrivables.
-    expect(within(popup).getByText("Pack Essentiel 700 F/jour")).toBeInTheDocument();
-    expect(within(popup).queryByText("Pack retire du catalogue")).not.toBeInTheDocument();
+    await screen.findByLabelText("Nom");
+    await utilisateur.type(screen.getByLabelText(/^E-mail/), "pas-un-email");
+    await utilisateur.type(screen.getByLabelText("Nom"), "MBALLA");
+    await utilisateur.type(screen.getByLabelText("Téléphone principal"), "699001122");
+    await utilisateur.type(screen.getByLabelText(/^WhatsApp/), "699001122");
+    await utilisateur.click(screen.getByRole("button", { name: "Suivant" }));
+    expect(await screen.findByText("L'adresse e-mail n'est pas valide.")).toBeInTheDocument();
+
+    await utilisateur.clear(screen.getByLabelText(/^E-mail/));
+    await utilisateur.type(screen.getByLabelText(/^E-mail/), "mballa@exemple.cm");
+    await utilisateur.click(screen.getByRole("button", { name: "Suivant" }));
+    await remplirRattachement(utilisateur);
+    await utilisateur.click(screen.getByRole("button", { name: "Créer l'adhérent" }));
+
+    await waitFor(() => expect(screen.getByText("Fiche affichée")).toBeInTheDocument());
+    expect(corpsRecu).toMatchObject({ whatsapp: "699001122", email: "mballa@exemple.cm" });
+    expect(corpsRecu).not.toHaveProperty("packId");
   });
 
   it("signale un doublon potentiel de façon non bloquante puis crée l'adhérent après confirmation", async () => {

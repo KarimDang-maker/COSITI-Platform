@@ -150,6 +150,14 @@ function ContenuPaiement({ paiement }: { paiement: Paiement }) {
       </dd>
       <dt className="font-semibold">Montant</dt>
       <dd className="chiffre font-bold">{formaterMontant(paiement.montant)}</dd>
+      {paiement.montantSecuriteSociale !== null && paiement.montantSecuriteSociale !== undefined && (
+        <>
+          <dt className="font-semibold">Sécurité Sociale / Épargne</dt>
+          <dd className="chiffre">
+            {formaterMontant(paiement.montantSecuriteSociale)} / {formaterMontant(paiement.montantEpargne ?? 0)}
+          </dd>
+        </>
+      )}
       <dt className="font-semibold">Date</dt>
       <dd>{formaterDate(paiement.datePaiement)}</dd>
       <dt className="font-semibold">Mode</dt>
@@ -303,6 +311,13 @@ function ContenuPaiement({ paiement }: { paiement: Paiement }) {
         <CarteSection titre="Informations">
           <dl className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <LigneChamp libelle="Montant" valeur={<span className="chiffre text-lg font-bold">{formaterMontant(paiement.montant)}</span>} />
+            {/* V22 : répartition enregistrée avec la cotisation ; non créditée tant que la cotisation n'est pas validée. */}
+            {paiement.montantSecuriteSociale !== null && paiement.montantSecuriteSociale !== undefined && (
+              <LigneChamp libelle="Sécurité Sociale" valeur={<span className="chiffre">{formaterMontant(paiement.montantSecuriteSociale)}</span>} />
+            )}
+            {paiement.montantEpargne !== null && paiement.montantEpargne !== undefined && (
+              <LigneChamp libelle="Épargne" valeur={<span className="chiffre">{formaterMontant(paiement.montantEpargne)}</span>} />
+            )}
             <LigneChamp libelle="Date du paiement" valeur={formaterDate(paiement.datePaiement)} />
             <LigneChamp libelle="Mode de paiement" valeur={<BadgeStatut domaine="modePaiement" code={paiement.modePaiement} />} />
             <LigneChamp libelle="Référence de transaction" valeur={<span className="ref">{paiement.referenceTransaction ?? "—"}</span>} />

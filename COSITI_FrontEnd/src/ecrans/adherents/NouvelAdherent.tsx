@@ -21,11 +21,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useZones } from "@/hooks/useOrganisation";
-import { useActivites, useCreerAdherent, usePacks, useVerifierDoublon } from "@/hooks/useAdherents";
+import { useActivites, useCreerAdherent, useVerifierDoublon } from "@/hooks/useAdherents";
 import type { CandidatDoublon } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
 import { ChampDate } from "@/components/cositi/champ-date";
 import { formaterNomComplet, masquerTelephone } from "@/lib/format";
+import { schemaEmailFacultatif, schemaTelephoneFacultatif } from "@/ecrans/adherents/schemas";
 
 const schema = z.object({
   nom: z.string().trim().min(1, "Le nom est obligatoire."),
@@ -43,6 +44,9 @@ const schema = z.object({
       "Le numéro doit comporter 9 chiffres (format camerounais).",
     ),
   telephoneSecondaire: z.string().trim().optional(),
+  // V22 : coordonnées complémentaires, facultatives.
+  whatsapp: schemaTelephoneFacultatif,
+  email: schemaEmailFacultatif,
   zoneId: z.string().min(1, "La zone est obligatoire."),
   activiteId: z.string().min(1, "L'activité est obligatoire."),
   associationId: z.string().trim().optional(),
@@ -50,14 +54,14 @@ const schema = z.object({
   quartier: z.string().trim().optional(),
   ville: z.string().trim().optional(),
   dateAdhesion: z.string().min(1, "La date d'adhésion est obligatoire."),
-  packId: z.string().min(1, "Le pack est obligatoire."),
+  // V22 : aucun pack à la création — il se choisit à la première cotisation.
 });
 
 type ValeursFormulaire = z.infer<typeof schema>;
 
 const CHAMPS_ETAPE = [
-  ["nom", "prenoms", "dateNaissance", "sexe", "numeroCni", "numeroCnps", "telephonePrincipal", "telephoneSecondaire"],
-  ["zoneId", "activiteId", "associationId", "localisation", "quartier", "ville", "dateAdhesion", "packId"],
+  ["nom", "prenoms", "dateNaissance", "sexe", "numeroCni", "numeroCnps", "telephonePrincipal", "telephoneSecondaire", "whatsapp", "email"],
+  ["zoneId", "activiteId", "associationId", "localisation", "quartier", "ville", "dateAdhesion"],
   [],
 ] as const satisfies readonly (readonly (keyof ValeursFormulaire)[])[];
 
@@ -74,7 +78,6 @@ export function NouvelAdherent() {
   const [etape, setEtape] = useState(0);
   const { data: zones } = useZones();
   const { data: activites } = useActivites();
-  const { data: packs } = usePacks();
   const verifierDoublon = useVerifierDoublon();
   const creerAdherent = useCreerAdherent();
   const [candidatsIgnores, setCandidatsIgnores] = useState<readonly CandidatDoublon[] | null>(null);
@@ -86,7 +89,7 @@ export function NouvelAdherent() {
     getValues,
     control,
     formState: { errors },
-  } = useForm<ValeursFormulaire>({ resolver: zodResolver(schema), defaultValues: { zoneId: "", activiteId: "", packId: "" } });
+  } = useForm<ValeursFormulaire>({ resolver: zodResolver(schema), defaultValues: { zoneId: "", activiteId: "" } });
 
   async function etapeSuivante() {
     const champs = CHAMPS_ETAPE[etape] ?? [];
@@ -120,6 +123,8 @@ export function NouvelAdherent() {
         prenoms: sansVide(valeurs.prenoms),
         dateNaissance: sansVide(valeurs.dateNaissance),
         telephoneSecondaire: sansVide(valeurs.telephoneSecondaire),
+        whatsapp: sansVide(valeurs.whatsapp),
+        email: sansVide(valeurs.email),
         numeroCni: sansVide(valeurs.numeroCni),
         numeroCnps: sansVide(valeurs.numeroCnps),
         associationId: sansVide(valeurs.associationId),
@@ -131,6 +136,7 @@ export function NouvelAdherent() {
       // V20/V21 : le dossier devient officiel par le parcours d'adhésion (frais, activation, contrôle DGA). La fiche
       // s'ouvre directement sur l'onglet « Adhésion », où le frais collecté par l'agent s'enregistre aussitôt — sans
       // trancher la question `[V]` D-10 (saisie du frais dans le formulaire de création).
+      // V22 : aucun pack n'est choisi ici ; il le sera à la première cotisation.
       toast.success(`Adhérent créé — matricule ${adherent.matricule}. Enregistrez maintenant le frais d'adhésion collecté.`);
       navigate(`/adherents/${adherent.id}?onglet=adhesion`);
     } catch (e) {
@@ -234,6 +240,12 @@ export function NouvelAdherent() {
                 <ChampFormulaire id="telephoneSecondaire" libelle="Téléphone secondaire">
                   {(attributs) => <Input {...attributs} {...register("telephoneSecondaire")} />}
                 </ChampFormulaire>
+                <ChampFormulaire id="whatsapp" libelle="WhatsApp" facultatif erreur={errors.whatsapp?.message}>
+                  {(attributs) => <Input type="tel" {...attributs} {...register("whatsapp")} />}
+                </ChampFormulaire>
+                <ChampFormulaire id="email" libelle="E-mail" facultatif erreur={errors.email?.message}>
+                  {(attributs) => <Input type="email" autoComplete="off" {...attributs} {...register("email")} />}
+                </ChampFormulaire>
               </div>
             )}
 
@@ -294,30 +306,6 @@ export function NouvelAdherent() {
                 <ChampFormulaire id="dateAdhesion" libelle="Date d'adhésion" erreur={errors.dateAdhesion?.message}>
                   {(attributs) => <ChampDate {...attributs} {...register("dateAdhesion")} />}
                 </ChampFormulaire>
-                <ChampFormulaire id="packId" libelle="Pack de cotisation" erreur={errors.packId?.message}>
-                  {(attributs) => (
-                    <Controller
-                      control={control}
-                      name="packId"
-                      render={({ field }) => (
-                        <SelectRecherche
-                          id={attributs.id}
-                          /* Seuls les packs actifs sont proposables : un pack retiré du catalogue
-                             reste renvoyé par l'API pour l'affichage des adhérents existants, mais
-                             il ne doit plus être souscrit. */
-                          options={(packs ?? [])
-                            .filter((p) => p.actif)
-                            .map((p) => ({ valeur: p.id, libelle: p.libelle }))}
-                          valeur={field.value}
-                          onChange={field.onChange}
-                          ariaInvalid={attributs["aria-invalid"]}
-                          ariaDescribedBy={attributs["aria-describedby"]}
-                          placeholder="Sélectionner un pack"
-                        />
-                      )}
-                    />
-                  )}
-                </ChampFormulaire>
               </div>
             )}
 
@@ -354,6 +342,9 @@ export function NouvelAdherent() {
                     <dd>{getValues("localisation")}</dd>
                   </div>
                 </dl>
+                <p className="text-sm text-texte-doux-fort">
+                  Le pack de cotisation sera choisi lors de la première cotisation de l'adhérent.
+                </p>
 
                 {creerAdherent.isError && !candidatsIgnores && (
                   <Alerte teinte="danger">

@@ -219,6 +219,8 @@ describe("FicheAdherent", () => {
     await waitFor(() => expect(ecritures.some((e) => e.methode === "PUT" && e.chemin === "/api/v1/adherents/adh-2")).toBe(true));
     const corps = ecritures.find((e) => e.methode === "PUT")!.corps as Record<string, unknown>;
     expect(corps).toMatchObject({ nom: "ATANGANA", prenoms: "Paul Henri", telephonePrincipal: "690112233", localisation: "Marché Mokolo", ville: "Yaoundé" });
+    // V22 : le `PUT` remplace chaque champ — WhatsApp et e-mail doivent être renvoyés, sinon ils seraient effacés.
+    expect(corps).toMatchObject({ whatsapp: "690112233", email: "paul.atangana@exemple.cm" });
   });
 
   it("affiche le résumé des cotisations et la situation de droits dans l'onglet Cotisations (#28)", async () => {
@@ -255,14 +257,15 @@ describe("FicheAdherent", () => {
     expect(screen.getByRole("button", { name: /Ajouter un document/ })).toBeInTheDocument();
   });
 
-  it("affiche l'historique avec acteur, date et motif (#21)", async () => {
+  it("affiche l'historique général avec acteur, date et modifications, données sensibles masquées (#21, V22)", async () => {
     simulerSession(JETON_GESTIONNAIRE);
     rendreAvecProviders(arbre(), { routeInitiale: "/adherents/adh-2?onglet=historique" });
 
-    expect(await screen.findByText("Changement de statut")).toBeInTheDocument();
-    expect(screen.getByText("Création")).toBeInTheDocument();
-    expect(screen.getByText("Motif : Trois mois sans cotisation")).toBeInTheDocument();
-    expect(screen.getAllByText("gestionnaire.test").length).toBe(2);
+    expect(await screen.findByText("Création du dossier")).toBeInTheDocument();
+    expect(screen.getByText("Modification des coordonnées")).toBeInTheDocument();
+    expect(screen.getByText("Yaoundé")).toBeInTheDocument();
+    expect(screen.getByText("modifié (donnée protégée)")).toBeInTheDocument();
+    expect(screen.getAllByText("gestionnaire.test").length).toBeGreaterThan(0);
   });
 
   it("ne donne au PCA que la consultation : aucun bouton d'écriture", async () => {

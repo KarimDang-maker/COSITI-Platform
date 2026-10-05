@@ -54,8 +54,19 @@ export interface Paiement {
   readonly rejeteLe?: string | null;
   /** Horodatage de la saisie. */
   readonly creeLe?: string | null;
+  /**
+   * V22 : répartition enregistrée avec la cotisation (Sécurité sociale + Épargne = montant). `null` pour une
+   * cotisation antérieure sans répartition — rien n'est déduit côté client.
+   */
+  readonly montantSecuriteSociale?: number | null;
+  readonly montantEpargne?: number | null;
+  readonly origineRepartition?: OrigineRepartition | null;
+  readonly packId?: string | null;
   readonly version: number;
 }
+
+/** `SAISIE` par l'utilisateur, `PROPOSITION_SERVEUR` (règle par défaut), `REPRISE_AFFECTATIONS` (migration V22). */
+export type OrigineRepartition = "SAISIE" | "PROPOSITION_SERVEUR" | "REPRISE_AFFECTATIONS";
 
 /**
  * Champs triables de `GET /paiements` (liste blanche `CHAMPS_TRI` de `ControleurPaiement`, #1). Tout
@@ -111,6 +122,11 @@ export interface CorpsEnregistrementPaiement {
   referenceTransaction?: string;
   typePaiement: string;
   agentEncaisseurId?: string;
+  /** V22 : répartition choisie à la saisie ; absente, le serveur applique la règle par défaut et la renvoie. */
+  montantSecuriteSociale?: number;
+  montantEpargne?: number;
+  /** V22 : obligatoire à la première cotisation d'un adhérent sans adhésion ouverte (`COTISATION_PACK_REQUIS`). */
+  packId?: string;
 }
 
 /**
@@ -202,6 +218,9 @@ export interface CorpsCorrectionPaiement {
   montant?: number;
   datePaiement?: string;
   referenceTransaction?: string;
+  /** V22 : à renvoyer avec le montant quand la répartition a été saisie (`COTISATION_REPARTITION_REQUISE`). */
+  montantSecuriteSociale?: number;
+  montantEpargne?: number;
   motif?: string;
 }
 
@@ -267,4 +286,36 @@ export interface AffectationPaiement {
 /** `GET /paiements/{id}/affectations` (`PAIEMENT:LIRE`). */
 export function listerAffectations(id: string) {
   return client.get<AffectationPaiement[]>(`/paiements/${id}/affectations`);
+}
+
+/**
+ * `ContexteCotisationDto` (V22) : ce qu'il faut savoir avant de saisir une cotisation à partir d'un matricule —
+ * identité de contrôle, pack courant ou à choisir, **minimums de répartition en vigueur lus en base** (le formulaire
+ * n'en code aucun) et blocages éventuels.
+ */
+export interface ContexteCotisation {
+  readonly adherentId: string;
+  readonly matricule: string;
+  readonly nom: string;
+  readonly prenoms: string | null;
+  readonly telephonePrincipal: string | null;
+  readonly zoneLibelle: string | null;
+  readonly statut: string;
+  readonly statutValidation: string | null;
+  readonly packId: string | null;
+  readonly packCode: string | null;
+  readonly packLibelle: string | null;
+  readonly packRequis: boolean;
+  readonly minimumSecuriteSociale: number;
+  readonly minimumEpargne: number;
+  /** `true` : une cotisation peut ne rien verser à l'Épargne ; sinon l'Épargne est due, au minimum. */
+  readonly epargneFacultative: boolean;
+  readonly cotisable: boolean;
+  readonly motifsBlocage: readonly string[];
+  readonly avertissements: readonly string[];
+}
+
+/** `GET /paiements/contexte-adherent?matricule=` (`PAIEMENT:CREER` + périmètre) — 404 si le matricule est inconnu. */
+export function obtenirContexteCotisation(matricule: string) {
+  return client.get<ContexteCotisation>(`/paiements/contexte-adherent?matricule=${encodeURIComponent(matricule)}`);
 }

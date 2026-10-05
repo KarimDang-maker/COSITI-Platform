@@ -42,6 +42,8 @@ export let PAIEMENTS_TEST: Paiement[] = [
 ];
 
 const CLES_IDEMPOTENCE_VUES = new Map<string, Paiement>();
+/** V22 : empreinte de la requête par clé — même clé + autre requête → 409 `IDEMPOTENCY_KEY_CONFLIT`. */
+const EMPREINTES_IDEMPOTENCE = new Map<string, string>();
 
 /** Matricules du jeu adhérents (`handlers.adherents.ts`), pour le filtre `adherentMatricule` (#3). */
 const MATRICULES: Readonly<Record<string, string>> = { "adh-1": "COSITI-00001", "adh-2": "COSITI-00002" };
@@ -326,10 +328,39 @@ export const handlersPaiements = [
         { status: 400 },
       );
     }
+    const texte = await request.text();
     const existant = CLES_IDEMPOTENCE_VUES.get(cleIdempotence);
-    if (existant) return HttpResponse.json(existant, { status: 200 });
+    if (existant) {
+      if (EMPREINTES_IDEMPOTENCE.get(cleIdempotence) !== texte) {
+        return erreurApi("IDEMPOTENCY_KEY_CONFLIT", "Cette clé d'idempotence a déjà servi pour une autre cotisation.", 409);
+      }
+      return HttpResponse.json(existant, { status: 200 });
+    }
 
-    const corps = (await request.json()) as CorpsEnregistrementPaiement;
+    const corps = JSON.parse(texte) as CorpsEnregistrementPaiement;
+    // V22 : règle de répartition (minimums 700 / 300, total = somme) et pack à la première cotisation.
+    if (corps.montantSecuriteSociale !== undefined && corps.montantSecuriteSociale < 700) {
+      return HttpResponse.json(
+        { code: "COTISATION_REPARTITION_INVALIDE", message: "Le montant affecté à la Sécurité Sociale doit être au minimum de 700 FCFA.", champ: "montantSecuriteSociale", traceId: "t", avertissements: [] },
+        { status: 400 },
+      );
+    }
+    if (
+      corps.montantSecuriteSociale !== undefined &&
+      corps.montantEpargne !== undefined &&
+      corps.montantSecuriteSociale + corps.montantEpargne !== corps.montant
+    ) {
+      return HttpResponse.json(
+        { code: "COTISATION_REPARTITION_INVALIDE", message: "La répartition doit correspondre au montant total de la cotisation.", champ: "montantEpargne", traceId: "t", avertissements: [] },
+        { status: 400 },
+      );
+    }
+    if (corps.adherentId === "adh-2" && !corps.packId) {
+      return HttpResponse.json(
+        { code: "COTISATION_PACK_REQUIS", message: "Choisissez le pack de cet adhérent pour sa première cotisation.", champ: "packId", traceId: "t", avertissements: [] },
+        { status: 400 },
+      );
+    }
     const brouillon = new URL(request.url).searchParams.get("brouillon") === "true";
 
     if (["ORANGE_MONEY", "MTN_MOMO"].includes(corps.modePaiement) && !corps.referenceTransaction) {
@@ -361,10 +392,15 @@ export const handlersPaiements = [
       confirmeParChefId: null,
       confirmeLe: null,
       motifIncoherence: null,
+      montantSecuriteSociale: corps.montantSecuriteSociale ?? null,
+      montantEpargne: corps.montantEpargne ?? null,
+      origineRepartition: corps.montantSecuriteSociale !== undefined ? "SAISIE" : "PROPOSITION_SERVEUR",
+      packId: corps.packId ?? null,
       version: 0,
     };
     PAIEMENTS_TEST = [...PAIEMENTS_TEST, nouveau];
     CLES_IDEMPOTENCE_VUES.set(cleIdempotence, nouveau);
+    EMPREINTES_IDEMPOTENCE.set(cleIdempotence, texte);
     return HttpResponse.json(nouveau, { status: 201 });
   }),
 

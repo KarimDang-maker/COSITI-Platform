@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { Archive, Copy, PencilLine, RefreshCcw } from "lucide-react";
+import { Archive, Copy, History, PencilLine, RefreshCcw } from "lucide-react";
 import { toast } from "sonner";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { EnTetePage } from "@/components/cositi/entete-page";
@@ -27,6 +27,7 @@ import { OngletCotisations } from "@/ecrans/adherents/fiche/OngletCotisations";
 import { OngletCnps } from "@/ecrans/adherents/fiche/OngletCnps";
 import { OngletDocuments } from "@/ecrans/adherents/fiche/OngletDocuments";
 import { OngletHistorique } from "@/ecrans/adherents/fiche/OngletHistorique";
+import { CarteComptes } from "@/ecrans/adherents/fiche/CarteComptes";
 import { BandeauWorkflow, HistoriqueValidation } from "@/ecrans/workflow/BandeauWorkflow";
 import { DialogueDemandeModification } from "@/ecrans/workflow/DialogueDemandeModification";
 import { OngletAdhesion } from "@/ecrans/adhesion/OngletAdhesion";
@@ -90,6 +91,10 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
   const peutVerifierDocuments = usePermission("DOCUMENT:VERIFIER");
   // `GET /adherents/{id}/resume-cotisations` compose la situation de droits et le journal des paiements.
   const peutLireResume = peutLireDroits && peutLirePaiements;
+  const peutSaisirCotisation = usePermission("PAIEMENT:CREER");
+  // V22 : historique financier ouvert à `PAIEMENT:LIRE` ou `FRAIS_ADHESION:LIRE` (403 sinon, côté serveur).
+  const peutLireFraisAdhesion = usePermission("FRAIS_ADHESION:LIRE");
+  const peutLireHistoriqueFinancier = peutLirePaiements || peutLireFraisAdhesion;
 
   const { data: activites } = useActivites();
   const archiver = useArchiverAdherent(adherent.id);
@@ -116,6 +121,8 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
     sexe: adherent.sexe,
     telephonePrincipal: adherent.telephonePrincipal,
     telephoneSecondaire: adherent.telephoneSecondaire,
+    whatsapp: adherent.whatsapp ?? null,
+    email: adherent.email ?? null,
     numeroCni: adherent.numeroCni,
     numeroCnps: adherent.numeroCnps,
     activiteId: adherent.activiteId,
@@ -188,6 +195,10 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
             filAriane={[{ libelle: "Adhérents", chemin: "/adherents" }, { libelle: "Fiche adhérent" }]}
             actions={
               <>
+                <Button variant="outline" onClick={() => changerOnglet("historique")}>
+                  <History className="size-4" aria-hidden="true" />
+                  Historique
+                </Button>
                 {peutModifierDirectement && (
                   <Button variant="outline" onClick={() => setIdentiteOuverte(true)}>
                     <PencilLine className="size-4" aria-hidden="true" />
@@ -269,12 +280,22 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
                 <LigneChamp libelle="Nom complet" valeur={nom} />
                 <LigneChamp libelle="Date de naissance" valeur={formaterDate(adherent.dateNaissance)} />
                 <LigneChamp libelle="Sexe" valeur={adherent.sexe === "F" ? "Féminin" : adherent.sexe === "M" ? "Masculin" : "—"} />
+                <LigneChamp libelle="Numéro CNI" valeur={adherent.numeroCni ?? "—"} />
+                <LigneChamp libelle="Numéro CNPS" valeur={adherent.numeroCnps ?? "—"} />
                 <LigneChamp libelle="Zone" valeur={adherent.zoneLibelle ?? "—"} />
                 <LigneChamp libelle="Activité" valeur={activite?.libelle ?? "—"} />
                 <LigneChamp libelle="Date d'adhésion" valeur={formaterDate(adherent.dateAdhesion)} />
                 <LigneChamp libelle="Frais d'inscription" valeur={adherent.inscriptionPayee ? "Payés" : "Non payés"} />
               </dl>
             </CarteSection>
+            {peutLirePaiements && (
+              <CarteComptes
+                adherentId={adherent.id}
+                matricule={adherent.matricule}
+                peutSaisir={peutSaisirCotisation && !adherent.archive}
+                onVoirDetails={ongletsVisibles.includes("cotisations") ? () => changerOnglet("cotisations") : undefined}
+              />
+            )}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <CarteCoordonnees adherentId={adherent.id} peutModifier={peutModifierDirectement} />
               <CarteAgentResponsable adherentId={adherent.id} nomAdherent={nom} peutAffecter={peutAffecter} />
@@ -330,7 +351,7 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
             </TabsContent>
           )}
 
-          <TabsContent value="historique">{onglet === "historique" && <OngletHistorique adherentId={adherent.id} />}</TabsContent>
+          <TabsContent value="historique">{onglet === "historique" && <OngletHistorique adherentId={adherent.id} peutLireFinancier={peutLireHistoriqueFinancier} />}</TabsContent>
 
           {ongletsVisibles.includes("validation") && (
             <TabsContent value="validation">

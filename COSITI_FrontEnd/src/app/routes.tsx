@@ -226,7 +226,7 @@ export function RoutesApplication() {
       <Route
         path="/controles-dga"
         element={
-          <GardeRoute permission="CONTROLE_DGA:LIRE">
+          <GardeRoute permission="CONTROLE_DGA:LIRE" unePermissionParmi={["CONTROLE_DGA:EFFECTUER", "RAPPORT_DAF:LIRE"]}>
             <EcranFileControleDga />
           </GardeRoute>
         }
@@ -295,7 +295,7 @@ export function RoutesApplication() {
       <Route
         path="/daf"
         element={
-          <GardeRoute permission="PAIEMENT:LIRE">
+          <GardeRoute unePermissionParmi={["PAIEMENT:VALIDER", "RAPPORT_DAF:LIRE"]}>
             <EcranDaf />
           </GardeRoute>
         }

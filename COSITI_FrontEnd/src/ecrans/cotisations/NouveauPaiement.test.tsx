@@ -20,17 +20,24 @@ function arbre() {
   );
 }
 
+/** V22 : recherche de l'adhérent par matricule, puis passage à la saisie. */
 async function choisirAdherent(utilisateur: ReturnType<typeof userEvent.setup>) {
-  const comboboxes = await screen.findAllByRole("combobox");
-  await utilisateur.click(comboboxes[0]!);
-  const liste = await screen.findByRole("listbox");
-  await utilisateur.click(within(liste).getByText(/NDONGO/));
+  await utilisateur.type(await screen.findByLabelText(/^Matricule COSITI/), "COSITI-00001");
+  await utilisateur.click(screen.getByRole("button", { name: "Rechercher" }));
+  await utilisateur.click(await screen.findByRole("button", { name: "Saisir la cotisation de cet adhérent" }));
+}
+
+async function remplirMontants(utilisateur: ReturnType<typeof userEvent.setup>, date: string, montant: string, ss: string, ep: string) {
+  await utilisateur.type(await screen.findByLabelText(/^Date du paiement/), date);
+  await utilisateur.type(screen.getByLabelText(/^Montant total/), montant);
+  await utilisateur.type(screen.getByLabelText(/^Sécurité Sociale/), ss);
+  await utilisateur.type(screen.getByLabelText(/^Épargne/), ep);
 }
 
 /** Le `Select` shadcn (Radix) n'expose pas de nom accessible fiable sur son déclencheur en jsdom : sélection par position. */
 async function choisirModePaiement(utilisateur: ReturnType<typeof userEvent.setup>, libelle: string) {
   const comboboxes = screen.getAllByRole("combobox");
-  await utilisateur.click(comboboxes[1]!);
+  await utilisateur.click(comboboxes[0]!);
   await utilisateur.click(await screen.findByRole("option", { name: libelle }));
 }
 
@@ -41,12 +48,11 @@ describe("NouveauPaiement", () => {
     rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
 
     await choisirAdherent(utilisateur);
-    await utilisateur.type(screen.getByLabelText("Date du paiement"), "2026-09-10");
-    await utilisateur.type(screen.getByLabelText("Montant (FCFA)"), "5000");
+    await remplirMontants(utilisateur, "2026-09-10", "5000", "700", "4300");
 
     await choisirModePaiement(utilisateur, "Orange Money");
 
-    await utilisateur.click(screen.getByRole("button", { name: "Enregistrer le paiement" }));
+    await utilisateur.click(screen.getByRole("button", { name: "Vérifier et enregistrer" }));
 
     expect(
       await screen.findByText(/La référence de transaction est obligatoire pour un paiement Orange Money/),
@@ -83,11 +89,12 @@ describe("NouveauPaiement", () => {
     rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
 
     await choisirAdherent(utilisateur);
-    await utilisateur.type(screen.getByLabelText("Date du paiement"), "2026-09-10");
-    await utilisateur.type(screen.getByLabelText("Montant (FCFA)"), "5000");
+    await remplirMontants(utilisateur, "2026-09-10", "5000", "700", "4300");
     await choisirModePaiement(utilisateur, "Espèces");
 
-    await utilisateur.click(screen.getByRole("button", { name: "Enregistrer le paiement" }));
+    await utilisateur.click(screen.getByRole("button", { name: "Vérifier et enregistrer" }));
+    const recap = await screen.findByRole("alertdialog");
+    await utilisateur.click(within(recap).getByRole("button", { name: "Enregistrer la cotisation" }));
 
     await waitFor(() => expect(screen.getByText("Détail du paiement affiché")).toBeInTheDocument());
     expect(cleRecue).toBeTruthy();

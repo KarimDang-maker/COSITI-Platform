@@ -29,6 +29,9 @@ export interface Adherent {
   readonly sexe: Sexe | null;
   readonly telephonePrincipal: string;
   readonly telephoneSecondaire: string | null;
+  /** V22 : coordonnées complémentaires (absentes d'une API antérieure). */
+  readonly whatsapp?: string | null;
+  readonly email?: string | null;
   readonly numeroCni: string | null;
   readonly numeroCnps: string | null;
   readonly activiteId: string;
@@ -177,6 +180,8 @@ export interface CorpsCreationAdherent {
   sexe?: Sexe;
   telephonePrincipal: string;
   telephoneSecondaire?: string;
+  whatsapp?: string;
+  email?: string;
   numeroCni?: string;
   numeroCnps?: string;
   activiteId: string;
@@ -186,7 +191,7 @@ export interface CorpsCreationAdherent {
   quartier?: string;
   ville?: string;
   dateAdhesion: string;
-  packId: string;
+  // V22 : plus de `packId` — le pack se choisit à la première cotisation (`POST /paiements`).
   /** Envoyé uniquement après confirmation explicite d'un doublon signalé en 409 (`03_SPECIFICATIONS_API.md §3`). */
   confirmationDoublonIgnore?: boolean;
 }
@@ -207,6 +212,9 @@ export interface CorpsModificationAdherent {
   sexe: Sexe | null;
   telephonePrincipal: string;
   telephoneSecondaire: string | null;
+  /** V22 : toujours renvoyés — le `PUT` les effacerait sinon. */
+  whatsapp: string | null;
+  email: string | null;
   numeroCni: string | null;
   numeroCnps: string | null;
   activiteId: string | null;
@@ -268,6 +276,8 @@ export interface CorpsCompletionProfil {
   dateNaissance?: string;
   sexe?: Sexe;
   telephoneSecondaire?: string;
+  whatsapp?: string;
+  email?: string;
   numeroCni?: string;
   numeroCnps?: string;
   associationId?: string;
@@ -389,6 +399,8 @@ export interface CoordonneesAdherent {
   readonly adherentId: string;
   readonly telephonePrincipal: string;
   readonly telephoneSecondaire: string | null;
+  readonly whatsapp?: string | null;
+  readonly email?: string | null;
   readonly numeroCni: string | null;
   readonly localisation: string | null;
   readonly quartier: string | null;
@@ -406,6 +418,8 @@ export function obtenirCoordonnees(id: string) {
 export interface CorpsModificationCoordonnees {
   telephonePrincipal: string;
   telephoneSecondaire: string | null;
+  whatsapp: string | null;
+  email: string | null;
   numeroCni: string | null;
   localisation: string;
   quartier: string | null;

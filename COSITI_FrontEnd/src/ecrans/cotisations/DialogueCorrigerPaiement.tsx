@@ -39,6 +39,10 @@ export function DialogueCorrigerPaiement({ ouvert, onOuvertChange, paiement, nom
   const [datePaiement, setDatePaiement] = useState(formaterDateSaisie(paiement.datePaiement));
   const [referenceTransaction, setReferenceTransaction] = useState(paiement.referenceTransaction ?? "");
   const [motif, setMotif] = useState("");
+  // V22 : une cotisation répartie se corrige avec sa répartition (`COTISATION_REPARTITION_REQUISE` sinon).
+  const repartie = paiement.montantSecuriteSociale !== null && paiement.montantSecuriteSociale !== undefined;
+  const [montantSs, setMontantSs] = useState(String(paiement.montantSecuriteSociale ?? ""));
+  const [montantEp, setMontantEp] = useState(String(paiement.montantEpargne ?? ""));
   const [etape, setEtape] = useState<"saisie" | "revue">("saisie");
   const idMotif = useId();
   const corriger = useCorrigerPaiement();
@@ -47,6 +51,11 @@ export function DialogueCorrigerPaiement({ ouvert, onOuvertChange, paiement, nom
   const motifInvalide = !brouillon && motif.trim() === "";
   const montantInvalide = !(Number(montant) > 0);
   const referenceManquante = estModeMobileMoney(paiement.modePaiement) && referenceTransaction.trim() === "";
+  const repartitionModifiee =
+    repartie && (Number(montantSs) !== paiement.montantSecuriteSociale || Number(montantEp) !== (paiement.montantEpargne ?? 0));
+  // Aide à la saisie : la somme est contrôlée par le serveur (minimums compris), qui reste l'autorité.
+  const repartitionIncoherente =
+    repartie && (Number(montant) !== paiement.montant || repartitionModifiee) && Number(montantSs) + Number(montantEp) !== Number(montant);
 
 
   const changements = [
@@ -60,6 +69,11 @@ export function DialogueCorrigerPaiement({ ouvert, onOuvertChange, paiement, nom
       avant: formaterDate(paiement.datePaiement),
       apres: formaterDate(datePaiement),
     },
+    repartitionModifiee && {
+      champ: "Sécurité Sociale / Épargne",
+      avant: `${formaterMontant(paiement.montantSecuriteSociale)} / ${formaterMontant(paiement.montantEpargne ?? 0)}`,
+      apres: `${formaterMontant(Number(montantSs))} / ${formaterMontant(Number(montantEp))}`,
+    },
     referenceTransaction.trim() !== (paiement.referenceTransaction ?? "") && {
       champ: "Référence de transaction",
       avant: paiement.referenceTransaction ?? "—",
@@ -72,6 +86,9 @@ export function DialogueCorrigerPaiement({ ouvert, onOuvertChange, paiement, nom
     // Seuls les champs modifiés sont envoyés : le serveur n'applique que les valeurs non nulles.
     const corps: CorpsCorrectionPaiement = {
       montant: Number(montant) !== paiement.montant ? Number(montant) : undefined,
+      // La répartition accompagne toute correction du montant d'une cotisation répartie.
+      montantSecuriteSociale: repartie && (repartitionModifiee || Number(montant) !== paiement.montant) ? Number(montantSs) : undefined,
+      montantEpargne: repartie && (repartitionModifiee || Number(montant) !== paiement.montant) ? Number(montantEp) : undefined,
       datePaiement: datePaiement !== formaterDateSaisie(paiement.datePaiement) ? datePaiement : undefined,
       referenceTransaction:
         referenceTransaction.trim() !== (paiement.referenceTransaction ?? "") ? referenceTransaction.trim() : undefined,
@@ -113,6 +130,20 @@ export function DialogueCorrigerPaiement({ ouvert, onOuvertChange, paiement, nom
                 {(attributs) => <ChampDate {...attributs} value={datePaiement} onChange={(e) => setDatePaiement(e.target.value)} />}
               </ChampFormulaire>
             </div>
+            {repartie && (
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <ChampFormulaire id="correction-ss" libelle="Sécurité Sociale (FCFA)">
+                  {(attributs) => <ChampMontant {...attributs} value={montantSs} onChange={(e) => setMontantSs(e.target.value)} />}
+                </ChampFormulaire>
+                <ChampFormulaire
+                  id="correction-epargne"
+                  libelle="Épargne (FCFA)"
+                  erreur={repartitionIncoherente ? "La répartition doit correspondre au montant total de la cotisation." : undefined}
+                >
+                  {(attributs) => <ChampMontant {...attributs} value={montantEp} onChange={(e) => setMontantEp(e.target.value)} />}
+                </ChampFormulaire>
+              </div>
+            )}
             <ChampFormulaire
               id="correction-reference"
               libelle="Référence de transaction"
@@ -181,7 +212,7 @@ export function DialogueCorrigerPaiement({ ouvert, onOuvertChange, paiement, nom
               </Button>
               <Button
                 onClick={() => setEtape("revue")}
-                disabled={motifInvalide || montantInvalide || referenceManquante || changements.length === 0}
+                disabled={motifInvalide || montantInvalide || referenceManquante || repartitionIncoherente || changements.length === 0}
               >
                 {changements.length === 0 ? "Aucune modification" : "Vérifier les modifications"}
               </Button>

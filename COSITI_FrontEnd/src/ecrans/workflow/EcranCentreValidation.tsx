@@ -16,7 +16,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDemandes, useDemandesEnAttente } from "@/hooks/useWorkflow";
-import type { DemandeValidation, StatutDemandeValidation, TypeEntiteWorkflow, TypeOperationWorkflow } from "@/api/workflow";
+import { PERMISSION_DECISION, type DemandeValidation, type StatutDemandeValidation, type TypeEntiteWorkflow, type TypeOperationWorkflow } from "@/api/workflow";
+import { useAuth } from "@/auth/ContexteAuth";
 import type { EnveloppeListe } from "@/api/pagination";
 import { estErreurApi } from "@/api/erreurs";
 import { STATUTS, definitionStatut } from "@/lib/statuts";
@@ -40,7 +41,12 @@ type Vue = "a-traiter" | "mes-demandes" | "toutes";
 export function EcranCentreValidation() {
   const [parametres, definirParametres] = useSearchParams();
   const navigate = useNavigate();
-  const vue: Vue = (parametres.get("vue") as Vue | null) ?? "a-traiter";
+  const { aLaPermission } = useAuth();
+  // « À traiter » n'existe que pour qui peut décider (ADHERENT:VALIDER, AGENT:VALIDER, PAIEMENT:VALIDER) : un rôle
+  // sans droit de décision ne voit pas de file vide ni de bouton inutile (prompt V22 §25-26).
+  const peutDecider = [...new Set(Object.values(PERMISSION_DECISION))].some((p) => aLaPermission(p));
+  const vueDemandee = parametres.get("vue") as Vue | null;
+  const vue: Vue = vueDemandee && (vueDemandee !== "a-traiter" || peutDecider) ? vueDemandee : peutDecider ? "a-traiter" : "mes-demandes";
   const typeEntite = (parametres.get("typeEntite") as TypeEntiteWorkflow | null) ?? undefined;
   const statut = (parametres.get("statut") as StatutDemandeValidation | null) ?? undefined;
   const typeOperation = (parametres.get("typeOperation") as TypeOperationWorkflow | null) ?? undefined;
@@ -110,7 +116,7 @@ export function EcranCentreValidation() {
 
         <Tabs value={vue} onValueChange={(v) => mettreAJour({ vue: v === "a-traiter" ? undefined : v, statut: undefined, typeOperation: undefined })}>
           <TabsList>
-            <TabsTrigger value="a-traiter">À traiter</TabsTrigger>
+            {peutDecider && <TabsTrigger value="a-traiter">À traiter</TabsTrigger>}
             <TabsTrigger value="mes-demandes">Mes demandes</TabsTrigger>
             <TabsTrigger value="toutes">Toutes les demandes</TabsTrigger>
           </TabsList>

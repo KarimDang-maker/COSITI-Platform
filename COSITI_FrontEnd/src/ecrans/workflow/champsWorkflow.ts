@@ -35,6 +35,9 @@ const CHAMPS_ADHERENT: readonly DefinitionChamp[] = [
   { champ: "sexe", libelle: "Sexe", saisie: "choix", options: OPTIONS_SEXE },
   { champ: "telephonePrincipal", libelle: "Téléphone principal", saisie: "telephone" },
   { champ: "telephoneSecondaire", libelle: "Téléphone secondaire", saisie: "telephone" },
+  // V22 (`AdaptateurWorkflowAdherent.CHAMPS_DOSSIER`).
+  { champ: "whatsapp", libelle: "WhatsApp", saisie: "telephone" },
+  { champ: "email", libelle: "E-mail", saisie: "texte" },
   { champ: "numeroCni", libelle: "Numéro CNI", saisie: "texte" },
   { champ: "numeroCnps", libelle: "Numéro CNPS", saisie: "texte" },
   { champ: "activiteId", libelle: "Activité", saisie: "referentiel", referentiel: "activites" },
@@ -55,6 +58,9 @@ const CHAMPS_AGENT: readonly DefinitionChamp[] = [
 
 const CHAMPS_PAIEMENT: readonly DefinitionChamp[] = [
   { champ: "montant", libelle: "Montant", saisie: "montant" },
+  // V22 : répartition à corriger avec le montant.
+  { champ: "montantSecuriteSociale", libelle: "Sécurité Sociale", saisie: "montant" },
+  { champ: "montantEpargne", libelle: "Épargne", saisie: "montant" },
   { champ: "datePaiement", libelle: "Date du paiement", saisie: "date" },
   { champ: "modePaiement", libelle: "Mode de paiement", saisie: "choix", options: optionsStatut("modePaiement") },
   { champ: "referenceTransaction", libelle: "Référence de transaction", saisie: "texte" },
@@ -96,6 +102,8 @@ export function formaterValeurChamp(champ: string, valeur: string | null | undef
   if (valeur === null || valeur === undefined || valeur === "") return "—";
   switch (champ) {
     case "montant":
+    case "montantSecuriteSociale":
+    case "montantEpargne":
     case "objectifCollecteMensuel":
       return formaterMontant(Number(valeur));
     case "dateNaissance":
@@ -103,6 +111,7 @@ export function formaterValeurChamp(champ: string, valeur: string | null | undef
       return formaterDate(valeur);
     case "telephonePrincipal":
     case "telephoneSecondaire":
+    case "whatsapp":
     case "telephone":
       return formaterTelephone(valeur);
     case "sexe":

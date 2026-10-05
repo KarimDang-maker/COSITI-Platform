@@ -232,34 +232,141 @@ describe("Module cotisations — fiche", () => {
 describe("Module cotisations — saisie", () => {
   afterEach(() => serveur.events.removeAllListeners());
 
-  async function remplir(utilisateur: ReturnType<typeof userEvent.setup>, date: string, montant: string, mode: string, reference?: string) {
-    const comboboxes = await screen.findAllByRole("combobox");
-    await utilisateur.click(comboboxes[0]!);
-    await utilisateur.click(within(await screen.findByRole("listbox")).getByText(/NDONGO/));
-    await utilisateur.type(screen.getByLabelText("Date du paiement"), date);
-    await utilisateur.type(screen.getByLabelText("Montant (FCFA)"), montant);
-    await utilisateur.click(screen.getAllByRole("combobox")[1]!);
+  /** V22 : la saisie commence par la recherche de l'adhérent par matricule. */
+  async function choisirAdherent(utilisateur: ReturnType<typeof userEvent.setup>, matricule = "COSITI-00001") {
+    await utilisateur.type(await screen.findByLabelText(/^Matricule COSITI/, {}, ATTENTE), matricule);
+    await utilisateur.click(screen.getByRole("button", { name: "Rechercher" }));
+    await utilisateur.click(await screen.findByRole("button", { name: "Saisir la cotisation de cet adhérent" }, ATTENTE));
+  }
+
+  async function remplir(
+    utilisateur: ReturnType<typeof userEvent.setup>,
+    date: string,
+    montant: string,
+    ss: string,
+    ep: string,
+    mode: string,
+    reference?: string,
+  ) {
+    await choisirAdherent(utilisateur);
+    await utilisateur.type(await screen.findByLabelText(/^Date du paiement/), date);
+    await utilisateur.type(screen.getByLabelText(/^Montant total/), montant);
+    await utilisateur.type(screen.getByLabelText(/^Sécurité Sociale/), ss);
+    await utilisateur.type(screen.getByLabelText(/^Épargne/), ep);
+    await utilisateur.click(screen.getAllByRole("combobox")[0]!);
     await utilisateur.click(await screen.findByRole("option", { name: mode }));
     if (reference) await utilisateur.type(screen.getByLabelText(/Référence de transaction/), reference);
   }
 
-  it("identifie l'adhérent choisi avant l'envoi (#12)", async () => {
+  /** Envoi en deux temps : « Vérifier et enregistrer », puis confirmation du récapitulatif. */
+  async function confirmer(utilisateur: ReturnType<typeof userEvent.setup>) {
+    await utilisateur.click(screen.getByRole("button", { name: "Vérifier et enregistrer" }));
+    const recap = await screen.findByRole("alertdialog", {}, ATTENTE);
+    await utilisateur.click(within(recap).getByRole("button", { name: "Enregistrer la cotisation" }));
+  }
+
+  it("identifie l'adhérent par son matricule avant l'envoi (#12, V22)", async () => {
     simulerSession(JETON_AGENT);
     const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
 
-    const comboboxes = await screen.findAllByRole("combobox");
-    await utilisateur.click(comboboxes[0]!);
-    await utilisateur.click(within(await screen.findByRole("listbox")).getByText(/NDONGO/));
-    expect(await screen.findByText("NDONGO Marie Claire", {}, ATTENTE)).toBeInTheDocument();
-    expect(screen.getByText("COSITI-00001")).toBeInTheDocument();
+    await utilisateur.type(await screen.findByLabelText(/^Matricule COSITI/, {}, ATTENTE), "cositi 1");
+    await utilisateur.click(screen.getByRole("button", { name: "Rechercher" }));
+    const resume = await screen.findByLabelText("Adhérent sélectionné", {}, ATTENTE);
+    expect(within(resume).getByText("NDONGO Marie Claire")).toBeInTheDocument();
+    expect(within(resume).getByText("COSITI-00001")).toBeInTheDocument();
+  });
+
+  it("signale un matricule introuvable", async () => {
+    simulerSession(JETON_AGENT);
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
+
+    await utilisateur.type(await screen.findByLabelText(/^Matricule COSITI/, {}, ATTENTE), "COSITI-09999");
+    await utilisateur.click(screen.getByRole("button", { name: "Rechercher" }));
+    expect(await screen.findByText("Adhérent introuvable", {}, ATTENTE)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Saisir la cotisation de cet adhérent" })).not.toBeInTheDocument();
+  });
+
+  it("contrôle la répartition : minimum 700, minimum 300, total = somme (V22)", async () => {
+    simulerSession(JETON_AGENT);
+    const requetes = espionner();
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
+
+    await remplir(utilisateur, "2026-09-20", "1000", "600", "100", "Espèces");
+    await utilisateur.click(screen.getByRole("button", { name: "Vérifier et enregistrer" }));
+    expect(await screen.findByText(/Sécurité Sociale doit être au minimum de 700/)).toBeInTheDocument();
+    expect(screen.getByText(/Épargne doit être au minimum de 300/)).toBeInTheDocument();
+
+    await utilisateur.clear(screen.getByLabelText(/^Sécurité Sociale/));
+    await utilisateur.type(screen.getByLabelText(/^Sécurité Sociale/), "700");
+    await utilisateur.clear(screen.getByLabelText(/^Épargne/));
+    await utilisateur.type(screen.getByLabelText(/^Épargne/), "500");
+    await utilisateur.click(screen.getByRole("button", { name: "Vérifier et enregistrer" }));
+    expect(await screen.findByText("La répartition doit correspondre au montant total de la cotisation.")).toBeInTheDocument();
+    expect(derniere(requetes, "/api/v1/paiements", "POST")).toBeUndefined();
+  });
+
+  it("récapitule puis enregistre une seule fois, et affiche le statut renvoyé par le serveur (V22)", async () => {
+    simulerSession(JETON_AGENT);
+    const requetes = espionner();
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
+
+    await remplir(utilisateur, "2026-09-21", "1500", "700", "800", "Espèces");
+    await utilisateur.click(screen.getByRole("button", { name: "Vérifier et enregistrer" }));
+    const recap = await screen.findByRole("alertdialog", {}, ATTENTE);
+    expect(within(recap).getByText("NDONGO Marie Claire", { exact: false })).toBeInTheDocument();
+    expect(within(recap).getByLabelText("Récapitulatif de la cotisation")).toHaveTextContent(/1\s500/);
+    const bouton = within(recap).getByRole("button", { name: "Enregistrer la cotisation" });
+    await utilisateur.dblClick(bouton);
+
+    await waitFor(() => expect(derniere(requetes, "/api/v1/paiements", "POST")).toBeTruthy(), ATTENTE);
+    expect(requetes.filter((r) => r.methode === "POST" && r.url.pathname === "/api/v1/paiements")).toHaveLength(1);
+    expect(derniere(requetes, "/api/v1/paiements", "POST")?.corps).toMatchObject({ montant: 1500, montantSecuriteSociale: 700, montantEpargne: 800 });
+    // « En attente de contrôle », jamais « Validée » parce que la requête a réussi.
+    expect(await screen.findByText(/statut : À contrôler/, {}, ATTENTE)).toBeInTheDocument();
+  });
+
+  it("exige le pack à la première cotisation d'un adhérent sans adhésion (V22)", async () => {
+    simulerSession(JETON_AGENT);
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
+
+    await choisirAdherent(utilisateur, "COSITI-00002");
+    expect(await screen.findByText("aucun pack encore choisi", { exact: false })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Pack de cotisation/)).toBeInTheDocument();
+    await utilisateur.type(screen.getByLabelText(/^Date du paiement/), "2026-09-23");
+    await utilisateur.type(screen.getByLabelText(/^Montant total/), "1000");
+    await utilisateur.type(screen.getByLabelText(/^Sécurité Sociale/), "700");
+    await utilisateur.type(screen.getByLabelText(/^Épargne/), "300");
+    // Pack (SelectRecherche) puis mode de paiement (Select) : le mode est le deuxième combobox.
+    await utilisateur.click(screen.getAllByRole("combobox")[1]!);
+    await utilisateur.click(await screen.findByRole("option", { name: "Espèces" }));
+    await utilisateur.click(screen.getByRole("button", { name: "Vérifier et enregistrer" }));
+    expect(await screen.findByText(/choisissez son pack de cotisation/)).toBeInTheDocument();
+  });
+
+  it("affiche le refus du serveur sans le masquer", async () => {
+    simulerSession(JETON_AGENT);
+    serveur.use(
+      http.post("/api/v1/paiements", () =>
+        HttpResponse.json({ code: "ERREUR_INTERNE", message: "Le service est momentanément indisponible.", traceId: "t", avertissements: [] }, { status: 503 }),
+      ),
+    );
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
+
+    await remplir(utilisateur, "2026-09-22", "1000", "700", "300", "Espèces");
+    await confirmer(utilisateur);
+    expect(await screen.findByText("Cotisation non enregistrée", {}, ATTENTE)).toBeInTheDocument();
   });
 
   it("signale un paiement similaire du serveur et n'enregistre qu'après confirmation (#13)", async () => {
     simulerSession(JETON_AGENT);
     const requetes = espionner();
     const utilisateur = userEvent.setup();
-    // Réponse dédiée : les mutations des tests précédents modifient le jeu de paiements partagé.
     serveur.use(
       http.post("/api/v1/paiements/verifier-doublon", () =>
         HttpResponse.json({
@@ -289,11 +396,11 @@ describe("Module cotisations — saisie", () => {
     );
     rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
 
-    await remplir(utilisateur, "2026-09-01", "5000", "Espèces");
-    await utilisateur.click(screen.getByRole("button", { name: "Enregistrer le paiement" }));
+    await remplir(utilisateur, "2026-09-01", "5000", "700", "4300", "Espèces");
+    await confirmer(utilisateur);
 
-    const dialogue = await screen.findByRole("alertdialog", {}, ATTENTE);
-    expect(within(dialogue).getByText("REC-000321")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("REC-000321")).toBeInTheDocument(), ATTENTE);
+    const dialogue = screen.getByRole("alertdialog");
     expect(derniere(requetes, "/api/v1/paiements", "POST")).toBeUndefined();
 
     await utilisateur.click(within(dialogue).getByRole("button", { name: "Enregistrer quand même" }));
@@ -306,8 +413,8 @@ describe("Module cotisations — saisie", () => {
     const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
 
-    await remplir(utilisateur, "2026-09-15", "2100", "MTN MoMo", "MP260910.1432");
-    await utilisateur.click(screen.getByRole("button", { name: "Enregistrer le paiement" }));
+    await remplir(utilisateur, "2026-09-15", "2100", "700", "1400", "MTN MoMo", "MP260910.1432");
+    await confirmer(utilisateur);
 
     expect(await screen.findByText(/Cette référence de transaction est déjà enregistrée/, {}, ATTENTE)).toBeInTheDocument();
     expect(derniere(requetes, "/api/v1/paiements", "POST")).toBeUndefined();
@@ -323,12 +430,14 @@ describe("Module cotisations — saisie", () => {
     });
     rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
 
-    await remplir(utilisateur, "2026-09-16", "1500", "Espèces");
+    await remplir(utilisateur, "2026-09-16", "1500", "700", "800", "Espèces");
     await utilisateur.click(screen.getByRole("button", { name: "Enregistrer comme brouillon" }));
+    const recap = await screen.findByRole("alertdialog", {}, ATTENTE);
+    await utilisateur.click(within(recap).getByRole("button", { name: "Enregistrer le brouillon" }));
 
     await waitFor(() => expect(derniere(requetes, "/api/v1/paiements", "POST")?.url.searchParams.get("brouillon")).toBe("true"), ATTENTE);
     expect(cle).toMatch(/^[0-9a-f-]{36}$/i);
-    expect(await screen.findByText(/Brouillon REC-\d+ enregistré/)).toBeInTheDocument();
+    expect(await screen.findByText(/statut : Brouillon/)).toBeInTheDocument();
   });
 });
 

@@ -12,6 +12,7 @@ import { handlersAdministration } from "@/test/msw/handlers.administration";
 import { handlersWorkflow } from "@/test/msw/handlers.workflow";
 import { handlersAdhesion } from "@/test/msw/handlers.adhesion";
 import { handlersV21 } from "@/test/msw/handlers.v21";
+import { handlersV22 } from "@/test/msw/handlers.v22";
 
 /**
  * Serveur MSW partagé par tous les tests. Chaque domaine ajoute son propre
@@ -20,6 +21,7 @@ import { handlersV21 } from "@/test/msw/handlers.v21";
  * session : « ne suppose jamais que le backend tourne »).
  */
 export const serveur = setupServer(
+  ...handlersV22,
   ...handlersAuth,
   ...handlersAdherents,
   ...handlersOrganisation,

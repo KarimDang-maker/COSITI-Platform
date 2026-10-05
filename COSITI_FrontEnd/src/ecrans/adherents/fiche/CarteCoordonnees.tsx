@@ -73,6 +73,11 @@ export function CarteCoordonnees({ adherentId, peutModifier }: CarteCoordonneesP
           libelle="Téléphone secondaire"
           valeur={data.telephoneSecondaire ? <span className="ref">{formaterTelephone(data.telephoneSecondaire)}</span> : "—"}
         />
+        <LigneChamp
+          libelle="WhatsApp"
+          valeur={data.whatsapp ? <span className="ref">{formaterTelephone(data.whatsapp)}</span> : "—"}
+        />
+        <LigneChamp libelle="E-mail" valeur={data.email ?? "—"} />
         <LigneChamp libelle="Numéro CNI" valeur={data.numeroCni ?? "—"} />
         <LigneChamp libelle="Localisation" valeur={data.localisation ?? "—"} />
         <LigneChamp libelle="Quartier" valeur={data.quartier ?? "—"} />
@@ -107,6 +112,8 @@ function FormulaireCoordonnees({
     defaultValues: {
       telephonePrincipal: initiales.telephonePrincipal,
       telephoneSecondaire: initiales.telephoneSecondaire ?? "",
+      whatsapp: initiales.whatsapp ?? "",
+      email: initiales.email ?? "",
       numeroCni: initiales.numeroCni ?? "",
       localisation: initiales.localisation ?? "",
       quartier: initiales.quartier ?? "",
@@ -122,6 +129,8 @@ function FormulaireCoordonnees({
       await modifier.mutateAsync({
         telephonePrincipal: valeurs.telephonePrincipal.trim(),
         telephoneSecondaire: videVersNull(valeurs.telephoneSecondaire),
+        whatsapp: videVersNull(valeurs.whatsapp),
+        email: videVersNull(valeurs.email),
         numeroCni: videVersNull(valeurs.numeroCni),
         localisation: valeurs.localisation.trim(),
         quartier: videVersNull(valeurs.quartier),
@@ -163,6 +172,12 @@ function FormulaireCoordonnees({
           </ChampFormulaire>
           <ChampFormulaire id="co-telephoneSecondaire" libelle="Téléphone secondaire" facultatif erreur={errors.telephoneSecondaire?.message}>
             {(attributs) => <Input type="tel" {...attributs} {...register("telephoneSecondaire")} />}
+          </ChampFormulaire>
+          <ChampFormulaire id="co-whatsapp" libelle="WhatsApp" facultatif erreur={errors.whatsapp?.message}>
+            {(attributs) => <Input type="tel" {...attributs} {...register("whatsapp")} />}
+          </ChampFormulaire>
+          <ChampFormulaire id="co-email" libelle="E-mail" facultatif erreur={errors.email?.message}>
+            {(attributs) => <Input type="email" autoComplete="off" {...attributs} {...register("email")} />}
           </ChampFormulaire>
           <ChampFormulaire id="co-numeroCni" libelle="Numéro CNI" facultatif erreur={errors.numeroCni?.message}>
             {(attributs) => <Input {...attributs} {...register("numeroCni")} />}

@@ -213,6 +213,8 @@ export function EcranControleDga() {
   const controle = useControleDga(id);
   const peutEffectuer = usePermission("CONTROLE_DGA:EFFECTUER");
   const peutActiver = usePermission("ADHERENT:ACTIVER");
+  const peutSuperviser = usePermission("RAPPORT_DAF:LIRE");
+  const peutVoirFile = peutEffectuer || peutSuperviser;
   const demarrer = useDemarrerControleDga(id ?? "");
   const [decision, setDecision] = useState<DecisionControleDga | null>(null);
 
@@ -262,7 +264,12 @@ export function EcranControleDga() {
             </span>
           }
           statut={<BadgeStatut domaine="tourControleDga" code={c.statut} />}
-          filAriane={[{ libelle: "Contrôle DGA", chemin: "/controles-dga" }, { libelle: c.reference }]}
+          // Le Gestionnaire n'a pas accès à la file DGA (prompt V22 §25) : le fil d'Ariane le ramène au dossier.
+          filAriane={
+            peutVoirFile
+              ? [{ libelle: "Contrôle DGA", chemin: "/controles-dga" }, { libelle: c.reference }]
+              : [{ libelle: "Adhérent", chemin: `/adherents/${c.adherentId}?onglet=adhesion` }, { libelle: c.reference }]
+          }
           actions={
             peutEffectuer && c.statut === "EN_ATTENTE" && !estAuteurSoumission ? (
               <Button

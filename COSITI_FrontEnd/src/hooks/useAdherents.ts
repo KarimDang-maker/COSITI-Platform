@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  listerHistorique,
+  obtenirDossierComplet,
+  obtenirSyntheseCotisations,
+  type CategorieHistorique,
+  type FiltresHistorique,
+} from "@/api/dossierAdherent";
+import {
   archiverAdherent,
   changerStatutAdherent,
   completerProfil,
@@ -276,5 +283,40 @@ export function usePacks() {
     queryKey: [CLE_ADHERENTS, "packs"],
     queryFn: listerPacks,
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/* ----- V22 : dossier complet, comptes et historiques ----- */
+
+/** Dossier complet (`GET /dossier-complet`) — sous `["adherents", "detail", id]` : toute écriture l'invalide. */
+export function useDossierComplet(id: string | undefined) {
+  return useQuery({
+    queryKey: [CLE_ADHERENTS, "detail", id, "dossier-complet"],
+    queryFn: () => obtenirDossierComplet(id!),
+    enabled: !!id,
+  });
+}
+
+/** Comptes Sécurité sociale / Épargne et cumuls (`PAIEMENT:LIRE`) — jamais recalculés côté client. */
+export function useSyntheseCotisationsAdherent(id: string | undefined, actif = true) {
+  return useQuery({
+    queryKey: [CLE_ADHERENTS, "detail", id, "synthese-cotisations"],
+    queryFn: () => obtenirSyntheseCotisations(id!),
+    enabled: !!id && actif,
+  });
+}
+
+/** Historique général ou financier, filtré et paginé par le serveur ; la page précédente reste affichée. */
+export function useHistoriqueDossier(
+  id: string | undefined,
+  categorie: CategorieHistorique,
+  filtres: FiltresHistorique,
+  actif = true,
+) {
+  return useQuery({
+    queryKey: [CLE_ADHERENTS, "detail", id, "historique", categorie, filtres],
+    queryFn: () => listerHistorique(id!, categorie, filtres),
+    enabled: !!id && actif,
+    placeholderData: (precedente) => precedente,
   });
 }

@@ -6,6 +6,7 @@ import {
   enregistrerPaiement,
   listerAffectations,
   listerPaiements,
+  obtenirContexteCotisation,
   obtenirHistoriqueStatuts,
   obtenirPaiement,
   obtenirStatistiquesQuotidiennes,
@@ -97,6 +98,19 @@ function invalider(clientRequetes: ReturnType<typeof useQueryClient>) {
   void clientRequetes.invalidateQueries({ queryKey: ["adherents"] });
   void clientRequetes.invalidateQueries({ queryKey: ["droits"] });
   void clientRequetes.invalidateQueries({ queryKey: ["organisation", "agent"] });
+  // V22 : le cumul imputé peut faire basculer l'éligibilité CNPS ; comptes et historiques sont sous « adherents ».
+  void clientRequetes.invalidateQueries({ queryKey: ["cnps"] });
+}
+
+/** Contexte de saisie d'une cotisation par matricule (V22) — relu à chaque recherche, jamais mis en cache longtemps. */
+export function useContexteCotisation(matricule: string | undefined) {
+  return useQuery({
+    queryKey: [CLE, "contexte-adherent", matricule],
+    queryFn: () => obtenirContexteCotisation(matricule!),
+    enabled: !!matricule,
+    retry: false,
+    staleTime: 0,
+  });
 }
 
 /** #9, #14 (brouillon), #35 (clé d'idempotence fournie par l'écran). */

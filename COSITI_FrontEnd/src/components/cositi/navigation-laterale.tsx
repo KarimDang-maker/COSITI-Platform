@@ -75,7 +75,16 @@ const SECTIONS: readonly SectionNavigation[] = [
     entrees: [
       { chemin: "/adherents", libelle: "Adhérents", icone: Users, permission: "ADHERENT:LIRE" },
       // `V20__frais_adhesion_activation_controle_dga.sql` : PCA, DG, DGA, Gestionnaire.
-      { chemin: "/controles-dga", libelle: "Contrôle DGA", icone: FileSearch, permission: "CONTROLE_DGA:LIRE" },
+      // File de contrôle DGA : la DGA (`CONTROLE_DGA:EFFECTUER`) et la supervision de direction (`RAPPORT_DAF:LIRE`
+      // — PCA, DG). Le Gestionnaire n'y a pas d'entrée (prompt V22 §25) : il ouvre les contrôles de ses dossiers depuis
+      // la fiche (onglet Adhésion) et les notifications.
+      {
+        chemin: "/controles-dga",
+        libelle: "Contrôle DGA",
+        icone: FileSearch,
+        permission: "CONTROLE_DGA:LIRE",
+        unePermissionParmi: ["CONTROLE_DGA:EFFECTUER", "RAPPORT_DAF:LIRE"],
+      },
       // Confirmé réel depuis `V8__permissions_j5_j6.sql` — voir `Conception/SUIVI_EXECUTION.md`.
       { chemin: "/droits", libelle: "Droits", icone: ScrollText, permission: "DROITS:LIRE" },
       // `V9__permissions_j7_cnps_documents.sql` : lecture ouverte à PCA, DG, DGA,
@@ -106,10 +115,9 @@ const SECTIONS: readonly SectionNavigation[] = [
       { chemin: "/frais-adhesion", libelle: "Frais d'adhésion", icone: Coins, permission: "FRAIS_ADHESION:LIRE" },
       // `V18__cotisations_rejet_bilan_caisse.sql` : PCA, DG, DGA, DAF, Gestionnaire.
       { chemin: "/bilans-caisse", libelle: "Bilan de caisse", icone: Landmark, permission: "BILAN_CAISSE:LIRE" },
-      // La file de contrôle DAF (J5) réutilise le même contrat que Cotisations
-      // (`GET /paiements`, filtré sur `statut=A_CONTROLER`) — même permission
-      // de lecture, pas de code dédié inventé pour la seule visibilité du menu.
-      { chemin: "/daf", libelle: "DAF", icone: ShieldCheck, permission: "PAIEMENT:LIRE" },
+      // File DAF : le DAF (`PAIEMENT:VALIDER`) et la direction (`RAPPORT_DAF:LIRE`) — jamais le Gestionnaire, qui
+      // porte `PAIEMENT:LIRE` pour ses propres saisies (prompt V22 §24-25).
+      { chemin: "/daf", libelle: "DAF", icone: ShieldCheck, unePermissionParmi: ["PAIEMENT:VALIDER", "RAPPORT_DAF:LIRE"] },
     ],
   },
   {
