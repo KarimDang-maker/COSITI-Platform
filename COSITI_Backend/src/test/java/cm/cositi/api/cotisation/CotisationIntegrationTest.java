@@ -99,7 +99,13 @@ class CotisationIntegrationTest extends ConfigurationTestsIntegration {
                 .when().post("/adherents")
                 .then().statusCode(201)
                 .extract().path("id");
-        return UUID.fromString(id);
+        UUID adherentId = UUID.fromString(id);
+        // V22 : le pack n'est plus choisi à la création (le champ envoyé ci-dessus est ignoré) mais à la première
+        // cotisation. Ces tests portent sur des dossiers qui ont déjà leur pack : l'adhésion est ouverte directement.
+        jdbcTemplate.update("INSERT INTO adhesion (id, adherent_id, pack_id, date_debut, motif_changement) "
+                + "SELECT ?, a.id, ?, a.date_adhesion, 'Pack choisi à une cotisation antérieure (test)' FROM adherent a WHERE a.id = ?",
+                UUID.randomUUID(), packId, adherentId);
+        return adherentId;
     }
 
     private UUID creerAgent(String codeAgent) {
@@ -215,9 +221,11 @@ class CotisationIntegrationTest extends ConfigurationTestsIntegration {
         given().header("Authorization", "Bearer " + jetonDaf)
                 .when().get("/paiements/" + paiementId + "/affectations")
                 .then().statusCode(200)
-                .body("size()", equalTo(1))
-                .body("[0].montant", equalTo(2000.0f))
-                .body("[0].regleAppliquee", equalTo("PAR_DEFAUT_COOPERATIVE_NON_VALIDEE"));
+                .body("size()", equalTo(2))
+                .body("find { it.composanteCode == 'CNPS' }.montant", equalTo(700.0f))
+                .body("find { it.composanteCode == 'EPARGNE' }.montant", equalTo(1300.0f))
+                .body("regleAppliquee", org.hamcrest.Matchers.everyItem(
+                        equalTo("REPARTITION_COTISATION_PROPOSITION_SERVEUR")));
     }
 
     @Test
@@ -268,10 +276,15 @@ class CotisationIntegrationTest extends ConfigurationTestsIntegration {
         Paiement premierChargement = paiementRepository.findById(id).orElseThrow();
         Paiement deuxiemeChargement = paiementRepository.findById(id).orElseThrow();
 
+        // V22 : montant et répartition changent ensemble (contrainte chk_paiement_repartition_coherente).
         premierChargement.modifierMontant(BigDecimal.valueOf(4100));
+        premierChargement.definirRepartition(BigDecimal.valueOf(700), BigDecimal.valueOf(3400),
+                cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
         paiementRepository.save(premierChargement);
 
         deuxiemeChargement.modifierMontant(BigDecimal.valueOf(4200));
+        deuxiemeChargement.definirRepartition(BigDecimal.valueOf(700), BigDecimal.valueOf(3500),
+                cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
         assertThatThrownBy(() -> paiementRepository.save(deuxiemeChargement))
                 .isInstanceOf(ObjectOptimisticLockingFailureException.class);
     }

@@ -69,6 +69,13 @@ public class Adherent extends EntiteArchivable {
     @Column(name = "quartier", length = 100)
     private String quartier;
 
+    /** Numéro WhatsApp, lorsqu'il est communiqué (V22, règles module 1 §5). */
+    @Column(name = "whatsapp", length = 30)
+    private String whatsapp;
+
+    @Column(name = "email", length = 254)
+    private String email;
+
     @Column(name = "ville", length = 80)
     private String ville;
 
@@ -230,6 +237,22 @@ public class Adherent extends EntiteArchivable {
 
     public void setLocalisation(String localisation) {
         this.localisation = localisation;
+    }
+
+    public String getWhatsapp() {
+        return whatsapp;
+    }
+
+    public void setWhatsapp(String whatsapp) {
+        this.whatsapp = whatsapp;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     public String getQuartier() {

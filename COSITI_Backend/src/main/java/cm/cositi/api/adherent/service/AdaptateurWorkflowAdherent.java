@@ -60,6 +60,8 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
         CHAMPS_DOSSIER.put("sexe", TypeDonneeChamp.ENUM);
         CHAMPS_DOSSIER.put("telephonePrincipal", TypeDonneeChamp.TEXTE);
         CHAMPS_DOSSIER.put("telephoneSecondaire", TypeDonneeChamp.TEXTE);
+        CHAMPS_DOSSIER.put("whatsapp", TypeDonneeChamp.TEXTE);
+        CHAMPS_DOSSIER.put("email", TypeDonneeChamp.TEXTE);
         CHAMPS_DOSSIER.put("numeroCni", TypeDonneeChamp.TEXTE);
         CHAMPS_DOSSIER.put("numeroCnps", TypeDonneeChamp.TEXTE);
         CHAMPS_DOSSIER.put("activiteId", TypeDonneeChamp.UUID);
@@ -174,6 +176,10 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
         if (propositions.containsKey("sexe") && propositions.get("sexe") != null
                 && !Set.of("M", "F").contains(propositions.get("sexe"))) {
             throw invalide("sexe", "Le sexe doit valoir M ou F.");
+        }
+        if (propositions.get("email") != null
+                && !propositions.get("email").trim().matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+            throw invalide("email", "L'adresse e-mail n'est pas valide.");
         }
         if (propositions.containsKey("activiteId")
                 && !activiteRepository.existsById(ValeursWorkflow.enUuid(propositions.get("activiteId")))) {
@@ -341,6 +347,8 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
         v.put("sexe", ValeursWorkflow.texte(a.getSexe()));
         v.put("telephonePrincipal", ValeursWorkflow.texte(a.getTelephonePrincipal()));
         v.put("telephoneSecondaire", ValeursWorkflow.texte(a.getTelephoneSecondaire()));
+        v.put("whatsapp", ValeursWorkflow.texte(a.getWhatsapp()));
+        v.put("email", ValeursWorkflow.texte(a.getEmail()));
         v.put("numeroCni", ValeursWorkflow.texte(a.getNumeroCni()));
         v.put("numeroCnps", ValeursWorkflow.texte(a.getNumeroCnps()));
         v.put("activiteId", ValeursWorkflow.texte(a.getActiviteId()));
@@ -372,6 +380,8 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
             case "sexe" -> a.setSexe(valeur);
             case "telephonePrincipal" -> a.setTelephonePrincipal(valeur);
             case "telephoneSecondaire" -> a.setTelephoneSecondaire(valeur);
+            case "whatsapp" -> a.setWhatsapp(valeur);
+            case "email" -> a.setEmail(ServiceAdherentImpl.emailNormalise(valeur));
             case "numeroCni" -> a.setNumeroCni(valeur);
             case "numeroCnps" -> a.setNumeroCnps(valeur);
             case "activiteId" -> a.setActiviteId(ValeursWorkflow.enUuid(valeur));

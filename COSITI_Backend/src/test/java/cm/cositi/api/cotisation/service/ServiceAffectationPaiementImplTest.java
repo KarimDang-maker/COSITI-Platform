@@ -56,7 +56,7 @@ class ServiceAffectationPaiementImplTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceAffectationPaiementImpl(affectationRepository, paiementRepository, composanteRepository,
-                serviceParametre, serviceAudit, jdbcTemplate);
+                serviceParametre, serviceAudit, jdbcTemplate, new RegleRepartitionCotisation(serviceParametre, jdbcTemplate));
         auteur = new Utilisateur("daf1", "hash", "DAF Un");
         setId(auteur, UUID.randomUUID());
     }
@@ -257,5 +257,35 @@ class ServiceAffectationPaiementImplTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
+    }
+
+    // ------------------------------------------------------------------ Répartition enregistrée avec la cotisation (V22)
+
+    @Test
+    void laRepartitionEnregistreeAvecLaCotisationEstCelleComptabilisee() throws Exception {
+        Paiement paiement = paiement(1500);
+        paiement.definirRepartition(new BigDecimal("700"), new BigDecimal("800"),
+                cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
+        when(serviceParametre.decimal("MONTANT_MINIMUM_SECURITE_SOCIALE")).thenReturn(MINIMUM);
+        when(serviceParametre.decimal("MONTANT_MINIMUM_EPARGNE")).thenReturn(new BigDecimal("300"));
+        when(serviceParametre.booleen("EPARGNE_FACULTATIVE_PAR_COTISATION")).thenReturn(true);
+
+        var r = service.calculerRepartition(paiement);
+
+        assertThat(r.securiteSociale()).isEqualByComparingTo("700");
+        assertThat(r.epargne()).isEqualByComparingTo("800");
+        assertThat(r.regle()).isEqualTo("REPARTITION_COTISATION_SAISIE");
+    }
+
+    @Test
+    void uneRepartitionEnregistreeDevenueInvalideEstRefuseeALaValidation() throws Exception {
+        Paiement paiement = paiement(1000);
+        paiement.definirRepartition(new BigDecimal("700"), new BigDecimal("300"),
+                cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
+        // Le minimum Sécurité sociale a été relevé entre la saisie et la validation.
+        when(serviceParametre.decimal("MONTANT_MINIMUM_SECURITE_SOCIALE")).thenReturn(new BigDecimal("800"));
+
+        assertThatThrownBy(() -> service.calculerRepartition(paiement))
+                .hasFieldOrPropertyWithValue("code", "COTISATION_SECURITE_SOCIALE_INSUFFISANTE");
     }
 }

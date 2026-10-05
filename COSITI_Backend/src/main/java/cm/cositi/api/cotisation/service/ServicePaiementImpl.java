@@ -1,7 +1,13 @@
 package cm.cositi.api.cotisation.service;
 
+import cm.cositi.api.adherent.dto.AdhesionDto;
 import cm.cositi.api.adherent.entite.Adherent;
+import cm.cositi.api.adherent.entite.Adhesion;
+import cm.cositi.api.adherent.entite.StatutAdherent;
 import cm.cositi.api.adherent.repository.AdherentRepository;
+import cm.cositi.api.adherent.repository.AdhesionRepository;
+import cm.cositi.api.adherent.repository.PackRepository;
+import cm.cositi.api.adherent.service.AdherentModifieEvent;
 import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionAutorisation;
@@ -22,10 +28,12 @@ import cm.cositi.api.cotisation.dto.ResultatDoublonPaiementDto;
 import cm.cositi.api.cotisation.dto.StatistiquesQuotidiennesDto;
 import cm.cositi.api.cotisation.dto.StatistiquesQuotidiennesDto.AgregatDto;
 import cm.cositi.api.cotisation.dto.VerifierDoublonPaiementDto;
+import cm.cositi.api.cotisation.entite.OrigineRepartition;
 import cm.cositi.api.cotisation.entite.Paiement;
 import cm.cositi.api.cotisation.entite.StatutPaiement;
 import cm.cositi.api.cotisation.repository.PaiementRepository;
 import cm.cositi.api.droits.service.ServiceCalculDroits;
+import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.securite.entite.Utilisateur;
 import cm.cositi.api.securite.service.ServicePerimetreDonnees;
 import cm.cositi.api.workflow.entite.StatutDemandeValidation;
@@ -72,13 +80,22 @@ public class ServicePaiementImpl implements ServicePaiement {
     private final ServiceAudit serviceAudit;
     private final ApplicationEventPublisher evenements;
     private final DemandeValidationRepository demandeValidationRepository;
+    private final RegleRepartitionCotisation regleRepartition;
+    private final AdhesionRepository adhesionRepository;
+    private final PackRepository packRepository;
+    private final ServiceParametre serviceParametre;
+
+    /** Statuts d'adhérent pour lesquels aucune cotisation n'est acceptée (paramètre [V], vide par défaut). */
+    static final String CLE_STATUTS_REFUSES = "COTISATION_STATUTS_ADHERENT_REFUSES";
 
     public ServicePaiementImpl(PaiementRepository paiementRepository, AdherentRepository adherentRepository,
                                 JdbcTemplate jdbcTemplate, ServicePerimetreDonnees perimetre,
                                 ServiceAffectationPaiement serviceAffectationPaiement,
                                 ServiceCalculDroits serviceCalculDroits, ServiceAudit serviceAudit,
                                 ApplicationEventPublisher evenements,
-                                DemandeValidationRepository demandeValidationRepository) {
+                                DemandeValidationRepository demandeValidationRepository,
+                                RegleRepartitionCotisation regleRepartition, AdhesionRepository adhesionRepository,
+                                PackRepository packRepository, ServiceParametre serviceParametre) {
         this.paiementRepository = paiementRepository;
         this.adherentRepository = adherentRepository;
         this.jdbcTemplate = jdbcTemplate;
@@ -88,6 +105,10 @@ public class ServicePaiementImpl implements ServicePaiement {
         this.serviceAudit = serviceAudit;
         this.evenements = evenements;
         this.demandeValidationRepository = demandeValidationRepository;
+        this.regleRepartition = regleRepartition;
+        this.adhesionRepository = adhesionRepository;
+        this.packRepository = packRepository;
+        this.serviceParametre = serviceParametre;
     }
 
     @Override
@@ -109,9 +130,20 @@ public class ServicePaiementImpl implements ServicePaiement {
     private ResultatEnregistrementPaiement creer(EnregistrementPaiementDto dto, String cleIdempotence,
                                                   Utilisateur auteur, boolean brouillon) {
         // #35 — idempotence : une clé déjà vue renvoie l'existant, jamais un second paiement.
+        String empreinte = empreinte(dto, brouillon);
         if (cleIdempotence != null && !cleIdempotence.isBlank()) {
+            // Deux soumissions concurrentes de la même clé : la seconde attend ici la fin de la transaction de la
+            // première (verrou transactionnel PostgreSQL sur la clé), puis lit la cotisation qu'elle a créée — au
+            // lieu de buter sur la contrainte UNIQUE et de recevoir un 409 générique.
+            jdbcTemplate.query("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", rs -> null, cleIdempotence);
             var existant = paiementRepository.findByCleIdempotence(cleIdempotence);
             if (existant.isPresent()) {
+                String empreinteExistante = existant.get().getEmpreinteRequete();
+                if (empreinteExistante != null && !empreinteExistante.equals(empreinte)) {
+                    throw new ExceptionConflit("IDEMPOTENCY_KEY_CONFLIT",
+                            "Cette clé d'idempotence a déjà servi pour une autre cotisation : générez une nouvelle clé "
+                                    + "pour une nouvelle saisie.");
+                }
                 return new ResultatEnregistrementPaiement(PaiementDto.depuis(existant.get()), true);
             }
         }
@@ -124,6 +156,7 @@ public class ServicePaiementImpl implements ServicePaiement {
                     HttpStatus.CONFLICT);
         }
         perimetre.verifierAccesAdherent(auteur, dto.adherentId());
+        verifierStatutCotisable(adherent);
 
         if ("INSCRIPTION".equals(dto.typePaiement())) {
             // V20 : le frais d'adhésion a son propre enregistrement (agent collecteur, unicité, rapprochement) ; le
@@ -152,6 +185,10 @@ public class ServicePaiementImpl implements ServicePaiement {
         // #13 — une référence de transaction identifie une seule transaction réelle.
         verifierReferenceLibre(dto.modePaiement(), dto.referenceTransaction(), null);
 
+        // Règles module 2 §2 à §4 : répartition Sécurité sociale / Épargne validée et enregistrée avec la cotisation.
+        RegleRepartitionCotisation.Repartition repartition = regleRepartition.determiner(dto.montant(),
+                dto.montantSecuriteSociale(), dto.montantEpargne(), dto.adherentId());
+
         // #10 — référence unique générée côté serveur (séquence PostgreSQL + contrainte UNIQUE).
         Long valeurSequence = jdbcTemplate.queryForObject("SELECT nextval('seq_numero_recu')", Long.class);
         String numeroRecu = "REC-" + String.format("%06d", valeurSequence);
@@ -162,6 +199,9 @@ public class ServicePaiementImpl implements ServicePaiement {
         if (brouillon) {
             paiement.marquerBrouillon();
         }
+        paiement.definirRepartition(repartition.securiteSociale(), repartition.epargne(), repartition.origine());
+        paiement.setEmpreinteRequete(empreinte);
+        paiement.setPackId(choisirPack(adherent, dto.packId(), numeroRecu, auteur));
         paiement = paiementRepository.save(paiement);
 
         serviceAudit.tracer(TypeOperation.PAIEMENT_CREATION, "paiement", paiement.getId(), null,
@@ -404,8 +444,8 @@ public class ServicePaiementImpl implements ServicePaiement {
             if (dto.montant().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new ExceptionValidation("PAIEMENT_MONTANT_INVALIDE", "Le montant doit être strictement positif.", "montant");
             }
-            paiement.modifierMontant(dto.montant());
         }
+        corrigerRepartition(paiement, dto);
         if (dto.datePaiement() != null) {
             if (dto.datePaiement().isAfter(LocalDate.now())) {
                 throw new ExceptionValidation("PAIEMENT_DATE_INCOHERENTE",
@@ -620,6 +660,114 @@ public class ServicePaiementImpl implements ServicePaiement {
             throw new ExceptionConflit("PAIEMENT_DEMANDE_CORRECTION_EN_COURS",
                     "Une demande de correction est en cours sur cette cotisation : elle doit être traitée d'abord.");
         }
+    }
+
+    /**
+     * Montant et répartition d'un brouillon changent ensemble : une répartition saisie par le Gestionnaire n'est jamais
+     * réajustée en silence — si le montant change, la nouvelle répartition doit être fournie.
+     */
+    private void corrigerRepartition(Paiement paiement, CorrectionPaiementDto dto) {
+        boolean montantChange = dto.montant() != null && dto.montant().compareTo(paiement.getMontant()) != 0;
+        boolean repartitionFournie = dto.montantSecuriteSociale() != null || dto.montantEpargne() != null;
+        if (!montantChange && !repartitionFournie) {
+            return;
+        }
+        BigDecimal montant = dto.montant() != null ? dto.montant() : paiement.getMontant();
+        if (montantChange && !repartitionFournie && paiement.getOrigineRepartition() == OrigineRepartition.SAISIE) {
+            throw new ExceptionValidation("COTISATION_REPARTITION_REQUISE",
+                    "Le montant change : indiquez la nouvelle répartition entre Sécurité sociale et Épargne.",
+                    "montantSecuriteSociale");
+        }
+        RegleRepartitionCotisation.Repartition repartition = regleRepartition.determiner(montant,
+                dto.montantSecuriteSociale(), dto.montantEpargne(), paiement.getAdherentId());
+        paiement.modifierMontant(montant);
+        paiement.definirRepartition(repartition.securiteSociale(), repartition.epargne(), repartition.origine());
+    }
+
+    /**
+     * Statut d'adhérent compatible avec une cotisation. La règle n'est pas définie au-delà de l'archivage (déjà refusé) :
+     * la liste des statuts refusés vit dans {@code COTISATION_STATUTS_ADHERENT_REFUSES} ([V], vide par défaut).
+     */
+    private void verifierStatutCotisable(Adherent adherent) {
+        if (statutsRefuses().contains(adherent.getStatut())) {
+            throw new ExceptionMetier("COTISATION_STATUT_ADHERENT_INCOMPATIBLE",
+                    "Aucune cotisation ne peut être enregistrée pour un adhérent au statut " + adherent.getStatut() + ".",
+                    HttpStatus.CONFLICT);
+        }
+    }
+
+    private Set<StatutAdherent> statutsRefuses() {
+        return statutsRefuses(serviceParametre);
+    }
+
+    /** Lecture du paramètre {@code COTISATION_STATUTS_ADHERENT_REFUSES} ; une valeur inconnue est ignorée. */
+    public static Set<StatutAdherent> statutsRefuses(ServiceParametre parametres) {
+        Set<StatutAdherent> statuts = EnumSet.noneOf(StatutAdherent.class);
+        for (String code : parametres.texte(CLE_STATUTS_REFUSES).split(",")) {
+            try {
+                if (!code.isBlank()) {
+                    statuts.add(StatutAdherent.valueOf(code.trim()));
+                }
+            } catch (IllegalArgumentException e) {
+                // Valeur inconnue dans le paramètre : ignorée plutôt que de bloquer toutes les cotisations.
+            }
+        }
+        return statuts;
+    }
+
+    /**
+     * Le pack ne se choisit plus à la création de l'adhérent (règles module 1 §7) mais à la cotisation. Sans adhésion
+     * ouverte, la cotisation doit en désigner un : l'adhésion est alors ouverte à la date d'adhésion, tracée. Avec une
+     * adhésion ouverte, un pack différent est refusé — le changement de pack garde sa route dédiée, qui en trace
+     * l'impact sur les droits.
+     */
+    private java.util.UUID choisirPack(Adherent adherent, java.util.UUID packId, String numeroRecu, Utilisateur auteur) {
+        var ouverte = adhesionRepository.findByAdherentIdAndDateFinIsNull(adherent.getId());
+        if (ouverte.isPresent()) {
+            if (packId != null && !packId.equals(ouverte.get().getPackId())) {
+                throw new ExceptionConflit("COTISATION_PACK_DIFFERENT",
+                        "L'adhérent a déjà un pack : son changement passe par POST /api/v1/adherents/{id}/pack.");
+            }
+            return packId;
+        }
+        if (packId == null) {
+            throw new ExceptionValidation("COTISATION_PACK_REQUIS",
+                    "Première cotisation de cet adhérent : choisissez son pack.", "packId");
+        }
+        if (!packRepository.findById(packId).map(p -> p.isActif()).orElse(false)) {
+            throw new ExceptionValidation("COTISATION_PACK_INVALIDE", "Le pack sélectionné est introuvable ou inactif.",
+                    "packId");
+        }
+        Adhesion adhesion = adhesionRepository.save(new Adhesion(adherent.getId(), packId, adherent.getDateAdhesion(),
+                "Pack choisi à la première cotisation (" + numeroRecu + ")", auteur.getId()));
+        serviceAudit.tracer(TypeOperation.ADHERENT_CHANGEMENT_PACK, "adherent", adherent.getId(), null,
+                AdhesionDto.depuis(adhesion), "Pack choisi lors de l'enregistrement de la cotisation " + numeroRecu);
+        evenements.publishEvent(new AdherentModifieEvent(adherent.getId(), "CHOIX_PACK"));
+        return packId;
+    }
+
+    /**
+     * Empreinte SHA-256 des champs qui définissent la cotisation : rejouer la même clé avec la même requête renvoie la
+     * cotisation existante (200) ; la rejouer avec une requête différente est un conflit (409), jamais une substitution.
+     */
+    static String empreinte(EnregistrementPaiementDto dto, boolean brouillon) {
+        String canonique = String.join("|",
+                String.valueOf(dto.adherentId()), String.valueOf(dto.datePaiement()), decimal(dto.montant()),
+                String.valueOf(dto.modePaiement()), String.valueOf(normaliserReference(dto.referenceTransaction())),
+                String.valueOf(dto.typePaiement()), String.valueOf(dto.agentEncaisseurId()),
+                decimal(dto.montantSecuriteSociale()), decimal(dto.montantEpargne()), String.valueOf(dto.packId()),
+                String.valueOf(brouillon));
+        try {
+            byte[] hash = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(canonique.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return java.util.HexFormat.of().formatHex(hash);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 indisponible", e);
+        }
+    }
+
+    private static String decimal(BigDecimal valeur) {
+        return valeur == null ? "null" : valeur.stripTrailingZeros().toPlainString();
     }
 
     private static boolean possedePermission(Utilisateur utilisateur, String code) {

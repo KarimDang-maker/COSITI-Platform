@@ -203,11 +203,11 @@ class OrganisationIntegrationTest extends ConfigurationTestsIntegration {
         given().header("Authorization", "Bearer " + jetonDga)
                 .when().get("/agents/" + agent2Id + "/portefeuille")
                 .then().statusCode(200)
-                .body("size()", equalTo(1));
+                .body("contenu.size()", equalTo(1));
 
         given().header("Authorization", "Bearer " + jetonDga)
                 .when().get("/agents/" + agent1Id + "/portefeuille")
                 .then().statusCode(200)
-                .body("size()", equalTo(0));
+                .body("contenu.size()", equalTo(0));
     }
 }

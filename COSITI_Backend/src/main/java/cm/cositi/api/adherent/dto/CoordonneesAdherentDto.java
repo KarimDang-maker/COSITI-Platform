@@ -8,6 +8,8 @@ public record CoordonneesAdherentDto(
         UUID adherentId,
         String telephonePrincipal,
         String telephoneSecondaire,
+        String whatsapp,
+        String email,
         String numeroCni,
         String localisation,
         String quartier,

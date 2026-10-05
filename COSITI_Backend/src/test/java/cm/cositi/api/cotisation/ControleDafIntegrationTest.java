@@ -92,7 +92,13 @@ class ControleDafIntegrationTest extends ConfigurationTestsIntegration {
                 .when().post("/adherents")
                 .then().statusCode(201)
                 .extract().path("id");
-        return UUID.fromString(id);
+        UUID adherentId = UUID.fromString(id);
+        // V22 : le pack n'est plus choisi à la création (le champ envoyé ci-dessus est ignoré) mais à la première
+        // cotisation. Ces tests portent sur des dossiers qui ont déjà leur pack : l'adhésion est ouverte directement.
+        jdbcTemplate.update("INSERT INTO adhesion (id, adherent_id, pack_id, date_debut, motif_changement) "
+                + "SELECT ?, a.id, ?, a.date_adhesion, 'Pack choisi à une cotisation antérieure (test)' FROM adherent a WHERE a.id = ?",
+                UUID.randomUUID(), packId, adherentId);
+        return adherentId;
     }
 
     private void ouvrirPortefeuille(UUID adherentId, UUID agentId) {

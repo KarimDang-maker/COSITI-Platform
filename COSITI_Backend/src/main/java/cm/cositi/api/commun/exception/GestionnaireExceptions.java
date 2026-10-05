@@ -110,6 +110,20 @@ public class GestionnaireExceptions {
                         traceId(requete)));
     }
 
+    /**
+     * Date ou période saisie dans un format illisible (par exemple {@code periode=1} au lieu de {@code 2026-09}),
+     * analysée dans un contrôleur. C'est une erreur de la requête : elle remontait jusqu'au filet générique et
+     * renvoyait 500 (constaté en recette Swagger sur {@code GET /agents/{id}/charge}).
+     */
+    @ExceptionHandler(java.time.format.DateTimeParseException.class)
+    public ResponseEntity<ReponseErreur> gererDateIllisible(java.time.format.DateTimeParseException ex,
+                                                            HttpServletRequest requete) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(new ReponseErreur(400, "FORMAT_DATE_INVALIDE",
+                        "La valeur « " + ex.getParsedString() + " » n'est pas une date ou une période valide "
+                                + "(formats attendus : AAAA-MM-JJ, AAAA-MM).", null, traceId(requete)));
+    }
+
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ReponseErreur> gererParametreManquant(MissingServletRequestParameterException ex,
                                                                  HttpServletRequest requete) {

@@ -14,6 +14,12 @@ import cm.cositi.api.adherent.dto.CoordonneesAdherentDto;
 import cm.cositi.api.adherent.dto.CreationAdherentDto;
 import cm.cositi.api.adherent.dto.CritereRechercheAdherent;
 import cm.cositi.api.adherent.dto.DossierAdherentDto;
+import cm.cositi.api.adherent.dto.DossierCompletAdherentDto;
+import cm.cositi.api.adherent.service.ServiceDossierCompletAdherent;
+import cm.cositi.api.cotisation.dto.SyntheseCotisationsAdherentDto;
+import cm.cositi.api.cotisation.service.ServiceSyntheseCotisations;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import cm.cositi.api.adherent.dto.ModificationAdherentDto;
 import cm.cositi.api.adherent.dto.ModifierCoordonneesDto;
 import cm.cositi.api.adherent.dto.ModifierProfessionnelDto;
@@ -29,10 +35,6 @@ import cm.cositi.api.audit.AuditLigneDto;
 import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.commun.reponse.ReponseErreur;
 import cm.cositi.api.commun.reponse.ReponsePaginee;
-import cm.cositi.api.cotisation.dto.CritereJournalPaiement;
-import cm.cositi.api.cotisation.dto.PaiementDto;
-import cm.cositi.api.cotisation.entite.StatutPaiement;
-import cm.cositi.api.cotisation.service.ServicePaiement;
 import cm.cositi.api.document.entite.TypeDocument;
 import cm.cositi.api.droits.dto.SituationDroitsDto;
 import cm.cositi.api.droits.service.ServiceCalculDroits;
@@ -64,6 +66,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@Tag(name = "Adhérents — dossier", description = "Création, consultation, dossier complet, comptes et coordonnées")
 @RestController
 @RequestMapping("/api/v1/adherents")
 public class ControleurAdherent {
@@ -79,16 +82,19 @@ public class ControleurAdherent {
     private final ServiceDoublonAdherent serviceDoublonAdherent;
     private final ServicePortefeuille servicePortefeuille;
     private final ServiceCalculDroits serviceCalculDroits;
-    private final ServicePaiement servicePaiement;
+    private final ServiceSyntheseCotisations serviceSynthese;
+    private final ServiceDossierCompletAdherent serviceDossierComplet;
 
     public ControleurAdherent(ServiceAdherent serviceAdherent, ServiceDoublonAdherent serviceDoublonAdherent,
                                ServicePortefeuille servicePortefeuille, ServiceCalculDroits serviceCalculDroits,
-                               ServicePaiement servicePaiement) {
+                               ServiceSyntheseCotisations serviceSynthese,
+                               ServiceDossierCompletAdherent serviceDossierComplet) {
         this.serviceAdherent = serviceAdherent;
         this.serviceDoublonAdherent = serviceDoublonAdherent;
         this.servicePortefeuille = servicePortefeuille;
         this.serviceCalculDroits = serviceCalculDroits;
-        this.servicePaiement = servicePaiement;
+        this.serviceSynthese = serviceSynthese;
+        this.serviceDossierComplet = serviceDossierComplet;
     }
 
     @GetMapping
@@ -122,6 +128,9 @@ public class ControleurAdherent {
                 PageRequest.of(page, tailleBornee, Sort.by(direction, champTri)), demandeur);
     }
 
+    @Operation(summary = "Créer un adhérent (sans pack)",
+            description = "Le pack n'est plus choisi à la création : il l'est à la première cotisation "
+                    + "(POST /api/v1/paiements, champ packId).")
     @PostMapping
     public ResponseEntity<AdherentDetailDto> creer(@Valid @RequestBody CreationAdherentDto dto,
                                                      @AuthenticationPrincipal Utilisateur auteur) {
@@ -141,7 +150,26 @@ public class ControleurAdherent {
     @GetMapping("/matricule/{matricule}")
     public ResponseEntity<AdherentDetailDto> consulterParMatricule(@PathVariable String matricule,
                                                                     @AuthenticationPrincipal Utilisateur demandeur) {
-        return ResponseEntity.ok(serviceAdherent.consulterParMatricule(matricule, demandeur));
+        return ResponseEntity.ok(serviceAdherent.consulterParMatricule(matricule.trim().toUpperCase(java.util.Locale.ROOT),
+                demandeur));
+    }
+
+    @Operation(summary = "Dossier complet de l'adhérent",
+            description = "Identité, informations professionnelles, coordonnées, état du dossier, comptes Sécurité "
+                    + "sociale et Épargne, cumuls de cotisations et nombre d'événements des deux historiques.")
+    @GetMapping("/{id}/dossier-complet")
+    public DossierCompletAdherentDto dossierComplet(@PathVariable UUID id,
+                                                    @AuthenticationPrincipal Utilisateur demandeur) {
+        return serviceDossierComplet.dossierComplet(id, demandeur);
+    }
+
+    @Operation(summary = "Comptes et cumuls de cotisations",
+            description = "Soldes validés des comptes Sécurité sociale et Épargne, montants validé / en attente, "
+                    + "reste avant seuil et taux de progression — calculés par le serveur.")
+    @GetMapping("/{id}/synthese-cotisations")
+    public SyntheseCotisationsAdherentDto syntheseCotisations(@PathVariable UUID id,
+                                                              @AuthenticationPrincipal Utilisateur demandeur) {
+        return serviceSynthese.synthese(id, demandeur);
     }
 
     @GetMapping("/{id}")
@@ -211,7 +239,10 @@ public class ControleurAdherent {
         return serviceAdherent.documentsManquants(id, demandeur);
     }
 
-    /** #21 */
+    /** #21 — remplacé par /historique-general et /historique-financier (paginés, filtrés), conservé pour compatibilité. */
+    @Deprecated
+    @Operation(deprecated = true, summary = "Journal brut du dossier (obsolète)",
+            description = "Utiliser /historique-general et /historique-financier.")
     @GetMapping("/{id}/historique")
     public List<AuditLigneDto> historique(@PathVariable UUID id, @AuthenticationPrincipal Utilisateur demandeur) {
         return serviceAdherent.historique(id, demandeur);
@@ -233,13 +264,8 @@ public class ControleurAdherent {
                                                            @AuthenticationPrincipal Utilisateur demandeur) {
         SituationDroitsDto situation = serviceCalculDroits.situation(id, LocalDate.now(), demandeur);
 
-        var critere = new CritereJournalPaiement(id, null, null, null, null, null);
-        ReponsePaginee<PaiementDto> paiements = servicePaiement.journal(critere,
-                PageRequest.of(0, 200, Sort.by(Sort.Direction.DESC, "datePaiement")), demandeur);
-        BigDecimal montantEnAttente = paiements.contenu().stream()
-                .filter(p -> p.statut() == StatutPaiement.A_CONTROLER || p.statut() == StatutPaiement.INCOHERENCE)
-                .map(PaiementDto::montant)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Agrégé en SQL par la synthèse : l'ancienne somme ne lisait que les 200 dernières cotisations.
+        BigDecimal montantEnAttente = serviceSynthese.synthese(id, demandeur).montantEnAttente();
 
         // situation.soldeAvantSeuil() = max(seuil - cumul, 0) : exact tant que le seuil n'est pas atteint
         // (aucun clampage), donc « seuil = solde + cumul » ne vaut que dans ce cas — une fois éligible, le

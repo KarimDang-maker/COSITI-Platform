@@ -1,7 +1,13 @@
 package cm.cositi.api.cotisation.service;
 
 import cm.cositi.api.adherent.entite.Adherent;
+import cm.cositi.api.adherent.entite.Adhesion;
+import cm.cositi.api.adherent.entite.Pack;
 import cm.cositi.api.adherent.repository.AdherentRepository;
+import cm.cositi.api.adherent.repository.AdhesionRepository;
+import cm.cositi.api.adherent.repository.PackRepository;
+import cm.cositi.api.cotisation.entite.OrigineRepartition;
+import cm.cositi.api.parametre.ServiceParametre;
 import cm.cositi.api.audit.ServiceAudit;
 import cm.cositi.api.commun.exception.ExceptionConflit;
 import cm.cositi.api.commun.exception.ExceptionMetier;
@@ -64,6 +70,14 @@ class ServicePaiementImplTest {
     private ApplicationEventPublisher evenements;
     @Mock
     private DemandeValidationRepository demandeValidationRepository;
+    @Mock
+    private AdhesionRepository adhesionRepository;
+    @Mock
+    private PackRepository packRepository;
+    @Mock
+    private ServiceParametre serviceParametre;
+
+    private final UUID packCourant = UUID.randomUUID();
 
     private ServicePaiementImpl service;
     private Utilisateur agentCreateur;
@@ -71,8 +85,15 @@ class ServicePaiementImplTest {
 
     @BeforeEach
     void setUp() throws Exception {
+        // Règle de répartition réelle (pas un mock) : les tests de saisie l'exercent avec les seuils en vigueur.
+        RegleRepartitionCotisation regle = new RegleRepartitionCotisation(serviceParametre, jdbcTemplate);
         service = new ServicePaiementImpl(paiementRepository, adherentRepository, jdbcTemplate, perimetre,
-                serviceAffectationPaiement, serviceCalculDroits, serviceAudit, evenements, demandeValidationRepository);
+                serviceAffectationPaiement, serviceCalculDroits, serviceAudit, evenements, demandeValidationRepository,
+                regle, adhesionRepository, packRepository, serviceParametre);
+        lenient().when(serviceParametre.decimal("MONTANT_MINIMUM_SECURITE_SOCIALE")).thenReturn(new BigDecimal("700"));
+        lenient().when(serviceParametre.decimal("MONTANT_MINIMUM_EPARGNE")).thenReturn(new BigDecimal("300"));
+        lenient().when(serviceParametre.booleen("EPARGNE_FACULTATIVE_PAR_COTISATION")).thenReturn(true);
+        lenient().when(serviceParametre.texte(ServicePaiementImpl.CLE_STATUTS_REFUSES)).thenReturn("");
 
         agentCreateur = new Utilisateur("agent.saisie", "hash", "Agent Saisie");
         setId(agentCreateur, UUID.randomUUID());
@@ -80,6 +101,9 @@ class ServicePaiementImplTest {
         adherent = new Adherent("COSITI-00001", "Test", "677000000", UUID.randomUUID(), UUID.randomUUID(),
                 "loc", LocalDate.now().minusMonths(6));
         setId(adherent, UUID.randomUUID());
+        // Par défaut l'adhérent a déjà un pack (dossier antérieur) ; les tests « première cotisation » le retirent.
+        lenient().when(adhesionRepository.findByAdherentIdAndDateFinIsNull(adherent.getId())).thenReturn(Optional.of(
+                new Adhesion(adherent.getId(), packCourant, adherent.getDateAdhesion(), "initiale", null)));
     }
 
     private void setId(Object entite, UUID id) throws Exception {
@@ -314,5 +338,215 @@ class ServicePaiementImplTest {
         assertThat(resultat.referenceDejaUtilisee()).isTrue();
         assertThat(resultat.doublonsPotentiels()).hasSize(1);
         assertThat(resultat.doublonDetecte()).isTrue();
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // Répartition, pack et idempotence (V22, prompt §8 à §11, §21 « tests financiers »)
+    // ------------------------------------------------------------------------------------------------
+
+    private EnregistrementPaiementDto dtoReparti(String montant, String ss, String ep, UUID packId) {
+        return new EnregistrementPaiementDto(adherent.getId(), LocalDate.now(), new BigDecimal(montant), "ESPECES",
+                null, "COTISATION", null, ss == null ? null : new BigDecimal(ss), ep == null ? null : new BigDecimal(ep),
+                packId);
+    }
+
+    private void saisiePossible() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        lenient().when(jdbcTemplate.queryForObject(anyString(), eq(Long.class))).thenReturn(7L);
+        lenient().when(paiementRepository.save(any(Paiement.class))).thenAnswer(i -> i.getArgument(0));
+    }
+
+    @Test
+    void cotisationMilleEgaleSeptCentsPlusTroisCentsEnregistreeAvecSaRepartition() {
+        saisiePossible();
+
+        var resultat = service.enregistrer(dtoReparti("1000", "700", "300", null), "cle-r1", agentCreateur);
+
+        assertThat(resultat.paiement().montantSecuriteSociale()).isEqualByComparingTo("700");
+        assertThat(resultat.paiement().montantEpargne()).isEqualByComparingTo("300");
+        assertThat(resultat.paiement().origineRepartition()).isEqualTo(OrigineRepartition.SAISIE);
+        // Saisie != validation : la cotisation attend le contrôle, rien n'est comptabilisé ni imputé.
+        assertThat(resultat.paiement().statut()).isEqualTo(StatutPaiement.A_CONTROLER);
+        verify(serviceAffectationPaiement, never()).affecter(any(), any());
+        verify(serviceCalculDroits, never()).imputerPaiement(any());
+    }
+
+    @Test
+    void cotisationQuinzeCentsEgaleSeptCentsPlusHuitCents() {
+        saisiePossible();
+
+        var resultat = service.enregistrer(dtoReparti("1500", "700", "800", null), "cle-r2", agentCreateur);
+
+        assertThat(resultat.paiement().montantEpargne()).isEqualByComparingTo("800");
+    }
+
+    @Test
+    void securiteSocialeInferieureASeptCentsRefusee() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+
+        assertThatThrownBy(() -> service.enregistrer(dtoReparti("1000", "600", "400", null), "cle-r3", agentCreateur))
+                .isInstanceOf(ExceptionValidation.class)
+                .hasFieldOrPropertyWithValue("code", "COTISATION_SECURITE_SOCIALE_INSUFFISANTE");
+        verify(paiementRepository, never()).save(any());
+    }
+
+    @Test
+    void epargneAlimenteeInferieureATroisCentsRefusee() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+
+        assertThatThrownBy(() -> service.enregistrer(dtoReparti("900", "700", "200", null), "cle-r4", agentCreateur))
+                .isInstanceOf(ExceptionValidation.class)
+                .hasFieldOrPropertyWithValue("code", "COTISATION_EPARGNE_INSUFFISANTE");
+    }
+
+    @Test
+    void totalDifferentDeLaSommeRefuse() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+
+        assertThatThrownBy(() -> service.enregistrer(dtoReparti("1000", "700", "400", null), "cle-r5", agentCreateur))
+                .isInstanceOf(ExceptionValidation.class)
+                .hasFieldOrPropertyWithValue("code", "COTISATION_REPARTITION_INCOHERENTE");
+    }
+
+    @Test
+    void sansRepartitionLeServeurAppliqueLaRegleParDefautEtLaRenvoie() {
+        saisiePossible();
+
+        var resultat = service.enregistrer(dtoValide(), "cle-r6", agentCreateur);
+
+        assertThat(resultat.paiement().montantSecuriteSociale()).isEqualByComparingTo("700");
+        assertThat(resultat.paiement().montantEpargne()).isEqualByComparingTo("4300");
+        assertThat(resultat.paiement().origineRepartition()).isEqualTo(OrigineRepartition.PROPOSITION_SERVEUR);
+    }
+
+    @Test
+    void premiereCotisationSansPackRefusee() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        lenient().when(jdbcTemplate.queryForObject(anyString(), eq(Long.class))).thenReturn(8L);
+        when(adhesionRepository.findByAdherentIdAndDateFinIsNull(adherent.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.enregistrer(dtoReparti("1000", "700", "300", null), "cle-p1", agentCreateur))
+                .isInstanceOf(ExceptionValidation.class)
+                .hasFieldOrPropertyWithValue("code", "COTISATION_PACK_REQUIS");
+        verify(paiementRepository, never()).save(any());
+    }
+
+    @Test
+    void premiereCotisationOuvreLAdhesionAuPackChoisiEtLaTrace() {
+        saisiePossible();
+        UUID packChoisi = UUID.randomUUID();
+        Pack pack = org.mockito.Mockito.mock(Pack.class);
+        when(pack.isActif()).thenReturn(true);
+        when(adhesionRepository.findByAdherentIdAndDateFinIsNull(adherent.getId())).thenReturn(Optional.empty());
+        when(packRepository.findById(packChoisi)).thenReturn(Optional.of(pack));
+        when(adhesionRepository.save(any(Adhesion.class))).thenAnswer(i -> i.getArgument(0));
+
+        var resultat = service.enregistrer(dtoReparti("1000", "700", "300", packChoisi), "cle-p2", agentCreateur);
+
+        assertThat(resultat.paiement().packId()).isEqualTo(packChoisi);
+        org.mockito.ArgumentCaptor<Adhesion> adhesion = org.mockito.ArgumentCaptor.forClass(Adhesion.class);
+        verify(adhesionRepository).save(adhesion.capture());
+        assertThat(adhesion.getValue().getPackId()).isEqualTo(packChoisi);
+        assertThat(adhesion.getValue().getDateDebut()).isEqualTo(adherent.getDateAdhesion());
+        verify(serviceAudit).tracer(eq(TypeOperation.ADHERENT_CHANGEMENT_PACK), eq("adherent"), eq(adherent.getId()),
+                any(), any(), any());
+    }
+
+    @Test
+    void unPackDifferentDuPackCourantEstRefuse() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        lenient().when(jdbcTemplate.queryForObject(anyString(), eq(Long.class))).thenReturn(9L);
+
+        assertThatThrownBy(() -> service.enregistrer(dtoReparti("1000", "700", "300", UUID.randomUUID()), "cle-p3",
+                agentCreateur))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "COTISATION_PACK_DIFFERENT");
+    }
+
+    @Test
+    void memeCleMemeRequeteRenvoieLaCotisationExistante() {
+        EnregistrementPaiementDto dto = dtoReparti("1000", "700", "300", null);
+        Paiement existant = new Paiement(adherent.getId(), "REC-000010", LocalDate.now(), new BigDecimal("1000"),
+                "ESPECES", null, "COTISATION", null, "cle-i1");
+        existant.setEmpreinteRequete(ServicePaiementImpl.empreinte(dto, false));
+        when(paiementRepository.findByCleIdempotence("cle-i1")).thenReturn(Optional.of(existant));
+
+        var resultat = service.enregistrer(dto, "cle-i1", agentCreateur);
+
+        assertThat(resultat.dejaExistant()).isTrue();
+        assertThat(resultat.paiement().numeroRecu()).isEqualTo("REC-000010");
+        verify(paiementRepository, never()).save(any());
+    }
+
+    @Test
+    void memeCleAutreRequeteEstUnConflitDIdempotence() {
+        Paiement existant = new Paiement(adherent.getId(), "REC-000011", LocalDate.now(), new BigDecimal("1000"),
+                "ESPECES", null, "COTISATION", null, "cle-i2");
+        existant.setEmpreinteRequete(ServicePaiementImpl.empreinte(dtoReparti("1000", "700", "300", null), false));
+        when(paiementRepository.findByCleIdempotence("cle-i2")).thenReturn(Optional.of(existant));
+
+        assertThatThrownBy(() -> service.enregistrer(dtoReparti("1500", "700", "800", null), "cle-i2", agentCreateur))
+                .isInstanceOf(ExceptionConflit.class)
+                .hasFieldOrPropertyWithValue("code", "IDEMPOTENCY_KEY_CONFLIT");
+    }
+
+    @Test
+    void lEmpreinteNeDependPasDeLEcritureDuMontant() {
+        assertThat(ServicePaiementImpl.empreinte(dtoReparti("1000", "700", "300", null), false))
+                .isEqualTo(ServicePaiementImpl.empreinte(dtoReparti("1000.00", "700.0", "300", null), false))
+                .isNotEqualTo(ServicePaiementImpl.empreinte(dtoReparti("1000", "700", "300", null), true));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void laSaisieSerialiseLesRequetesDeMemeClePourLesSoumissionsConcurrentes() {
+        saisiePossible();
+
+        service.enregistrer(dtoReparti("1000", "700", "300", null), "cle-c1", agentCreateur);
+
+        // Verrou transactionnel PostgreSQL pris sur la clé AVANT la lecture de l'existant.
+        org.mockito.InOrder ordre = org.mockito.Mockito.inOrder(jdbcTemplate, paiementRepository);
+        ordre.verify(jdbcTemplate).query(org.mockito.ArgumentMatchers.contains("pg_advisory_xact_lock"),
+                any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("cle-c1"));
+        ordre.verify(paiementRepository).findByCleIdempotence("cle-c1");
+    }
+
+    @Test
+    void unStatutRefuseParLeParametreBloqueLaCotisation() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        when(serviceParametre.texte(ServicePaiementImpl.CLE_STATUTS_REFUSES)).thenReturn("PREINSCRIT, RADIE");
+
+        assertThatThrownBy(() -> service.enregistrer(dtoValide(), "cle-s1", agentCreateur))
+                .isInstanceOf(ExceptionMetier.class)
+                .hasFieldOrPropertyWithValue("code", "COTISATION_STATUT_ADHERENT_INCOMPATIBLE");
+    }
+
+    @Test
+    void corrigerLeMontantDUnBrouillonRepartiExigeUneNouvelleRepartition() throws Exception {
+        Paiement brouillon = new Paiement(adherent.getId(), "REC-000012", LocalDate.now(), new BigDecimal("1000"),
+                "ESPECES", null, "COTISATION", null, "cle-b1");
+        brouillon.marquerBrouillon();
+        brouillon.definirRepartition(new BigDecimal("700"), new BigDecimal("300"), OrigineRepartition.SAISIE);
+        setId(brouillon, UUID.randomUUID());
+        setCreePar(brouillon, agentCreateur.getIdentifiant());
+        when(paiementRepository.findById(brouillon.getId())).thenReturn(Optional.of(brouillon));
+
+        var sansRepartition = new cm.cositi.api.cotisation.dto.CorrectionPaiementDto(new BigDecimal("1500"), null,
+                null, null);
+        assertThatThrownBy(() -> service.corriger(brouillon.getId(), sansRepartition, agentCreateur))
+                .hasFieldOrPropertyWithValue("code", "COTISATION_REPARTITION_REQUISE");
+
+        when(paiementRepository.save(any(Paiement.class))).thenAnswer(i -> i.getArgument(0));
+        var avecRepartition = new cm.cositi.api.cotisation.dto.CorrectionPaiementDto(new BigDecimal("1500"), null,
+                null, null, new BigDecimal("700"), new BigDecimal("800"));
+        PaiementDto corrige = service.corriger(brouillon.getId(), avecRepartition, agentCreateur);
+        assertThat(corrige.montant()).isEqualByComparingTo("1500");
+        assertThat(corrige.montantEpargne()).isEqualByComparingTo("800");
+    }
+
+    private void setCreePar(Object entite, String identifiant) throws Exception {
+        Field champ = cm.cositi.api.commun.entite.EntiteAuditable.class.getDeclaredField("creePar");
+        champ.setAccessible(true);
+        champ.set(entite, identifiant);
     }
 }

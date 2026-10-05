@@ -18,6 +18,8 @@ public record AdherentDetailDto(
         String sexe,
         String telephonePrincipal,
         String telephoneSecondaire,
+        String whatsapp,
+        String email,
         String numeroCni,
         String numeroCnps,
         UUID activiteId,
@@ -51,7 +53,8 @@ public record AdherentDetailDto(
     /** Forme destinée à l'affichage : la fiche montre le nom de la zone, pas son UUID. */
     public static AdherentDetailDto depuis(Adherent a, String zoneLibelle) {
         return new AdherentDetailDto(a.getId(), a.getMatricule(), a.getNom(), a.getPrenoms(), a.getDateNaissance(),
-                a.getSexe(), a.getTelephonePrincipal(), a.getTelephoneSecondaire(), a.getNumeroCni(), a.getNumeroCnps(),
+                a.getSexe(), a.getTelephonePrincipal(), a.getTelephoneSecondaire(), a.getWhatsapp(), a.getEmail(),
+                a.getNumeroCni(), a.getNumeroCnps(),
                 a.getActiviteId(), a.getZoneId(), zoneLibelle, a.getAssociationId(), a.getLocalisation(), a.getQuartier(),
                 a.getVille(), a.getLatitude(), a.getLongitude(), a.getDateAdhesion(), a.getStatut(),
                 a.isInscriptionPayee(), a.isArchive(), a.getVersion(), a.getStatutValidation(),

@@ -85,6 +85,29 @@ public class Paiement extends EntiteAuditable {
     @Column(name = "archive", nullable = false)
     private boolean archive = false;
 
+    /**
+     * Répartition enregistrée avec la cotisation (V22, règles module 2 §2 et §5). Nulle uniquement pour les
+     * cotisations antérieures dont la répartition n'a pas pu être reprise des affectations existantes.
+     * Invariant garanti en base : Sécurité sociale + Épargne = montant.
+     */
+    @Column(name = "montant_securite_sociale", precision = 14, scale = 2)
+    private BigDecimal montantSecuriteSociale;
+
+    @Column(name = "montant_epargne", precision = 14, scale = 2)
+    private BigDecimal montantEpargne;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origine_repartition", length = 30)
+    private OrigineRepartition origineRepartition;
+
+    /** Pack choisi à l'enregistrement de la cotisation, lorsqu'il l'a été à cette étape (règles module 1 §7). */
+    @Column(name = "pack_id")
+    private UUID packId;
+
+    /** Empreinte SHA-256 de la requête de création : une clé d'idempotence réutilisée pour une autre requête est refusée. */
+    @Column(name = "empreinte_requete", length = 64, updatable = false)
+    private String empreinteRequete;
+
     @Version
     @Column(name = "version", nullable = false)
     private Long version;
@@ -251,6 +274,45 @@ public class Paiement extends EntiteAuditable {
 
     public void modifierMontant(BigDecimal nouveauMontant) {
         this.montant = nouveauMontant;
+    }
+
+    public BigDecimal getMontantSecuriteSociale() {
+        return montantSecuriteSociale;
+    }
+
+    public BigDecimal getMontantEpargne() {
+        return montantEpargne;
+    }
+
+    public OrigineRepartition getOrigineRepartition() {
+        return origineRepartition;
+    }
+
+    public boolean possedeRepartition() {
+        return montantSecuriteSociale != null && montantEpargne != null;
+    }
+
+    /** Fixe la répartition ; l'appelant l'a validée ({@code RegleRepartitionCotisation}) pour le montant courant. */
+    public void definirRepartition(BigDecimal securiteSociale, BigDecimal epargne, OrigineRepartition origine) {
+        this.montantSecuriteSociale = securiteSociale;
+        this.montantEpargne = epargne;
+        this.origineRepartition = origine;
+    }
+
+    public UUID getPackId() {
+        return packId;
+    }
+
+    public void setPackId(UUID packId) {
+        this.packId = packId;
+    }
+
+    public String getEmpreinteRequete() {
+        return empreinteRequete;
+    }
+
+    public void setEmpreinteRequete(String empreinteRequete) {
+        this.empreinteRequete = empreinteRequete;
     }
 
     public void modifierDatePaiement(LocalDate nouvelleDate) {

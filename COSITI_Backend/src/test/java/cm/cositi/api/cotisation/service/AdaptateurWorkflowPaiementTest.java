@@ -63,6 +63,8 @@ class AdaptateurWorkflowPaiementTest {
     private ApplicationEventPublisher evenements;
     @Mock
     private JdbcTemplate jdbcTemplate;
+    @Mock
+    private cm.cositi.api.parametre.ServiceParametre serviceParametre;
 
     private AdaptateurWorkflowPaiement adaptateur;
     private Adherent adherent;
@@ -71,7 +73,11 @@ class AdaptateurWorkflowPaiementTest {
     @BeforeEach
     void setUp() {
         adaptateur = new AdaptateurWorkflowPaiement(paiementRepository, adherentRepository, serviceAffectationPaiement,
-                serviceCalculDroits, perimetre, serviceAudit, evenements, jdbcTemplate);
+                serviceCalculDroits, perimetre, serviceAudit, evenements, jdbcTemplate,
+                new RegleRepartitionCotisation(serviceParametre, jdbcTemplate));
+        lenient().when(serviceParametre.decimal("MONTANT_MINIMUM_SECURITE_SOCIALE")).thenReturn(new BigDecimal("700"));
+        lenient().when(serviceParametre.decimal("MONTANT_MINIMUM_EPARGNE")).thenReturn(new BigDecimal("300"));
+        lenient().when(serviceParametre.booleen("EPARGNE_FACULTATIVE_PAR_COTISATION")).thenReturn(true);
         adherent = new Adherent("COSITI-00010", "Abena", "677000010", UUID.randomUUID(), UUID.randomUUID(), "loc",
                 LocalDate.now().minusYears(1));
         fixerId(adherent, UUID.randomUUID());
@@ -195,5 +201,37 @@ class AdaptateurWorkflowPaiementTest {
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // ------------------------------------------------------------------ Répartition (V22)
+
+    @Test
+    void corrigerLeMontantDUneCotisationRepartieSansNouvelleRepartitionEstRefuse() {
+        Paiement p = paiement(StatutPaiement.A_CONTROLER);
+        p.definirRepartition(new BigDecimal("700.00"), new BigDecimal("4300.00"),
+                cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
+        when(paiementRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        java.util.Map<String, String> resultantes = new java.util.HashMap<>(java.util.Map.of(
+                "montant", "6000", "datePaiement", p.getDatePaiement().toString(), "modePaiement", "ESPECES",
+                "montantSecuriteSociale", "700.00", "montantEpargne", "4300.00"));
+
+        assertThatThrownBy(() -> adaptateur.controlerPropositions(p.getId(), null, resultantes,
+                java.util.Map.of("montant", "6000")))
+                .hasFieldOrPropertyWithValue("code", "COTISATION_REPARTITION_REQUISE");
+    }
+
+    @Test
+    void uneRepartitionProposeeIncoherenteAvecLeMontantEstRefusee() {
+        Paiement p = paiement(StatutPaiement.A_CONTROLER);
+        p.definirRepartition(new BigDecimal("700.00"), new BigDecimal("4300.00"),
+                cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
+        when(paiementRepository.findById(p.getId())).thenReturn(Optional.of(p));
+        java.util.Map<String, String> resultantes = new java.util.HashMap<>(java.util.Map.of(
+                "montant", "5000.00", "datePaiement", p.getDatePaiement().toString(), "modePaiement", "ESPECES",
+                "montantSecuriteSociale", "1000", "montantEpargne", "3000"));
+
+        assertThatThrownBy(() -> adaptateur.controlerPropositions(p.getId(), null, resultantes,
+                java.util.Map.of("montantSecuriteSociale", "1000", "montantEpargne", "3000")))
+                .hasFieldOrPropertyWithValue("code", "COTISATION_REPARTITION_INCOHERENTE");
     }
 }

@@ -1,5 +1,6 @@
 package cm.cositi.api.adherent.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
 
@@ -14,6 +15,8 @@ public record ModificationAdherentDto(
         String sexe,
         @NotBlank(message = "Le téléphone principal est obligatoire.") String telephonePrincipal,
         String telephoneSecondaire,
+        String whatsapp,
+        @Email(message = "L'adresse e-mail n'est pas valide.") String email,
         String numeroCni,
         String numeroCnps,
         UUID activiteId,

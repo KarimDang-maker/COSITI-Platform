@@ -1,5 +1,6 @@
 package cm.cositi.api.adherent.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 import java.math.BigDecimal;
@@ -8,6 +9,8 @@ import java.math.BigDecimal;
 public record ModifierCoordonneesDto(
         @NotBlank(message = "Le téléphone principal est obligatoire.") String telephonePrincipal,
         String telephoneSecondaire,
+        String whatsapp,
+        @Email(message = "L'adresse e-mail n'est pas valide.") String email,
         String numeroCni,
         @NotBlank(message = "La localisation est obligatoire.") String localisation,
         String quartier,

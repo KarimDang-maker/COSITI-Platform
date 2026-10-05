@@ -316,7 +316,8 @@ class AdherentIntegrationTest extends ConfigurationTestsIntegration {
         given().header("Authorization", "Bearer " + jeton)
                 .when().get("/adherents/" + id + "/documents-manquants")
                 .then().statusCode(200)
-                .body("$", org.hamcrest.Matchers.hasItems("CNI", "ACTE_NAISSANCE"));
+                // Matrice documentaire V21 : pièces de niveau OBLIGATOIRE (CNI, formulaire d'adhésion).
+                .body("$", org.hamcrest.Matchers.hasItems("CNI", "FORMULAIRE_ADHESION"));
 
         insererDocumentVerifie(UUID.fromString(id), "CNI");
 
@@ -324,13 +325,13 @@ class AdherentIntegrationTest extends ConfigurationTestsIntegration {
                 .when().get("/adherents/" + id + "/documents-manquants")
                 .then().statusCode(200)
                 .body("$", org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem("CNI")))
-                .body("$", org.hamcrest.Matchers.hasItem("ACTE_NAISSANCE"));
+                .body("$", org.hamcrest.Matchers.hasItem("FORMULAIRE_ADHESION"));
 
         given().header("Authorization", "Bearer " + jeton)
                 .when().get("/adherents/" + id + "/dossier")
                 .then().statusCode(200)
                 .body("statut", equalTo("PREINSCRIT"))
-                .body("documentsManquants", org.hamcrest.Matchers.hasItem("ACTE_NAISSANCE"));
+                .body("documentsManquants", org.hamcrest.Matchers.hasItem("FORMULAIRE_ADHESION"));
     }
 
     @Test
@@ -439,8 +440,10 @@ class AdherentIntegrationTest extends ConfigurationTestsIntegration {
                 .body(corpsAdherent("Filtre Un", "677111018"))
                 .when().post("/adherents")
                 .then().statusCode(201).extract().path("id");
+        Map<String, Object> second = corpsAdherent("Filtre Deux", "677111019");
+        second.put("confirmationDoublonIgnore", true); // nom proche de « Filtre Un » : doublon potentiel confirmé
         given().header("Authorization", "Bearer " + jeton).contentType(ContentType.JSON)
-                .body(corpsAdherent("Filtre Deux", "677111019"))
+                .body(second)
                 .when().post("/adherents")
                 .then().statusCode(201);
 

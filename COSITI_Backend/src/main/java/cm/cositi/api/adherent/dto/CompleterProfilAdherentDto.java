@@ -1,5 +1,6 @@
 package cm.cositi.api.adherent.dto;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Past;
 
 import java.math.BigDecimal;
@@ -15,6 +16,8 @@ public record CompleterProfilAdherentDto(
         @Past(message = "La date de naissance doit être dans le passé.") LocalDate dateNaissance,
         String sexe,
         String telephoneSecondaire,
+        String whatsapp,
+        @Email(message = "L'adresse e-mail n'est pas valide.") String email,
         String numeroCni,
         String numeroCnps,
         UUID associationId,

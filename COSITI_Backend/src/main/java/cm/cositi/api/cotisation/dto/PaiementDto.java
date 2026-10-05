@@ -1,5 +1,6 @@
 package cm.cositi.api.cotisation.dto;
 
+import cm.cositi.api.cotisation.entite.OrigineRepartition;
 import cm.cositi.api.cotisation.entite.Paiement;
 import cm.cositi.api.cotisation.entite.StatutPaiement;
 
@@ -35,13 +36,19 @@ public record PaiementDto(
         UUID rejetePar,
         Instant rejeteLe,
         Instant creeLe,
-        Long version
+        Long version,
+        /** Répartition enregistrée avec la cotisation (V22) ; nulle pour une cotisation antérieure non reprise. */
+        BigDecimal montantSecuriteSociale,
+        BigDecimal montantEpargne,
+        OrigineRepartition origineRepartition,
+        UUID packId
 ) {
     public static PaiementDto depuis(Paiement p) {
         return new PaiementDto(p.getId(), p.getAdherentId(), p.getNumeroRecu(), p.getDatePaiement(), p.getMontant(),
                 p.getModePaiement(), p.getReferenceTransaction(), p.getTypePaiement(), p.getAgentEncaisseurId(),
                 p.getStatut(), p.getValidePar(), p.getCreePar(), p.getConfirmeParChefId(), p.getConfirmeLe(),
                 p.getMotifIncoherence(), p.getMotifRejet(), p.getRejetePar(), p.getRejeteLe(), p.getCreeLe(),
-                p.getVersion());
+                p.getVersion(), p.getMontantSecuriteSociale(), p.getMontantEpargne(), p.getOrigineRepartition(),
+                p.getPackId());
     }
 }

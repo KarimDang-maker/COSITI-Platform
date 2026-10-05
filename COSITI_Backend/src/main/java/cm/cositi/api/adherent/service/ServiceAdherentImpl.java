@@ -109,10 +109,6 @@ public class ServiceAdherentImpl implements ServiceAdherent {
     @PreAuthorize("hasAuthority('ADHERENT:CREER')")
     @Transactional
     public AdherentDetailDto creer(CreationAdherentDto dto, Utilisateur auteur) {
-        if (!packRepository.findById(dto.packId()).map(p -> p.isActif()).orElse(false)) {
-            throw new ExceptionValidation("ADHERENT_PACK_INVALIDE", "Le pack sélectionné est introuvable ou inactif.");
-        }
-
         String nomComplet = dto.prenoms() != null ? dto.nom() + " " + dto.prenoms() : dto.nom();
         List<CandidatDoublon> candidats = serviceDoublonAdherent.rechercher(
                 new CritereDoublon(dto.telephonePrincipal(), dto.numeroCni(), nomComplet, dto.zoneId()));
@@ -128,6 +124,8 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         adherent.setDateNaissance(dto.dateNaissance());
         adherent.setSexe(dto.sexe());
         adherent.setTelephoneSecondaire(dto.telephoneSecondaire());
+        adherent.setWhatsapp(texteOuNull(dto.whatsapp()));
+        adherent.setEmail(emailNormalise(dto.email()));
         adherent.setNumeroCni(dto.numeroCni());
         adherent.setNumeroCnps(dto.numeroCnps());
         adherent.setAssociationId(dto.associationId());
@@ -139,10 +137,8 @@ public class ServiceAdherentImpl implements ServiceAdherent {
             adherent.setConsentementDonneesLe(java.time.Instant.now());
         }
         adherent = adherentRepository.save(adherent);
-
-        Adhesion adhesion = new Adhesion(adherent.getId(), dto.packId(), dto.dateAdhesion(),
-                "Adhésion initiale", auteur.getId());
-        adhesionRepository.save(adhesion);
+        // Aucune adhésion (pack) ouverte ici : le pack se choisit à la première cotisation (règles module 1 §7,
+        // ServicePaiementImpl). Les adhésions des dossiers existants restent inchangées.
 
         if (!candidats.isEmpty()) {
             serviceAudit.tracer(TypeOperation.ADHERENT_DOUBLON_IGNORE, "adherent", adherent.getId(), null,
@@ -197,6 +193,8 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         adherent.setSexe(dto.sexe());
         adherent.setTelephonePrincipal(dto.telephonePrincipal());
         adherent.setTelephoneSecondaire(dto.telephoneSecondaire());
+        adherent.setWhatsapp(texteOuNull(dto.whatsapp()));
+        adherent.setEmail(emailNormalise(dto.email()));
         adherent.setNumeroCni(dto.numeroCni());
         adherent.setNumeroCnps(dto.numeroCnps());
         if (dto.activiteId() != null) {
@@ -368,6 +366,8 @@ public class ServiceAdherentImpl implements ServiceAdherent {
             exigerChampVide("dateNaissance", adherent.getDateNaissance(), dto.dateNaissance());
             exigerChampVide("sexe", adherent.getSexe(), dto.sexe());
             exigerChampVide("telephoneSecondaire", adherent.getTelephoneSecondaire(), dto.telephoneSecondaire());
+            exigerChampVide("whatsapp", adherent.getWhatsapp(), dto.whatsapp());
+            exigerChampVide("email", adherent.getEmail(), emailNormalise(dto.email()));
             exigerChampVide("numeroCni", adherent.getNumeroCni(), dto.numeroCni());
             exigerChampVide("numeroCnps", adherent.getNumeroCnps(), dto.numeroCnps());
             exigerChampVide("associationId", adherent.getAssociationId(), dto.associationId());
@@ -386,6 +386,12 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         }
         if (dto.telephoneSecondaire() != null && !dto.telephoneSecondaire().isBlank()) {
             adherent.setTelephoneSecondaire(dto.telephoneSecondaire());
+        }
+        if (dto.whatsapp() != null && !dto.whatsapp().isBlank()) {
+            adherent.setWhatsapp(dto.whatsapp().trim());
+        }
+        if (dto.email() != null && !dto.email().isBlank()) {
+            adherent.setEmail(emailNormalise(dto.email()));
         }
         if (dto.numeroCni() != null && !dto.numeroCni().isBlank()) {
             adherent.setNumeroCni(dto.numeroCni());
@@ -495,7 +501,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         perimetre.verifierAccesAdherent(demandeur, id);
         Adherent adherent = charger(id);
         return new CoordonneesAdherentDto(id, adherent.getTelephonePrincipal(), adherent.getTelephoneSecondaire(),
-                adherent.getNumeroCni(), adherent.getLocalisation(), adherent.getQuartier(), adherent.getVille(),
+                adherent.getWhatsapp(), adherent.getEmail(), adherent.getNumeroCni(), adherent.getLocalisation(), adherent.getQuartier(), adherent.getVille(),
                 adherent.getLatitude(), adherent.getLongitude());
     }
 
@@ -510,6 +516,8 @@ public class ServiceAdherentImpl implements ServiceAdherent {
 
         adherent.setTelephonePrincipal(dto.telephonePrincipal());
         adherent.setTelephoneSecondaire(dto.telephoneSecondaire());
+        adherent.setWhatsapp(texteOuNull(dto.whatsapp()));
+        adherent.setEmail(emailNormalise(dto.email()));
         adherent.setNumeroCni(dto.numeroCni());
         adherent.setLocalisation(dto.localisation());
         adherent.setQuartier(dto.quartier());
@@ -542,6 +550,15 @@ public class ServiceAdherentImpl implements ServiceAdherent {
                     "Ce dossier est validé : toute modification passe par une demande de modification "
                             + "(POST /api/v1/adherents/{id}/demandes-modification).");
         }
+    }
+
+    private static String texteOuNull(String valeur) {
+        return valeur == null || valeur.isBlank() ? null : valeur.trim();
+    }
+
+    /** E-mail stocké en minuscules et sans espaces : comparaison et recherche ne dépendent pas de la casse saisie. */
+    static String emailNormalise(String email) {
+        return email == null || email.isBlank() ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     private static void exigerChampVide(String champ, Object actuel, Object propose) {

@@ -116,6 +116,45 @@ Erreurs métier spécifiques :
 
 `POST /paiements/{id}/annuler` ne supprime rien : le paiement passe en `ANNULE`, les périodes de droits issues de ses affectations sont invalidées et recalculées dans la même transaction.
 
+### 4 bis. Dossier, cotisations réparties et historiques (V22, 04/10/2026)
+
+| Méthode | Chemin | Permission |
+|---|---|---|
+| GET | `/paiements/contexte-adherent?matricule=` | `PAIEMENT:CREER` + périmètre — identité de contrôle, pack courant ou à choisir, minimums en vigueur, motifs de blocage |
+| GET | `/adherents/{id}/dossier-complet` | `ADHERENT:LIRE` + périmètre (sections financières si `PAIEMENT:LIRE`) |
+| GET | `/adherents/{id}/synthese-cotisations` | `PAIEMENT:LIRE` + périmètre — comptes Sécurité sociale / Épargne, validé / en attente, reste avant seuil, progression |
+| GET | `/adherents/{id}/historique-general` | `ADHERENT:LIRE` + périmètre |
+| GET | `/adherents/{id}/historique-financier` | `ADHERENT:LIRE` + (`PAIEMENT:LIRE` ou `FRAIS_ADHESION:LIRE`) + périmètre |
+
+- `POST /adherents` n'attend plus de `packId` (ignoré s'il est encore envoyé). Le pack est choisi à la **première
+  cotisation** : `POST /paiements` porte `packId`, obligatoire tant que l'adhérent n'a pas d'adhésion ouverte.
+- `POST /paiements` porte `montantSecuriteSociale` et `montantEpargne` : leur somme égale `montant`, Sécurité sociale
+  ≥ `MONTANT_MINIMUM_SECURITE_SOCIALE` (700), Épargne ≥ `MONTANT_MINIMUM_EPARGNE` (300) lorsqu'elle est alimentée.
+  Sans répartition, le serveur applique la préférence de l'adhérent ou la règle par défaut et la renvoie
+  (`origineRepartition = PROPOSITION_SERVEUR`). Aucun plafond n'est appliqué (non défini).
+- Historiques : `periode` (`JOUR`, `SEMAINE`, `MOIS`, `ANNEE`) avec `date` de référence, ou `du` / `au` inclus ;
+  `type` (répétable), `module`, `page`, `taille` (≤ 200), `direction`. Bornes calculées en `Africa/Douala`,
+  intervalle `[début, fin[`. Les opérations internes DGA (`CONTROLE_DGA:LIRE`), CNPS (`CNPS:LIRE`) et DAF
+  (`RAPPORT_DAF:LIRE`) n'apparaissent qu'aux porteurs de la permission ; l'audit technique n'y figure jamais.
+- `GET /adherents/{id}/historique` (journal brut, non paginé) est **obsolète** et conservé pour compatibilité.
+
+| Code | Statut | Déclencheur |
+|---|---|---|
+| `COTISATION_REPARTITION_INCOHERENTE` | 400 | Sécurité sociale + Épargne ≠ montant |
+| `COTISATION_REPARTITION_INCOMPLETE` | 400 | Un seul des deux montants fourni |
+| `COTISATION_REPARTITION_REQUISE` | 400 | Montant corrigé sans nouvelle répartition sur une cotisation répartie par le Gestionnaire |
+| `COTISATION_SECURITE_SOCIALE_INSUFFISANTE` | 400 | Sécurité sociale < minimum |
+| `COTISATION_EPARGNE_INSUFFISANTE` | 400 | Épargne alimentée < minimum (ou nulle si `EPARGNE_FACULTATIVE_PAR_COTISATION = false`) |
+| `COTISATION_MONTANT_INSUFFISANT` | 400 | Montant total < minimum Sécurité sociale |
+| `COTISATION_PACK_REQUIS` / `COTISATION_PACK_INVALIDE` | 400 | Première cotisation sans pack / pack inconnu ou inactif |
+| `COTISATION_PACK_DIFFERENT` | 409 | Pack différent du pack courant (changement : `POST /adherents/{id}/pack`) |
+| `COTISATION_STATUT_ADHERENT_INCOMPATIBLE` | 409 | Statut listé dans `COTISATION_STATUTS_ADHERENT_REFUSES` |
+| `IDEMPOTENCY_KEY_CONFLIT` | 409 | Clé déjà utilisée pour une autre requête |
+| `ADHERENT_MATRICULE_INVALIDE` | 400 | Matricule hors format `COSITI-00001` |
+| `HISTORIQUE_FINANCIER_INACCESSIBLE` | 403 | Lecture de l'historique financier sans permission financière |
+| `HISTORIQUE_PERIODE_INVALIDE` / `HISTORIQUE_FILTRE_AMBIGU` / `HISTORIQUE_MODULE_INCONNU` | 400 | Filtres incohérents |
+| `FORMAT_DATE_INVALIDE` | 400 | Date ou période illisible (`periode=1`) — renvoyait 500 auparavant |
+
 ## 5. Droits et régularité
 
 | Méthode | Chemin | Description |

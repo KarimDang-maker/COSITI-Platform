@@ -5,7 +5,6 @@ import cm.cositi.api.adherent.dto.CreationAdherentDto;
 import cm.cositi.api.adherent.dto.ModifierCoordonneesDto;
 import cm.cositi.api.adherent.dto.ModifierProfessionnelDto;
 import cm.cositi.api.adherent.entite.Adherent;
-import cm.cositi.api.adherent.entite.Pack;
 import cm.cositi.api.adherent.entite.StatutAdherent;
 import cm.cositi.api.adherent.repository.AdhesionRepository;
 import cm.cositi.api.adherent.repository.AdherentRepository;
@@ -108,21 +107,13 @@ class ServiceAdherentImplTest {
     }
 
     private CreationAdherentDto dtoValide(boolean confirmationDoublonIgnore) {
-        return new CreationAdherentDto("Nguemo", "Paul", null, "M", "677123456", null, null, null,
-                UUID.randomUUID(), UUID.randomUUID(), null, "Marché central", null, null, null, null,
-                java.time.LocalDate.now(), UUID.randomUUID(), confirmationDoublonIgnore, true);
-    }
-
-    private Pack packActif() {
-        Pack p = mock(Pack.class);
-        when(p.isActif()).thenReturn(true);
-        return p;
+        return new CreationAdherentDto("Nguemo", "Paul", null, "M", "677123456", null, "677123456",
+                " Paul.Nguemo@Exemple.cm ", null, null, UUID.randomUUID(), UUID.randomUUID(), null, "Marché central",
+                null, null, null, null, java.time.LocalDate.now(), confirmationDoublonIgnore, true);
     }
 
     @Test
     void creerLeveConflitSiDoublonDetecteSansConfirmation() {
-        Pack pack = packActif();
-        when(packRepository.findById(any())).thenReturn(Optional.of(pack));
         when(serviceDoublonAdherent.rechercher(any())).thenReturn(
                 List.of(new CandidatDoublon(UUID.randomUUID(), "COSITI-00001", "Nguemo Paul", "6••••• 456", 95,
                         "Téléphone principal identique")));
@@ -135,14 +126,11 @@ class ServiceAdherentImplTest {
 
     @Test
     void creerReussitEtAuditeLeChoixSiDoublonConfirmeIgnore() {
-        Pack pack = packActif();
-        when(packRepository.findById(any())).thenReturn(Optional.of(pack));
         when(serviceDoublonAdherent.rechercher(any())).thenReturn(
                 List.of(new CandidatDoublon(UUID.randomUUID(), "COSITI-00001", "Nguemo Paul", "6••••• 456", 95,
                         "Téléphone principal identique")));
         when(serviceMatricule.genererProchain()).thenReturn("COSITI-00042");
         when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-        when(adhesionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var resultat = service.creer(dtoValide(true), auteur);
 
@@ -151,13 +139,22 @@ class ServiceAdherentImplTest {
                 any(), any(), any(), any(), any());
     }
 
+    /** Règles module 1 §7 : la création ne demande plus de pack et n'ouvre aucune adhésion. */
     @Test
-    void creerRefuseSiPackInactifOuIntrouvable() {
-        when(packRepository.findById(any())).thenReturn(Optional.empty());
+    void creerSansPackNOuvreAucuneAdhesionEtEnregistreLesCoordonnees() {
+        when(serviceDoublonAdherent.rechercher(any())).thenReturn(List.of());
+        when(serviceMatricule.genererProchain()).thenReturn("COSITI-00043");
+        when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThatThrownBy(() -> service.creer(dtoValide(true), auteur))
-                .isInstanceOf(ExceptionValidation.class)
-                .hasFieldOrPropertyWithValue("code", "ADHERENT_PACK_INVALIDE");
+        var resultat = service.creer(dtoValide(false), auteur);
+
+        assertThat(resultat.matricule()).isEqualTo("COSITI-00043");
+        assertThat(resultat.whatsapp()).isEqualTo("677123456");
+        assertThat(resultat.email()).isEqualTo("paul.nguemo@exemple.cm");
+        verify(adhesionRepository, times(0)).save(any());
+        verify(packRepository, times(0)).findById(any());
+        verify(serviceAudit).tracer(eq(cm.cositi.api.audit.TypeOperation.ADHERENT_CREATION), eq("adherent"), any(),
+                any(), any(), any());
     }
 
     @Test
@@ -241,7 +238,7 @@ class ServiceAdherentImplTest {
         when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
         when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var dto = new CompleterProfilAdherentDto(null, "F", null, null, null, null, null, null, null, null, false);
+        var dto = new CompleterProfilAdherentDto(null, "F", null, null, null, null, null, null, null, null, null, null, false);
         service.completerProfil(adherent.getId(), dto, auteur);
 
         assertThat(adherent.getSexe()).isEqualTo("F");
@@ -277,11 +274,14 @@ class ServiceAdherentImplTest {
         when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         service.modifierCoordonnees(adherent.getId(),
-                new ModifierCoordonneesDto("677111111", null, null, "Nouveau quartier", null, null, null, null),
+                new ModifierCoordonneesDto("677111111", null, "677111111", "contact@exemple.cm", null, "Nouveau quartier",
+                        null, null, null, null),
                 auteur);
 
         assertThat(adherent.getTelephonePrincipal()).isEqualTo("677111111");
         assertThat(adherent.getLocalisation()).isEqualTo("Nouveau quartier");
+        assertThat(adherent.getWhatsapp()).isEqualTo("677111111");
+        assertThat(adherent.getEmail()).isEqualTo("contact@exemple.cm");
         verify(serviceAudit).tracer(eq(TypeOperation.ADHERENT_MODIFICATION_CONTACT), any(), any(), any(), any(), any());
     }
 
@@ -333,7 +333,7 @@ class ServiceAdherentImplTest {
     @Test
     void modifierCoordonneesRefuseUnDossierValide() throws Exception {
         Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
-        var dto = new ModifierCoordonneesDto("699000000", null, null, "Nouvelle adresse", null, null, null, null);
+        var dto = new ModifierCoordonneesDto("699000000", null, null, null, null, "Nouvelle adresse", null, null, null, null);
 
         assertThatThrownBy(() -> service.modifierCoordonnees(adherent.getId(), dto, auteur))
                 .isInstanceOf(ExceptionConflit.class)
@@ -364,7 +364,7 @@ class ServiceAdherentImplTest {
     @Test
     void completerProfilDUnDossierValideNeRemplacePasUneValeurOfficielle() throws Exception {
         Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
-        var remplacement = new CompleterProfilAdherentDto(null, null, null, null, null, null, null, "Douala",
+        var remplacement = new CompleterProfilAdherentDto(null, null, null, null, null, null, null, null, null, "Douala",
                 null, null, false);
 
         assertThatThrownBy(() -> service.completerProfil(adherent.getId(), remplacement, auteur))
@@ -376,7 +376,7 @@ class ServiceAdherentImplTest {
     void completerProfilDUnDossierValideRemplitUnChampVide() throws Exception {
         Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
         when(adherentRepository.save(any(Adherent.class))).thenAnswer(i -> i.getArgument(0));
-        var ajout = new CompleterProfilAdherentDto(null, null, null, null, null, null, "Mvog-Ada", null,
+        var ajout = new CompleterProfilAdherentDto(null, null, null, null, null, null, null, null, "Mvog-Ada", null,
                 null, null, false);
 
         var resultat = service.completerProfil(adherent.getId(), ajout, auteur);

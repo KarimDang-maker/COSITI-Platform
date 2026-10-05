@@ -52,6 +52,8 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
     /** Règle des affectations produites avant l'application de la répartition confirmée (historique). */
     static final String REGLE_ANCIENNE_COOPERATIVE = "PAR_DEFAUT_COOPERATIVE_NON_VALIDEE";
     private static final String REGLE_MANUELLE = "MANUEL";
+    /** Préfixe des affectations issues de la répartition enregistrée avec la cotisation (suivi de l'origine). */
+    static final String REGLE_ENREGISTREE = "REPARTITION_COTISATION";
 
     private final AffectationPaiementRepository affectationRepository;
     private final PaiementRepository paiementRepository;
@@ -59,18 +61,20 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
     private final ServiceParametre serviceParametre;
     private final ServiceAudit serviceAudit;
     private final JdbcTemplate jdbcTemplate;
+    private final RegleRepartitionCotisation regleRepartition;
 
     public ServiceAffectationPaiementImpl(AffectationPaiementRepository affectationRepository,
                                            PaiementRepository paiementRepository,
                                            ComposanteAffectationRepository composanteRepository,
                                            ServiceParametre serviceParametre, ServiceAudit serviceAudit,
-                                           JdbcTemplate jdbcTemplate) {
+                                           JdbcTemplate jdbcTemplate, RegleRepartitionCotisation regleRepartition) {
         this.affectationRepository = affectationRepository;
         this.paiementRepository = paiementRepository;
         this.composanteRepository = composanteRepository;
         this.serviceParametre = serviceParametre;
         this.serviceAudit = serviceAudit;
         this.jdbcTemplate = jdbcTemplate;
+        this.regleRepartition = regleRepartition;
     }
 
     /** Répartition retenue pour un paiement. */
@@ -111,10 +115,20 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
         return resultat;
     }
 
-    /** Recommandation (paiement &gt; 1 000 FCFA), sinon préférence de l'adhérent, sinon règle par défaut. */
+    /**
+     * Répartition enregistrée avec la cotisation (V22) ; pour une cotisation antérieure qui n'en porte pas :
+     * recommandation (paiement &gt; 1 000 FCFA), sinon préférence de l'adhérent, sinon règle par défaut.
+     */
     Repartition calculerRepartition(Paiement paiement) {
         BigDecimal minimum = serviceParametre.decimal(CLE_MINIMUM_SECURITE_SOCIALE);
         BigDecimal montant = paiement.getMontant();
+        if (paiement.possedeRepartition()) {
+            // Revalidée au moment de l'affectation : les seuils ont pu changer depuis la saisie, et un montant
+            // définitivement comptabilisé ne doit jamais enfreindre la règle en vigueur.
+            regleRepartition.valider(montant, paiement.getMontantSecuriteSociale(), paiement.getMontantEpargne());
+            return new Repartition(paiement.getMontantSecuriteSociale(), paiement.getMontantEpargne(),
+                    REGLE_ENREGISTREE + "_" + paiement.getOrigineRepartition().name());
+        }
         if (montant.compareTo(minimum) < 0) {
             throw new ExceptionConflit("PAIEMENT_MONTANT_INFERIEUR_MINIMUM_SECURITE_SOCIALE",
                     "Le paiement (" + montant + " FCFA) est inférieur au minimum de " + minimum

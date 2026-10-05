@@ -157,7 +157,9 @@ public class ControleurAgent {
     }
 
     @GetMapping("/{id}/charge")
-    public ChargeAgentDto charge(@PathVariable UUID id, @RequestParam String periode) {
+    public ChargeAgentDto charge(@PathVariable UUID id,
+            @io.swagger.v3.oas.annotations.Parameter(description = "Mois au format AAAA-MM", example = "2026-09")
+            @RequestParam String periode) {
         return servicePortefeuille.charge(id, YearMonth.parse(periode));
     }
 
@@ -166,7 +168,9 @@ public class ControleurAgent {
      * mois. Aucun nouveau calcul financier (même principe que {@code ControleurAdherent.resumeCotisations}).
      */
     @GetMapping("/{id}/cotisations-resume")
-    public ResumeCotisationsAgentDto cotisationsResume(@PathVariable UUID id, @RequestParam String periode,
+    public ResumeCotisationsAgentDto cotisationsResume(@PathVariable UUID id,
+            @io.swagger.v3.oas.annotations.Parameter(description = "Mois au format AAAA-MM", example = "2026-09")
+            @RequestParam String periode,
                                                         @AuthenticationPrincipal Utilisateur demandeur) {
         YearMonth mois = YearMonth.parse(periode);
         var critere = new CritereJournalPaiement(null, null, null, mois.atDay(1), mois.atEndOfMonth(), id);

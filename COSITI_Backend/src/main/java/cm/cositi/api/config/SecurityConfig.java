@@ -10,6 +10,7 @@ import jakarta.servlet.DispatcherType;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -22,6 +23,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -55,6 +59,19 @@ public class SecurityConfig {
     @Value("${cositi.securite.debit.actif:true}")
     private boolean limiteDebitActive;
 
+    /**
+     * Contrat OpenAPI et Swagger UI accessibles sans jeton. Vrai en développement (application.properties), faux en
+     * production (application-prod.properties) : docs/03_SPECIFICATIONS_API.md — « protégée hors développement ».
+     */
+    @Value("${cositi.openapi.acces-public:false}")
+    private boolean openApiPublic;
+
+    /** Routes de la documentation : contrat ({@code springdoc.api-docs.path}) et interface Swagger UI. */
+    static final String[] ROUTES_DOCUMENTATION = {
+            "/api/v1/openapi", "/api/v1/openapi/**", "/api/v1/openapi.yaml",
+            "/swagger-ui/**", "/swagger-ui.html"
+    };
+
     public SecurityConfig(ServiceJeton serviceJeton, UserDetailsService serviceUtilisateurDetails,
                            ObjectMapper objectMapper, ServiceParametre serviceParametre) {
         this.serviceJeton = serviceJeton;
@@ -76,7 +93,46 @@ public class SecurityConfig {
         return fournisseur;
     }
 
+    /**
+     * Chaîne dédiée à la documentation, évaluée avant la chaîne de l'API. La CSP de l'API ({@code default-src 'none'})
+     * interdisait au navigateur de charger les scripts et feuilles de style de Swagger UI : la page restait blanche
+     * alors que le serveur répondait 200. Ici, seules les ressources servies par l'API elle-même sont autorisées
+     * ({@code 'self'}) ; {@code 'unsafe-inline'} ne vaut que pour les styles, que Swagger UI pose en attribut.
+     */
     @Bean
+    @Order(1)
+    public SecurityFilterChain chaineDocumentation(HttpSecurity http) throws Exception {
+        http
+            // Correspondance par motif de chemin, indépendante de Spring MVC : un contexte sans couche web (tests
+            // d'amorçage) n'a pas l'introspecteur qu'exigent les correspondances MVC.
+            .securityMatcher(new OrRequestMatcher(java.util.Arrays.stream(ROUTES_DOCUMENTATION)
+                    .<RequestMatcher>map(AntPathRequestMatcher::new).toList()))
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .headers(headers -> headers
+                    .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'none'; script-src 'self'; "
+                            + "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; "
+                            + "connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'none'"))
+                    .frameOptions(frame -> frame.deny())
+                    .referrerPolicy(ref -> ref.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+                    .contentTypeOptions(opts -> {})
+            )
+            .exceptionHandling(exceptions -> exceptions
+                    .authenticationEntryPoint((requete, reponse, ex) ->
+                            ecrireErreur(reponse, 401, "AUTHENTIFICATION_REQUISE", "Authentification requise.")))
+            .authorizeHttpRequests(autorisations -> {
+                if (openApiPublic) {
+                    autorisations.anyRequest().permitAll();
+                } else {
+                    autorisations.anyRequest().authenticated();
+                }
+            })
+            .addFilterBefore(new FiltreJwt(serviceJeton, serviceUtilisateurDetails), UsernamePasswordAuthenticationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain chaineFiltres(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf.disable()) // API sans état, authentifiée par en-tête Authorization uniquement.
@@ -105,10 +161,7 @@ public class SecurityConfig {
                             "/api/v1/auth/connexion",
                             "/api/v1/auth/rafraichir",
                             "/actuator/health/**",
-                            "/actuator/health",
-                            "/v3/api-docs/**",
-                            "/swagger-ui/**",
-                            "/swagger-ui.html"
+                            "/actuator/health"
                     ).permitAll()
                     .anyRequest().authenticated()
             )

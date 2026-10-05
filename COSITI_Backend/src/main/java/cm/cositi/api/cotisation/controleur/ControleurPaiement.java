@@ -6,6 +6,7 @@ import cm.cositi.api.cotisation.dto.AffecterManuelDto;
 import cm.cositi.api.cotisation.dto.AnnulerPaiementDto;
 import cm.cositi.api.cotisation.dto.BilanJournalierDto;
 import cm.cositi.api.cotisation.dto.CorrectionPaiementDto;
+import cm.cositi.api.cotisation.dto.ContexteCotisationDto;
 import cm.cositi.api.cotisation.dto.CritereJournalPaiement;
 import cm.cositi.api.cotisation.dto.EnregistrementPaiementDto;
 import cm.cositi.api.cotisation.dto.HistoriqueStatutPaiementDto;
@@ -20,6 +21,7 @@ import cm.cositi.api.cotisation.entite.StatutPaiement;
 import cm.cositi.api.cotisation.service.ResultatEnregistrementPaiement;
 import cm.cositi.api.cotisation.service.ServiceAffectationPaiement;
 import cm.cositi.api.cotisation.service.ServiceBilanCaisse;
+import cm.cositi.api.cotisation.service.ServiceContexteCotisation;
 import cm.cositi.api.cotisation.service.ServicePaiement;
 import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.securite.entite.Utilisateur;
@@ -69,12 +71,24 @@ public class ControleurPaiement {
     private final ServicePaiement servicePaiement;
     private final ServiceAffectationPaiement serviceAffectationPaiement;
     private final ServiceBilanCaisse serviceBilanCaisse;
+    private final ServiceContexteCotisation serviceContexte;
 
     public ControleurPaiement(ServicePaiement servicePaiement, ServiceAffectationPaiement serviceAffectationPaiement,
-                              ServiceBilanCaisse serviceBilanCaisse) {
+                              ServiceBilanCaisse serviceBilanCaisse, ServiceContexteCotisation serviceContexte) {
         this.servicePaiement = servicePaiement;
         this.serviceAffectationPaiement = serviceAffectationPaiement;
         this.serviceBilanCaisse = serviceBilanCaisse;
+        this.serviceContexte = serviceContexte;
+    }
+
+    @Operation(summary = "Identifier l'adhérent par son matricule avant une cotisation",
+            description = "Matricule COSITI (insensible à la casse) : identité de contrôle, statut, pack courant ou "
+                    + "pack à choisir, minimums Sécurité sociale / Épargne en vigueur, et motifs de blocage éventuels.")
+    @GetMapping("/contexte-adherent")
+    public ContexteCotisationDto contexteAdherent(
+            @Parameter(description = "Matricule COSITI", example = "COSITI-00001") @RequestParam String matricule,
+            @AuthenticationPrincipal Utilisateur demandeur) {
+        return serviceContexte.parMatricule(matricule, demandeur);
     }
 
     @Operation(summary = "Lister / rechercher les cotisations (#1 à #7, #15)",
@@ -112,10 +126,16 @@ public class ControleurPaiement {
     }
 
     @Operation(summary = "Enregistrer une cotisation (#9 à #12, #35)",
-            description = "En-tête `Idempotency-Key` obligatoire : une clé déjà vue renvoie le paiement existant (200). "
+            description = "En-tête `Idempotency-Key` obligatoire : la même clé avec la même requête renvoie la "
+                    + "cotisation existante (200) ; avec une autre requête, 409 `IDEMPOTENCY_KEY_CONFLIT`. "
+                    + "Répartition : `montantSecuriteSociale` + `montantEpargne` = `montant` (Sécurité sociale >= 700, "
+                    + "Épargne >= 300 si alimentée) ; sans répartition, le serveur applique la règle par défaut. "
+                    + "`packId` est exigé à la première cotisation d'un adhérent sans pack. "
                     + "`brouillon=true` crée une saisie préparatoire à soumettre ensuite (#14).")
     @PostMapping
     public ResponseEntity<PaiementDto> enregistrer(@Valid @RequestBody EnregistrementPaiementDto dto,
+                                                     @Parameter(required = true, description = "Clé unique par saisie "
+                                                             + "(UUID recommandé), réutilisée telle quelle en cas de nouvel essai")
                                                      @RequestHeader(value = "Idempotency-Key", required = false) String cleIdempotence,
                                                      @RequestParam(defaultValue = "false") boolean brouillon,
                                                      @AuthenticationPrincipal Utilisateur auteur) {

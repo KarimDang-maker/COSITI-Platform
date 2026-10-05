@@ -9,6 +9,7 @@ import cm.cositi.api.commun.exception.ExceptionConflit;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.cotisation.dto.PaiementDto;
+import cm.cositi.api.cotisation.entite.OrigineRepartition;
 import cm.cositi.api.cotisation.entite.Paiement;
 import cm.cositi.api.cotisation.entite.StatutPaiement;
 import cm.cositi.api.cotisation.repository.PaiementRepository;
@@ -62,6 +63,9 @@ public class AdaptateurWorkflowPaiement implements AdaptateurWorkflow {
         CHAMPS.put("datePaiement", TypeDonneeChamp.DATE);
         CHAMPS.put("modePaiement", TypeDonneeChamp.ENUM);
         CHAMPS.put("referenceTransaction", TypeDonneeChamp.TEXTE);
+        // V22 : la répartition enregistrée avec la cotisation se corrige avec elle (même demande, même décision DAF).
+        CHAMPS.put("montantSecuriteSociale", TypeDonneeChamp.DECIMAL);
+        CHAMPS.put("montantEpargne", TypeDonneeChamp.DECIMAL);
     }
 
     private final PaiementRepository paiementRepository;
@@ -72,12 +76,13 @@ public class AdaptateurWorkflowPaiement implements AdaptateurWorkflow {
     private final ServiceAudit serviceAudit;
     private final ApplicationEventPublisher evenements;
     private final JdbcTemplate jdbcTemplate;
+    private final RegleRepartitionCotisation regleRepartition;
 
     public AdaptateurWorkflowPaiement(PaiementRepository paiementRepository, AdherentRepository adherentRepository,
                                       ServiceAffectationPaiement serviceAffectationPaiement,
                                       ServiceCalculDroits serviceCalculDroits, ServicePerimetreDonnees perimetre,
                                       ServiceAudit serviceAudit, ApplicationEventPublisher evenements,
-                                      JdbcTemplate jdbcTemplate) {
+                                      JdbcTemplate jdbcTemplate, RegleRepartitionCotisation regleRepartition) {
         this.paiementRepository = paiementRepository;
         this.adherentRepository = adherentRepository;
         this.serviceAffectationPaiement = serviceAffectationPaiement;
@@ -86,6 +91,7 @@ public class AdaptateurWorkflowPaiement implements AdaptateurWorkflow {
         this.serviceAudit = serviceAudit;
         this.evenements = evenements;
         this.jdbcTemplate = jdbcTemplate;
+        this.regleRepartition = regleRepartition;
     }
 
     @Override
@@ -150,6 +156,7 @@ public class AdaptateurWorkflowPaiement implements AdaptateurWorkflow {
         if (montant.scale() > 2) {
             throw invalide("montant", "PAIEMENT_MONTANT_INVALIDE", "Le montant ne peut pas avoir plus de deux décimales.");
         }
+        controlerRepartition(p, montant, valeursResultantes, propositions);
         Adherent adherent = adherentRepository.findById(p.getAdherentId())
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable("ADHERENT_INTROUVABLE", "Adhérent introuvable."));
         if (adherent.isArchive()) {
@@ -207,8 +214,22 @@ public class AdaptateurWorkflowPaiement implements AdaptateurWorkflow {
                 case "datePaiement" -> p.modifierDatePaiement(ValeursWorkflow.enDate(e.getValue()));
                 case "modePaiement" -> p.modifierModePaiement(e.getValue());
                 case "referenceTransaction" -> p.modifierReferenceTransaction(e.getValue());
+                case "montantSecuriteSociale", "montantEpargne" -> { }
                 default -> throw new IllegalStateException("Champ de cotisation non applicable : " + e.getKey());
             }
+        }
+        boolean repartitionProposee = propositions.containsKey("montantSecuriteSociale")
+                || propositions.containsKey("montantEpargne");
+        if (repartitionProposee) {
+            p.definirRepartition(ValeursWorkflow.enDecimal(resultantes.get("montantSecuriteSociale")),
+                    ValeursWorkflow.enDecimal(resultantes.get("montantEpargne")), OrigineRepartition.SAISIE);
+        } else if (p.possedeRepartition()
+                && p.getMontantSecuriteSociale().add(p.getMontantEpargne()).compareTo(p.getMontant()) != 0) {
+            // Montant corrigé sur une répartition proposée par le serveur (une répartition saisie a été exigée par
+            // controlerRepartition) : même règle qu'à la saisie, appliquée au nouveau montant.
+            RegleRepartitionCotisation.Repartition r = regleRepartition.determiner(p.getMontant(), null, null,
+                    p.getAdherentId());
+            p.definirRepartition(r.securiteSociale(), r.epargne(), r.origine());
         }
         List<String> avertissements = new ArrayList<>();
         if (p.getStatut() == StatutPaiement.INCOHERENCE) {
@@ -220,7 +241,8 @@ public class AdaptateurWorkflowPaiement implements AdaptateurWorkflow {
         p = paiementRepository.saveAndFlush(p);
 
         String motif = "Demande " + demande.getReference() + " approuvée : " + demande.getMotif();
-        boolean montantChange = propositions.containsKey("montant");
+        boolean montantChange = propositions.containsKey("montant") || propositions.containsKey("montantSecuriteSociale")
+                || propositions.containsKey("montantEpargne");
         boolean dateChangee = propositions.containsKey("datePaiement");
         if (p.getStatut() == StatutPaiement.VALIDE && (montantChange || dateChangee)) {
             // Étapes 12-14 : affectations et périodes de droits refaites — le cumul et la progression CNPS
@@ -276,7 +298,40 @@ public class AdaptateurWorkflowPaiement implements AdaptateurWorkflow {
         v.put("datePaiement", ValeursWorkflow.texte(p.getDatePaiement()));
         v.put("modePaiement", ValeursWorkflow.texte(p.getModePaiement()));
         v.put("referenceTransaction", ValeursWorkflow.texte(p.getReferenceTransaction()));
+        v.put("montantSecuriteSociale", ValeursWorkflow.texte(p.getMontantSecuriteSociale()));
+        v.put("montantEpargne", ValeursWorkflow.texte(p.getMontantEpargne()));
         return v;
+    }
+
+    /**
+     * Répartition de l'état résultant (V22) : une cotisation qui porte une répartition la garde cohérente avec son
+     * montant. Si le montant change sans nouvelle répartition, une répartition saisie est exigée à nouveau ; une
+     * répartition proposée par le serveur est recalculée par la même règle qu'à la saisie.
+     */
+    private void controlerRepartition(Paiement p, BigDecimal montant, Map<String, String> resultantes,
+                                      Map<String, String> propositions) {
+        boolean repartitionProposee = propositions.containsKey("montantSecuriteSociale")
+                || propositions.containsKey("montantEpargne");
+        if (!p.possedeRepartition() && !repartitionProposee) {
+            return; // cotisation antérieure sans répartition : affectée par l'ancienne règle, inchangée.
+        }
+        boolean montantChange = propositions.containsKey("montant") && montant.compareTo(p.getMontant()) != 0;
+        if (montantChange && !repartitionProposee) {
+            if (p.getOrigineRepartition() == OrigineRepartition.SAISIE) {
+                throw invalide("montantSecuriteSociale", "COTISATION_REPARTITION_REQUISE",
+                        "Le montant change : indiquez la nouvelle répartition entre Sécurité sociale et Épargne.");
+            }
+            // Proposition du serveur recalculée (et validée) à l'application : voir appliquer().
+            regleRepartition.determiner(montant, null, null, p.getAdherentId());
+            return;
+        }
+        BigDecimal ss = ValeursWorkflow.enDecimal(resultantes.get("montantSecuriteSociale"));
+        BigDecimal ep = ValeursWorkflow.enDecimal(resultantes.get("montantEpargne"));
+        if (ss == null || ep == null) {
+            throw invalide("montantSecuriteSociale", "COTISATION_REPARTITION_INCOMPLETE",
+                    "Renseignez à la fois le montant Sécurité sociale et le montant Épargne.");
+        }
+        regleRepartition.valider(montant, ss, ep);
     }
 
     private static ExceptionValidation invalide(String champ, String code, String message) {
