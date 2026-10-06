@@ -15,6 +15,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -44,6 +45,7 @@ public class ControleurBilanCaisse {
     }
 
     @Operation(summary = "Lister les bilans de caisse")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping
     public ReponsePaginee<RapprochementCaisseDto> lister(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate du,
@@ -72,6 +74,7 @@ public class ControleurBilanCaisse {
     }
 
     @Operation(summary = "Consulter le rapprochement et l'écart de caisse d'une date (#31)")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping("/{date}")
     public RapprochementCaisseDto rapprochement(@PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
                                                 @AuthenticationPrincipal Utilisateur demandeur) {

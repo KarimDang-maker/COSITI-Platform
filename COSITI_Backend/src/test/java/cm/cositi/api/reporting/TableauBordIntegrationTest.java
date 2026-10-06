@@ -180,7 +180,8 @@ class TableauBordIntegrationTest extends ConfigurationTestsIntegration {
                 .when().get("/tableaux-de-bord/super-admin")
                 .then().statusCode(200)
                 .body("utilisateursActifs", greaterThanOrEqualTo(1))
-                .body("parametresNonValides", greaterThanOrEqualTo(1))
+                // V23 : toutes les règles sont réputées validées (décision COSITI du 05/10/2026).
+                .body("parametresNonValides", equalTo(0))
                 .extract().jsonPath();
 
         List<String> cles = reponse.getList("indicateurs.cle");
@@ -189,13 +190,12 @@ class TableauBordIntegrationTest extends ConfigurationTestsIntegration {
     }
 
     @Test
-    void les_regles_non_validees_remontent_en_alerte_sur_le_dashboard_du_super_admin() {
-        // Six paramètres sont marqués `[V]` par les migrations V1 et V9 : la dette fonctionnelle est
-        // visible là où elle peut être traitée.
+    void plus_aucune_regle_non_validee_n_est_signalee_apres_la_decision_cositi() {
+        // V23 : la migration confirme toutes les règles en attente ; l'alerte de dette de paramétrage disparaît.
         given().header("Authorization", "Bearer " + jetonPour("SUPER_ADMIN"))
                 .when().get("/tableaux-de-bord/super-admin")
                 .then().statusCode(200)
-                .body("alertes.code", hasItem("PARAMETRES_NON_VALIDES"));
+                .body("alertes.code", org.hamcrest.Matchers.not(hasItem("PARAMETRES_NON_VALIDES")));
     }
 
     @Test

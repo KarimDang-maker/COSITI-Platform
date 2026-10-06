@@ -8,6 +8,7 @@ public record VerifierDoublonDto(
         String telephonePrincipal,
         String numeroCni,
         String nomComplet,
-        @NotNull(message = "La zone est obligatoire pour la recherche de similarité.") UUID zoneId
+        /** Facultative depuis V23 : sans zone, la similarité de nom se cherche sur tous les adhérents. */
+        UUID zoneId
 ) {
 }

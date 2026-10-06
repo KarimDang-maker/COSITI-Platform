@@ -227,6 +227,36 @@ class ServiceAffectationPaiementImplTest {
                 .hasFieldOrPropertyWithValue("code", "AFFECTATION_SECURITE_SOCIALE_INSUFFISANTE");
     }
 
+    @Test
+    void affecterManuellementAppliqueLeMinimumEpargneEtSynchroniseLaCotisation() throws Exception {
+        Paiement paiement = paiement(1000);
+        paiement.definirRepartition(BigDecimal.valueOf(700), BigDecimal.valueOf(300),
+                cm.cositi.api.cotisation.entite.OrigineRepartition.PROPOSITION_SERVEUR);
+        ComposanteAffectation cnps = composanteAvecId("CNPS");
+        ComposanteAffectation epargne = composanteAvecId("EPARGNE");
+        when(paiementRepository.findById(paiement.getId())).thenReturn(Optional.of(paiement));
+        when(serviceParametre.decimal("MONTANT_MINIMUM_SECURITE_SOCIALE")).thenReturn(MINIMUM);
+        when(serviceParametre.decimal("MONTANT_MINIMUM_EPARGNE")).thenReturn(new BigDecimal("300"));
+        when(serviceParametre.booleen("EPARGNE_FACULTATIVE_PAR_COTISATION")).thenReturn(true);
+        when(composanteRepository.findById(cnps.getId())).thenReturn(Optional.of(cnps));
+        when(composanteRepository.findById(epargne.getId())).thenReturn(Optional.of(epargne));
+
+        // Épargne alimentée sous le minimum : refusée, comme à la saisie (bug constaté en recette : acceptée).
+        List<LigneAffectationDto> invalides = List.of(new LigneAffectationDto(cnps.getId(), BigDecimal.valueOf(800)),
+                new LigneAffectationDto(epargne.getId(), BigDecimal.valueOf(200)));
+        assertThatThrownBy(() -> service.affecterManuellement(paiement.getId(), invalides, auteur))
+                .hasFieldOrPropertyWithValue("code", "COTISATION_EPARGNE_INSUFFISANTE");
+
+        // Ré-affectation valide : la répartition affichée sur la cotisation suit les affectations.
+        when(affectationRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        service.affecterManuellement(paiement.getId(), List.of(
+                new LigneAffectationDto(cnps.getId(), BigDecimal.valueOf(600 + 100)),
+                new LigneAffectationDto(cnps.getId(), BigDecimal.valueOf(300))), auteur);
+        assertThat(paiement.getMontantSecuriteSociale()).isEqualByComparingTo("1000");
+        assertThat(paiement.getMontantEpargne()).isEqualByComparingTo("0");
+        assertThat(paiement.getOrigineRepartition()).isEqualTo(cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
+    }
+
     // ------------------------------------------------------------------ Outils
 
     private Paiement paiement(int montant) throws Exception {

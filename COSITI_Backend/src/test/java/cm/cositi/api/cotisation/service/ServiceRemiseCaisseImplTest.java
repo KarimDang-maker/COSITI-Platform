@@ -77,4 +77,75 @@ class ServiceRemiseCaisseImplTest {
                 .isInstanceOf(ExceptionAutorisation.class)
                 .hasFieldOrPropertyWithValue("code", "REMISE_CAISSE_AUTO_RECEPTION_INTERDITE");
     }
+
+    // ------------------------------------------------------------------ Déclaration (recette 05/10/2026)
+
+    private cm.cositi.api.cotisation.entite.Paiement paiement(UUID encaisseur, UUID remise) throws Exception {
+        var p = new cm.cositi.api.cotisation.entite.Paiement(UUID.randomUUID(), "REC-0001" + (int) (Math.random() * 90 + 10),
+                LocalDate.now(), BigDecimal.valueOf(1000), "ESPECES", null, "COTISATION", encaisseur, null);
+        Field id = cm.cositi.api.commun.entite.EntiteAuditable.class.getDeclaredField("id");
+        id.setAccessible(true);
+        id.set(p, UUID.randomUUID());
+        p.setRemiseCaisseId(remise);
+        return p;
+    }
+
+    @Test
+    void declarerRefuseUneCotisationEncaisseeParUnAutreAgent() throws Exception {
+        var p = paiement(UUID.randomUUID(), null);
+        when(agentRepository.existsById(agentId)).thenReturn(true);
+        when(paiementRepository.findAllById(any())).thenReturn(java.util.List.of(p));
+
+        assertThatThrownBy(() -> service.declarer(agentId, java.util.List.of(p.getId()), agentUtilisateur))
+                .hasFieldOrPropertyWithValue("code", "REMISE_PAIEMENT_AUTRE_AGENT");
+    }
+
+    @Test
+    void declarerRefuseUneCotisationDejaRemise() throws Exception {
+        var p = paiement(agentId, UUID.randomUUID());
+        when(agentRepository.existsById(agentId)).thenReturn(true);
+        when(paiementRepository.findAllById(any())).thenReturn(java.util.List.of(p));
+
+        assertThatThrownBy(() -> service.declarer(agentId, java.util.List.of(p.getId()), agentUtilisateur))
+                .hasFieldOrPropertyWithValue("code", "REMISE_PAIEMENT_DEJA_REMIS");
+    }
+
+    @Test
+    void declarerRefuseUneCotisationAnnulee() throws Exception {
+        var p = paiement(agentId, null);
+        p.annuler("Erreur");
+        when(agentRepository.existsById(agentId)).thenReturn(true);
+        when(paiementRepository.findAllById(any())).thenReturn(java.util.List.of(p));
+
+        assertThatThrownBy(() -> service.declarer(agentId, java.util.List.of(p.getId()), agentUtilisateur))
+                .hasFieldOrPropertyWithValue("code", "REMISE_PAIEMENT_NON_ENCAISSE");
+    }
+
+    @Test
+    void declarerNotifieLaDafEtCompteLesCotisations() throws Exception {
+        var p1 = paiement(agentId, null);
+        var p2 = paiement(agentId, null);
+        when(agentRepository.existsById(agentId)).thenReturn(true);
+        when(paiementRepository.findAllById(any())).thenReturn(java.util.List.of(p1, p2));
+        when(remiseCaisseRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var dto = service.declarer(agentId, java.util.List.of(p1.getId(), p2.getId(), p1.getId()), agentUtilisateur);
+
+        org.assertj.core.api.Assertions.assertThat(dto.montantDeclare()).isEqualByComparingTo("2000");
+        org.assertj.core.api.Assertions.assertThat(dto.nombrePaiements()).isEqualTo(2);
+        org.mockito.Mockito.verify(serviceNotification).notifierRoles(org.mockito.ArgumentMatchers.eq(java.util.List.of("DAF")),
+                org.mockito.ArgumentMatchers.eq("REMISE_CAISSE_A_RECEPTIONNER"), any(), any(),
+                org.mockito.ArgumentMatchers.eq("remise_caisse"), any());
+    }
+
+    @Test
+    void receptionnerRefuseUneSecondeReception() throws Exception {
+        RemiseCaisse remise = remiseDeLAgent();
+        remise.receptionner(BigDecimal.valueOf(1000), UUID.randomUUID());
+        when(remiseCaisseRepository.findById(remise.getId())).thenReturn(Optional.of(remise));
+        Utilisateur daf = new Utilisateur("daf1", "hash", "DAF");
+
+        assertThatThrownBy(() -> service.receptionner(remise.getId(), BigDecimal.valueOf(1000), daf))
+                .hasFieldOrPropertyWithValue("code", "REMISE_CAISSE_DEJA_RECEPTIONNEE");
+    }
 }

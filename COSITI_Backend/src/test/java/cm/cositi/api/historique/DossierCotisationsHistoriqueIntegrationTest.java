@@ -65,6 +65,7 @@ class DossierCotisationsHistoriqueIntegrationTest extends ConfigurationTestsInte
     private String suffixe;
     private String gestionnaire;
     private String daf;
+    private UUID agentFrais;
 
     @BeforeEach
     void setUp() {
@@ -104,15 +105,34 @@ class DossierCotisationsHistoriqueIntegrationTest extends ConfigurationTestsInte
         corps.put("whatsapp", telephone);
         corps.put("email", "Adherent." + suffixe + "@Exemple.cm");
         corps.put("activiteId", activiteId.toString());
-        corps.put("zoneId", zoneId.toString());
-        corps.put("localisation", "Marché central");
+        // V23 : ni zone ni localisation dans le formulaire de création.
+        corps.put("quartier", "Akwa");
+        corps.put("ville", "Douala");
         corps.put("dateAdhesion", LocalDate.now().minusMonths(2).toString());
         corps.put("consentementDonnees", true);
         corps.put("confirmationDoublonIgnore", true);
         Response r = given().header("Authorization", "Bearer " + gestionnaire).contentType(ContentType.JSON).body(corps)
                 .when().post("/adherents")
                 .then().statusCode(201).extract().response();
-        return new AdherentCree(UUID.fromString(r.path("id")), r.path("matricule"));
+        AdherentCree cree = new AdherentCree(UUID.fromString(r.path("id")), r.path("matricule"));
+        validerFrais(cree.id());
+        return cree;
+    }
+
+    /** V23 §5 : frais d'adhésion enregistré par le Gestionnaire puis validé par la DAF, préalable à toute cotisation. */
+    private void validerFrais(UUID adherentId) {
+        if (agentFrais == null) {
+            agentFrais = UUID.randomUUID();
+            jdbcTemplate.update("INSERT INTO agent (id, code_agent, nom_complet, telephone, zone_id) VALUES (?, ?, ?, ?, ?)",
+                    agentFrais, "AG-F-" + suffixe, "Agent frais " + suffixe, "690000066", zoneId);
+        }
+        String fraisId = given().header("Authorization", "Bearer " + gestionnaire).contentType(ContentType.JSON)
+                .body(Map.of("agentId", agentFrais.toString(), "montantRecu", 1000,
+                        "dateCollecte", LocalDate.now().toString()))
+                .when().post("/adherents/" + adherentId + "/frais-adhesion")
+                .then().statusCode(201).extract().path("id");
+        given().header("Authorization", "Bearer " + daf).when().post("/frais-adhesion/" + fraisId + "/valider")
+                .then().statusCode(200);
     }
 
     private Map<String, Object> cotisation(UUID adherentId, int montant, Integer ss, Integer ep, UUID pack) {
@@ -217,6 +237,22 @@ class DossierCotisationsHistoriqueIntegrationTest extends ConfigurationTestsInte
                 .when().get("/paiements/" + paiementId + "/affectations").then().statusCode(200).extract().path("$");
         assertThat(affectations).extracting(l -> l.get("composanteCode") + "=" + new BigDecimal(l.get("montant").toString())
                 .stripTrailingZeros().toPlainString()).containsExactlyInAnyOrder("CNPS=700", "EPARGNE=800");
+    }
+
+    @Test
+    void cotisationRefuseeTantQueLeFraisNEstPasValideParLaDaf() {
+        UUID activiteId = jdbcTemplate.queryForObject("SELECT id FROM activite WHERE code = 'PETIT_COMMERCE'", UUID.class);
+        String id = given().header("Authorization", "Bearer " + gestionnaire).contentType(ContentType.JSON)
+                .body(Map.of("nom", "SansFrais " + suffixe, "telephonePrincipal", "6" + String.format("%08d",
+                                Math.abs(UUID.randomUUID().hashCode() % 100_000_000)), "activiteId", activiteId.toString(),
+                        "dateAdhesion", LocalDate.now().toString(), "confirmationDoublonIgnore", true))
+                .when().post("/adherents").then().statusCode(201).extract().path("id");
+        poster(gestionnaire, UUID.randomUUID().toString(), cotisation(UUID.fromString(id), 1000, 700, 300, packId))
+                .then().statusCode(409).body("code", equalTo("COTISATION_FRAIS_ADHESION_NON_VALIDE"));
+        given().header("Authorization", "Bearer " + gestionnaire).queryParam("matricule",
+                        jdbcTemplate.queryForObject("SELECT matricule FROM adherent WHERE id = ?", String.class, UUID.fromString(id)))
+                .when().get("/paiements/contexte-adherent").then().statusCode(200)
+                .body("cotisable", equalTo(false));
     }
 
     @Test

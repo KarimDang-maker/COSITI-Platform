@@ -39,11 +39,13 @@ public class ServiceContexteCotisation {
     private final ServicePerimetreDonnees perimetre;
     private final RegleRepartitionCotisation regleRepartition;
     private final ServiceParametre serviceParametre;
+    private final RegleFraisAvantCotisation regleFrais;
 
     public ServiceContexteCotisation(AdherentRepository adherentRepository, AdhesionRepository adhesionRepository,
                                      PackRepository packRepository, ZoneRepository zoneRepository,
                                      ServiceMatricule serviceMatricule, ServicePerimetreDonnees perimetre,
-                                     RegleRepartitionCotisation regleRepartition, ServiceParametre serviceParametre) {
+                                     RegleRepartitionCotisation regleRepartition, ServiceParametre serviceParametre,
+                                     RegleFraisAvantCotisation regleFrais) {
         this.adherentRepository = adherentRepository;
         this.adhesionRepository = adhesionRepository;
         this.packRepository = packRepository;
@@ -52,6 +54,7 @@ public class ServiceContexteCotisation {
         this.perimetre = perimetre;
         this.regleRepartition = regleRepartition;
         this.serviceParametre = serviceParametre;
+        this.regleFrais = regleFrais;
     }
 
     @PreAuthorize("hasAuthority('PAIEMENT:CREER')")
@@ -77,8 +80,10 @@ public class ServiceContexteCotisation {
         if (ServicePaiementImpl.statutsRefuses(serviceParametre).contains(adherent.getStatut())) {
             motifs.add("Aucune cotisation n'est acceptée pour un adhérent au statut " + adherent.getStatut() + ".");
         }
+        regleFrais.motifBlocage(adherent).ifPresent(motifs::add);
         RegleRepartitionCotisation.Seuils seuils = regleRepartition.seuils();
-        String zone = zoneRepository.findById(adherent.getZoneId()).map(z -> z.getLibelle()).orElse(null);
+        String zone = adherent.getZoneId() == null ? null
+                : zoneRepository.findById(adherent.getZoneId()).map(z -> z.getLibelle()).orElse(null);
         return new ContexteCotisationDto(adherent.getId(), adherent.getMatricule(), adherent.getNom(),
                 adherent.getPrenoms(), adherent.getTelephonePrincipal(), zone, adherent.getStatut(),
                 adherent.getStatutValidation(), pack.map(Pack::getId).orElse(null),

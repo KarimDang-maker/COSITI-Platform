@@ -76,6 +76,10 @@ class ServicePaiementImplTest {
     private PackRepository packRepository;
     @Mock
     private ServiceParametre serviceParametre;
+    @Mock
+    private cm.cositi.api.adhesion.repository.FraisAdhesionRepository fraisRepository;
+    @Mock
+    private cm.cositi.api.adhesion.service.ServiceFraisAdhesion serviceFraisAdhesion;
 
     private final UUID packCourant = UUID.randomUUID();
 
@@ -89,7 +93,9 @@ class ServicePaiementImplTest {
         RegleRepartitionCotisation regle = new RegleRepartitionCotisation(serviceParametre, jdbcTemplate);
         service = new ServicePaiementImpl(paiementRepository, adherentRepository, jdbcTemplate, perimetre,
                 serviceAffectationPaiement, serviceCalculDroits, serviceAudit, evenements, demandeValidationRepository,
-                regle, adhesionRepository, packRepository, serviceParametre);
+                regle, adhesionRepository, packRepository, serviceParametre,
+                new RegleFraisAvantCotisation(fraisRepository, serviceFraisAdhesion));
+        lenient().when(serviceFraisAdhesion.montantUnitaire()).thenReturn(new BigDecimal("1000"));
         lenient().when(serviceParametre.decimal("MONTANT_MINIMUM_SECURITE_SOCIALE")).thenReturn(new BigDecimal("700"));
         lenient().when(serviceParametre.decimal("MONTANT_MINIMUM_EPARGNE")).thenReturn(new BigDecimal("300"));
         lenient().when(serviceParametre.booleen("EPARGNE_FACULTATIVE_PAR_COTISATION")).thenReturn(true);
@@ -101,6 +107,8 @@ class ServicePaiementImplTest {
         adherent = new Adherent("COSITI-00001", "Test", "677000000", UUID.randomUUID(), UUID.randomUUID(),
                 "loc", LocalDate.now().minusMonths(6));
         setId(adherent, UUID.randomUUID());
+        // Dossier antérieur au frais d'adhésion (aucun frais, déjà actif) : jamais bloqué (V23 §5).
+        adherent.setStatut(cm.cositi.api.adherent.entite.StatutAdherent.ACTIF);
         // Par défaut l'adhérent a déjà un pack (dossier antérieur) ; les tests « première cotisation » le retirent.
         lenient().when(adhesionRepository.findByAdherentIdAndDateFinIsNull(adherent.getId())).thenReturn(Optional.of(
                 new Adhesion(adherent.getId(), packCourant, adherent.getDateAdhesion(), "initiale", null)));
@@ -255,6 +263,7 @@ class ServicePaiementImplTest {
         paiement.marquerBrouillon();
         when(paiementRepository.findById(paiement.getId())).thenReturn(Optional.of(paiement));
         when(paiementRepository.save(any(Paiement.class))).thenAnswer(i -> i.getArgument(0));
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent)); // contrôle du frais
 
         PaiementDto resultat = service.soumettre(paiement.getId(), agentCreateur);
 
@@ -513,6 +522,7 @@ class ServicePaiementImplTest {
 
     @Test
     void unStatutRefuseParLeParametreBloqueLaCotisation() {
+        adherent.setStatut(cm.cositi.api.adherent.entite.StatutAdherent.PREINSCRIT);
         when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
         when(serviceParametre.texte(ServicePaiementImpl.CLE_STATUTS_REFUSES)).thenReturn("PREINSCRIT, RADIE");
 
@@ -548,5 +558,60 @@ class ServicePaiementImplTest {
         Field champ = cm.cositi.api.commun.entite.EntiteAuditable.class.getDeclaredField("creePar");
         champ.setAccessible(true);
         champ.set(entite, identifiant);
+    }
+
+    // ------------------------------------------------------------------------------------------------
+    // V23 §5 : frais d'adhésion validé par le DAF avant toute cotisation
+    // ------------------------------------------------------------------------------------------------
+
+    private void fraisAuStatut(cm.cositi.api.adhesion.entite.StatutFraisAdhesion statut) {
+        cm.cositi.api.adhesion.entite.FraisAdhesion frais =
+                org.mockito.Mockito.mock(cm.cositi.api.adhesion.entite.FraisAdhesion.class);
+        when(frais.getStatut()).thenReturn(statut);
+        when(fraisRepository.findByAdherentIdAndTypeFrais(adherent.getId(), "ADHESION")).thenReturn(Optional.of(frais));
+    }
+
+    @Test
+    void cotisationRefuseeSansFraisPourUnPreinscrit() {
+        adherent.setStatut(cm.cositi.api.adherent.entite.StatutAdherent.PREINSCRIT);
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+
+        assertThatThrownBy(() -> service.enregistrer(dtoValide(), "cle-f1", agentCreateur))
+                .isInstanceOf(ExceptionMetier.class)
+                .hasFieldOrPropertyWithValue("code", "COTISATION_FRAIS_ADHESION_NON_VALIDE")
+                .hasMessageContaining("1 000 FCFA");
+        verify(paiementRepository, never()).save(any());
+    }
+
+    @Test
+    void cotisationRefuseeAvecFraisEnregistreOuEnAnomalie() {
+        when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
+        fraisAuStatut(cm.cositi.api.adhesion.entite.StatutFraisAdhesion.ENREGISTRE);
+        assertThatThrownBy(() -> service.enregistrer(dtoValide(), "cle-f2", agentCreateur))
+                .hasFieldOrPropertyWithValue("code", "COTISATION_FRAIS_ADHESION_NON_VALIDE");
+
+        fraisAuStatut(cm.cositi.api.adhesion.entite.StatutFraisAdhesion.ANOMALIE);
+        assertThatThrownBy(() -> service.enregistrer(dtoValide(), "cle-f3", agentCreateur))
+                .hasFieldOrPropertyWithValue("code", "COTISATION_FRAIS_ADHESION_NON_VALIDE");
+    }
+
+    @Test
+    void cotisationAccepteeAvecFraisValide() {
+        saisiePossible();
+        adherent.setStatut(cm.cositi.api.adherent.entite.StatutAdherent.PREINSCRIT);
+        fraisAuStatut(cm.cositi.api.adhesion.entite.StatutFraisAdhesion.VALIDE);
+
+        var resultat = service.enregistrer(dtoReparti("1000", "700", "300", null), "cle-f4", agentCreateur);
+
+        assertThat(resultat.dejaExistant()).isFalse();
+    }
+
+    @Test
+    void ancienAdherentSansFraisNonBloque() {
+        saisiePossible(); // ACTIF, aucun frais enregistré
+
+        var resultat = service.enregistrer(dtoReparti("1000", "700", "300", null), "cle-f5", agentCreateur);
+
+        assertThat(resultat.paiement().statut()).isEqualTo(StatutPaiement.A_CONTROLER);
     }
 }

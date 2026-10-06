@@ -57,13 +57,14 @@ public class Adherent extends EntiteArchivable {
     @Column(name = "activite_id", nullable = false)
     private UUID activiteId;
 
-    @Column(name = "zone_id", nullable = false)
+    /** Facultative depuis V23 : le formulaire de création ne la demande plus (attribution à décider). */
+    @Column(name = "zone_id")
     private UUID zoneId;
 
     @Column(name = "association_id")
     private UUID associationId;
 
-    @Column(name = "localisation", nullable = false, length = 200)
+    @Column(name = "localisation", length = 200)
     private String localisation;
 
     @Column(name = "quartier", length = 100)

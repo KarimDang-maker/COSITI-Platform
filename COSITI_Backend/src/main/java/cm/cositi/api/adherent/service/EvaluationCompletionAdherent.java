@@ -40,7 +40,7 @@ public final class EvaluationCompletionAdherent {
         enregistrer("ASSOCIATION", "Association", a -> a.getAssociationId() != null);
         enregistrer("QUARTIER", "Quartier", a -> nonVide(a.getQuartier()));
         enregistrer("VILLE", "Ville", a -> nonVide(a.getVille()));
-        enregistrer("GEOLOCALISATION", "Géolocalisation", a -> a.getLatitude() != null && a.getLongitude() != null);
+        // GEOLOCALISATION retirée du dossier (V23) : la clé, si elle subsiste dans le paramètre, est ignorée.
         enregistrer("CONSENTEMENT", "Consentement RGPD", a -> a.getConsentementDonneesLe() != null);
     }
 

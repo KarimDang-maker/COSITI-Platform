@@ -84,6 +84,7 @@ public class ServicePaiementImpl implements ServicePaiement {
     private final AdhesionRepository adhesionRepository;
     private final PackRepository packRepository;
     private final ServiceParametre serviceParametre;
+    private final RegleFraisAvantCotisation regleFrais;
 
     /** Statuts d'adhérent pour lesquels aucune cotisation n'est acceptée (paramètre [V], vide par défaut). */
     static final String CLE_STATUTS_REFUSES = "COTISATION_STATUTS_ADHERENT_REFUSES";
@@ -95,7 +96,8 @@ public class ServicePaiementImpl implements ServicePaiement {
                                 ApplicationEventPublisher evenements,
                                 DemandeValidationRepository demandeValidationRepository,
                                 RegleRepartitionCotisation regleRepartition, AdhesionRepository adhesionRepository,
-                                PackRepository packRepository, ServiceParametre serviceParametre) {
+                                PackRepository packRepository, ServiceParametre serviceParametre,
+                                RegleFraisAvantCotisation regleFrais) {
         this.paiementRepository = paiementRepository;
         this.adherentRepository = adherentRepository;
         this.jdbcTemplate = jdbcTemplate;
@@ -109,6 +111,7 @@ public class ServicePaiementImpl implements ServicePaiement {
         this.adhesionRepository = adhesionRepository;
         this.packRepository = packRepository;
         this.serviceParametre = serviceParametre;
+        this.regleFrais = regleFrais;
     }
 
     @Override
@@ -157,6 +160,7 @@ public class ServicePaiementImpl implements ServicePaiement {
         }
         perimetre.verifierAccesAdherent(auteur, dto.adherentId());
         verifierStatutCotisable(adherent);
+        regleFrais.exiger(adherent); // V23 §5 : frais d'adhésion validé par le DAF avant toute cotisation
 
         if ("INSCRIPTION".equals(dto.typePaiement())) {
             // V20 : le frais d'adhésion a son propre enregistrement (agent collecteur, unicité, rapprochement) ; le
@@ -193,9 +197,13 @@ public class ServicePaiementImpl implements ServicePaiement {
         Long valeurSequence = jdbcTemplate.queryForObject("SELECT nextval('seq_numero_recu')", Long.class);
         String numeroRecu = "REC-" + String.format("%06d", valeurSequence);
 
+        // Un agent de terrain qui saisit sa propre collecte en est l'encaisseur : sans cela, la cotisation ne pouvait
+        // entrer dans aucune remise de caisse (rattachée à l'agent encaisseur) ni être confirmée par son Chef.
+        UUID encaisseur = dto.agentEncaisseurId() != null ? dto.agentEncaisseurId()
+                : auteur.possedeRole("AGENT_TERRAIN") ? auteur.getAgentId() : null;
         Paiement paiement = new Paiement(dto.adherentId(), numeroRecu, dto.datePaiement(), dto.montant(),
                 dto.modePaiement(), normaliserReference(dto.referenceTransaction()), dto.typePaiement(),
-                dto.agentEncaisseurId(), (cleIdempotence == null || cleIdempotence.isBlank()) ? null : cleIdempotence);
+                encaisseur, (cleIdempotence == null || cleIdempotence.isBlank()) ? null : cleIdempotence);
         if (brouillon) {
             paiement.marquerBrouillon();
         }
@@ -248,6 +256,8 @@ public class ServicePaiementImpl implements ServicePaiement {
         }
 
         exigerAucuneDemandeOuverte(paiement);
+        regleFrais.exiger(adherentRepository.findById(paiement.getAdherentId())
+                .orElseThrow(() -> new ExceptionRessourceIntrouvable("ADHERENT_INTROUVABLE", "Adhérent introuvable.")));
         PaiementDto avant = PaiementDto.depuis(paiement);
         paiement.soumettre();
         paiement = paiementRepository.save(paiement);
@@ -548,7 +558,7 @@ public class ServicePaiementImpl implements ServicePaiement {
     public RecuDto genererRecu(UUID paiementId, Utilisateur demandeur) {
         Paiement paiement = charger(paiementId);
         perimetre.verifierAccesPaiement(demandeur, paiementId);
-        return RecuDto.depuis(paiement);
+        return RecuDto.depuis(paiement, adherentRepository.findById(paiement.getAdherentId()).orElse(null));
     }
 
     @Override

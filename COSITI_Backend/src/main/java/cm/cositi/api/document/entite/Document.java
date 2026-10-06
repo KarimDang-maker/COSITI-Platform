@@ -242,7 +242,8 @@ public class Document {
 
     /** Expiré à la date donnée lorsque la durée de validité s'applique (§20 EXPIRE). */
     public boolean estExpire(java.time.LocalDate date) {
-        return valideJusquau != null && valideJusquau.isBefore(date);
+        // V23 : la validité ne s'applique plus à la CNI (y compris pour une date saisie avant V23).
+        return typeDocument != TypeDocument.CNI && valideJusquau != null && valideJusquau.isBefore(date);
     }
 
     /** Version active : ni archivée, ni remplacée, ni rejetée. */

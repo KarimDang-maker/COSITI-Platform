@@ -55,7 +55,6 @@ public class RegleRepartitionCotisation {
             avertissements.add("Les cas où une cotisation peut ne rien verser à l'Épargne ne sont pas encore validés "
                     + "par la COSITI (EPARGNE_FACULTATIVE_PAR_COTISATION).");
         }
-        avertissements.add("Aucun plafond n'est défini pour le compte Épargne ni pour la Sécurité sociale.");
         return new Seuils(serviceParametre.decimal(CLE_MINIMUM_SECURITE_SOCIALE),
                 serviceParametre.decimal(CLE_MINIMUM_EPARGNE), serviceParametre.booleen(CLE_EPARGNE_FACULTATIVE),
                 avertissements);

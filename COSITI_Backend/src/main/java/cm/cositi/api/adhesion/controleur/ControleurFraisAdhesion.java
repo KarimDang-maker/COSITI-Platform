@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -49,6 +50,7 @@ public class ControleurFraisAdhesion {
     }
 
     @Operation(summary = "Lister les frais d'adhésion")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping
     public ReponsePaginee<FraisAdhesionDto> lister(@RequestParam(required = false) StatutFraisAdhesion statut,
                                                    @RequestParam(required = false) UUID agentId,
@@ -65,6 +67,7 @@ public class ControleurFraisAdhesion {
     }
 
     @Operation(summary = "Synthèse des frais enregistrés (période)")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping("/synthese")
     public SyntheseFraisAdhesionDto synthese(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate du,
                                              @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate au,
@@ -85,6 +88,7 @@ public class ControleurFraisAdhesion {
 
     @Operation(summary = "Rapprochement : dossiers distincts soumis × montant unitaire vs montant enregistré",
             description = "Écart = enregistré − attendu, signalé et jamais corrigé automatiquement ; détail du calcul fourni.")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping("/rapprochement")
     public RapprochementFraisAdhesionDto rapprochement(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate du,
                                                        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate au,

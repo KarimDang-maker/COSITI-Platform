@@ -23,8 +23,6 @@ public record CompleterProfilAdherentDto(
         UUID associationId,
         String quartier,
         String ville,
-        BigDecimal latitude,
-        BigDecimal longitude,
         boolean consentementDonnees
 ) {
 }

@@ -208,6 +208,12 @@ public class ServiceAffectationPaiementImpl implements ServiceAffectationPaiemen
                     "La part Sécurité sociale (" + securiteSociale + " FCFA) ne peut pas être inférieure à " + minimum
                             + " FCFA (règle REPARTITION_VERSEMENT).", "lignes");
         }
+        // Même règle qu'à la saisie (minimum Épargne compris), et la répartition enregistrée sur la cotisation suit
+        // la ré-affectation : sinon les comptes (affectations) et la cotisation affichée divergeraient.
+        BigDecimal epargne = paiement.getMontant().subtract(securiteSociale);
+        regleRepartition.valider(paiement.getMontant(), securiteSociale, epargne);
+        paiement.definirRepartition(securiteSociale, epargne, cm.cositi.api.cotisation.entite.OrigineRepartition.SAISIE);
+        paiementRepository.save(paiement);
 
         List<AffectationPaiement> existantes = affectationRepository.findByPaiementId(paiementId);
         affectationRepository.deleteAll(existantes);

@@ -382,8 +382,9 @@ public class ServiceDossierCnpsImpl implements ServiceDossierCnps {
         List<String> avertissements = new ArrayList<>(avertissementsRegles());
         if (dossier.getRevenuMensuelDeclare() == null
                 || dossier.getRevenuMensuelDeclare().compareTo(BigDecimal.ZERO) <= 0) {
-            avertissements.add("Le revenu mensuel déclaré n'est pas renseigné : l'assiette de cotisation CNPS "
-                    + "(ASSIETTE_CNPS) reste en attente d'arbitrage, aucune valeur n'est déduite automatiquement.");
+            // V23 : les règles sont réputées validées ; seule l'absence de la donnée est signalée.
+            avertissements.add("Le revenu mensuel déclaré n'est pas renseigné : aucune valeur n'est déduite "
+                    + "automatiquement pour l'assiette de cotisation CNPS.");
         }
 
         return DossierCnpsDto.depuis(dossier, pieces, piecesManquantesInterne(dossier.getId()), avertissements);

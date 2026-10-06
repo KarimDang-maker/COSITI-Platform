@@ -156,7 +156,12 @@ public class SecurityConfig {
                     // Redistribution asynchrone d'une requête DÉJÀ autorisée à son entrée (flux SSE
                     // `/api/v1/temps-reel/flux`, achèvement ou expiration de l'émetteur) : le jeton n'est pas
                     // relu à ce stade, la refuser casserait la fermeture propre du flux.
-                    .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+                    // Même raison pour la page d'erreur (`/error`) qui suit la coupure d'un flux par le navigateur :
+                    // Tomcat l'inclut (dispatch INCLUDE, réponse déjà engagée) ou la transmet (ERROR). La refuser levait
+                    // AccessDenied sur une réponse déjà engagée (journal d'erreurs pollué, constaté en recette E2E).
+                    // Elle ne produit qu'une page d'erreur, sans donnée métier ; l'API n'utilise aucune autre inclusion.
+                    .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR, DispatcherType.INCLUDE)
+                    .permitAll()
                     .requestMatchers(
                             "/api/v1/auth/connexion",
                             "/api/v1/auth/rafraichir",

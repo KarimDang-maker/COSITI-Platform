@@ -112,6 +112,18 @@ public class RemiseCaisse {
         this.statut = montantRecu.compareTo(montantDeclare) == 0 ? "CLOTUREE" : "EN_ECART";
     }
 
+    public LocalDate getDateRemise() {
+        return dateRemise;
+    }
+
+    public Instant getRecuLe() {
+        return recuLe;
+    }
+
+    public Instant getCreeLe() {
+        return creeLe;
+    }
+
     public String getCommentaire() {
         return commentaire;
     }

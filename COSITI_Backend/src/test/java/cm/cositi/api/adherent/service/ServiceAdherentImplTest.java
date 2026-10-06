@@ -107,9 +107,10 @@ class ServiceAdherentImplTest {
     }
 
     private CreationAdherentDto dtoValide(boolean confirmationDoublonIgnore) {
+        // V23 : ni zone ni localisation (formulaire allégé) ; quartier et ville conservés.
         return new CreationAdherentDto("Nguemo", "Paul", null, "M", "677123456", null, "677123456",
-                " Paul.Nguemo@Exemple.cm ", null, null, UUID.randomUUID(), UUID.randomUUID(), null, "Marché central",
-                null, null, null, null, java.time.LocalDate.now(), confirmationDoublonIgnore, true);
+                " Paul.Nguemo@Exemple.cm ", null, null, UUID.randomUUID(), null, null, null,
+                "Akwa", "Douala", java.time.LocalDate.now(), confirmationDoublonIgnore, true);
     }
 
     @Test
@@ -238,7 +239,7 @@ class ServiceAdherentImplTest {
         when(adherentRepository.findById(adherent.getId())).thenReturn(Optional.of(adherent));
         when(adherentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        var dto = new CompleterProfilAdherentDto(null, "F", null, null, null, null, null, null, null, null, null, null, false);
+        var dto = new CompleterProfilAdherentDto(null, "F", null, null, null, null, null, null, null, null, false);
         service.completerProfil(adherent.getId(), dto, auteur);
 
         assertThat(adherent.getSexe()).isEqualTo("F");
@@ -275,7 +276,7 @@ class ServiceAdherentImplTest {
 
         service.modifierCoordonnees(adherent.getId(),
                 new ModifierCoordonneesDto("677111111", null, "677111111", "contact@exemple.cm", null, "Nouveau quartier",
-                        null, null, null, null),
+                        null, null),
                 auteur);
 
         assertThat(adherent.getTelephonePrincipal()).isEqualTo("677111111");
@@ -333,7 +334,7 @@ class ServiceAdherentImplTest {
     @Test
     void modifierCoordonneesRefuseUnDossierValide() throws Exception {
         Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
-        var dto = new ModifierCoordonneesDto("699000000", null, null, null, null, "Nouvelle adresse", null, null, null, null);
+        var dto = new ModifierCoordonneesDto("699000000", null, null, null, null, "Nouvelle adresse", null, null);
 
         assertThatThrownBy(() -> service.modifierCoordonnees(adherent.getId(), dto, auteur))
                 .isInstanceOf(ExceptionConflit.class)
@@ -365,7 +366,7 @@ class ServiceAdherentImplTest {
     void completerProfilDUnDossierValideNeRemplacePasUneValeurOfficielle() throws Exception {
         Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
         var remplacement = new CompleterProfilAdherentDto(null, null, null, null, null, null, null, null, null, "Douala",
-                null, null, false);
+                false);
 
         assertThatThrownBy(() -> service.completerProfil(adherent.getId(), remplacement, auteur))
                 .isInstanceOf(ExceptionConflit.class)
@@ -377,7 +378,7 @@ class ServiceAdherentImplTest {
         Adherent adherent = adherentAvecStatutValidation(cm.cositi.api.workflow.entite.StatutValidationEntite.VALIDE);
         when(adherentRepository.save(any(Adherent.class))).thenAnswer(i -> i.getArgument(0));
         var ajout = new CompleterProfilAdherentDto(null, null, null, null, null, null, null, null, "Mvog-Ada", null,
-                null, null, false);
+                false);
 
         var resultat = service.completerProfil(adherent.getId(), ajout, auteur);
 

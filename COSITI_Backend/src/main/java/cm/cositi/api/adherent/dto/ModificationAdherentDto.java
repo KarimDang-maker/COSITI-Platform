@@ -24,8 +24,6 @@ public record ModificationAdherentDto(
         String localisation,
         String quartier,
         String ville,
-        BigDecimal latitude,
-        BigDecimal longitude,
         Long version
 ) {
 }

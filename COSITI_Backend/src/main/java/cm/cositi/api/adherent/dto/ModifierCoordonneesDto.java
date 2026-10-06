@@ -14,8 +14,6 @@ public record ModifierCoordonneesDto(
         String numeroCni,
         @NotBlank(message = "La localisation est obligatoire.") String localisation,
         String quartier,
-        String ville,
-        BigDecimal latitude,
-        BigDecimal longitude
+        String ville
 ) {
 }

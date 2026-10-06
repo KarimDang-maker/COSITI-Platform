@@ -40,15 +40,20 @@ public class ServiceDoublonAdherentImpl implements ServiceDoublonAdherent {
             }
         }
 
-        if (critere.nomComplet() != null && !critere.nomComplet().isBlank() && critere.zoneId() != null) {
-            List<CandidatSimilariteProjection> resultats = adherentRepository.rechercherParSimilariteNom(
-                    critere.nomComplet(), critere.zoneId(), SEUIL_SIMILARITE_NOM);
+        if (critere.nomComplet() != null && !critere.nomComplet().isBlank()) {
+            // V23 : la zone n'est plus saisie à la création ; sans zone, la similarité couvre tous les adhérents.
+            List<CandidatSimilariteProjection> resultats = critere.zoneId() != null
+                    ? adherentRepository.rechercherParSimilariteNom(critere.nomComplet(), critere.zoneId(),
+                            SEUIL_SIMILARITE_NOM)
+                    : adherentRepository.rechercherParSimilariteNomToutesZones(critere.nomComplet(),
+                            SEUIL_SIMILARITE_NOM);
             for (CandidatSimilariteProjection p : resultats) {
                 if (candidats.containsKey(p.getId())) {
                     continue;
                 }
                 adherentRepository.findById(p.getId()).ifPresent(a -> candidats.put(a.getId(),
-                        versDto(a, (int) Math.round(p.getScore() * 100), "Similarité de nom dans la même zone")));
+                        versDto(a, (int) Math.round(p.getScore() * 100), critere.zoneId() != null
+                                ? "Similarité de nom dans la même zone" : "Similarité de nom")));
             }
         }
 

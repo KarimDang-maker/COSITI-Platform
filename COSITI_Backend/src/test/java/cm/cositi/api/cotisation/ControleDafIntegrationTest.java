@@ -98,6 +98,9 @@ class ControleDafIntegrationTest extends ConfigurationTestsIntegration {
         jdbcTemplate.update("INSERT INTO adhesion (id, adherent_id, pack_id, date_debut, motif_changement) "
                 + "SELECT ?, a.id, ?, a.date_adhesion, 'Pack choisi à une cotisation antérieure (test)' FROM adherent a WHERE a.id = ?",
                 UUID.randomUUID(), packId, adherentId);
+        // V23 §5 : une cotisation exige le frais d'adhésion validé, sauf pour un dossier antérieur au frais (déjà
+        // actif, sans frais) — cas de ces dossiers de test, qui ne portent pas sur le frais.
+        jdbcTemplate.update("UPDATE adherent SET statut = 'ACTIF' WHERE id = ?", adherentId);
         return adherentId;
     }
 

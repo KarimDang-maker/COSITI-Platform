@@ -216,7 +216,8 @@ class ServiceDossierCnpsImplTest {
 
         assertThat(dto.avertissements())
                 .anyMatch(a -> a.contains("PIECES_CNPS_OBLIGATOIRES"))
-                .anyMatch(a -> a.contains("ASSIETTE_CNPS"));
+                // V23 : l'absence de revenu déclaré est signalée comme donnée manquante, sans mention de règle en attente.
+                .anyMatch(a -> a.contains("revenu mensuel déclaré"));
     }
 
     private List<PieceDossierCnps> toutesPiecesFournies() {

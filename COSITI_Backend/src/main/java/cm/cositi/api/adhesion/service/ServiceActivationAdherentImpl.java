@@ -128,8 +128,7 @@ public class ServiceActivationAdherentImpl implements ServiceActivationAdherent 
         conditions.add(condition("IDENTITE", "Identité complète", identite));
         List<String> coordonnees = new ArrayList<>();
         if (vide(a.getTelephonePrincipal())) coordonnees.add("téléphone principal");
-        if (vide(a.getLocalisation())) coordonnees.add("localisation");
-        if (a.getZoneId() == null) coordonnees.add("zone");
+        // V23 : zone et localisation ne sont plus saisies à la création ; elles n'empêchent plus l'activation.
         conditions.add(condition("COORDONNEES", "Coordonnées complètes", coordonnees));
         List<String> professionnel = new ArrayList<>();
         if (a.getActiviteId() == null) professionnel.add("activité");
@@ -293,7 +292,7 @@ public class ServiceActivationAdherentImpl implements ServiceActivationAdherent 
         serviceAudit.tracer(TypeOperation.ADHERENT_SOUMISSION_DGA, "adherent", adherent.getId(), null,
                 ContexteAudit.avec(gestionnaire, details), commentaire);
         evenements.publishEvent(new AdhesionEvent("CONTROLE_DGA_A_TRAITER", adherent.getId(), "controle_dga",
-                controle.id(), null, List.of("DGA"),
+                controle.id(), null, List.of("DGA", "DG"),
                 resoumission ? "Dossier corrigé à recontrôler" : "Nouvel adhérent à contrôler",
                 "Adhérent " + adherent.getMatricule() + " — " + (resoumission ? "retransmis" : "compte activé")
                         + " par " + gestionnaire.getIdentifiant() + " (" + controle.reference() + ")."));

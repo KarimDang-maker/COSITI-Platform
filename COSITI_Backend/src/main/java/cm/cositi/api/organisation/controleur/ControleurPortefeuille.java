@@ -52,7 +52,10 @@ public class ControleurPortefeuille {
     }
 
     @GetMapping("/sans-agent")
-    public List<AdherentResumeDto> sansAgent(@RequestParam UUID zoneId) {
+    public List<AdherentResumeDto> sansAgent(
+            @io.swagger.v3.oas.annotations.Parameter(description = "Zone (facultative) : sans zone, tous les adhérents "
+                    + "sans agent référent, y compris ceux créés sans zone (V23)")
+            @RequestParam(required = false) UUID zoneId) {
         return servicePortefeuille.sansAgentReferent(zoneId);
     }
 }

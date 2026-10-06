@@ -56,8 +56,8 @@ public class ServiceAuthentificationImpl implements ServiceAuthentification {
         }
 
         if (utilisateur.estVerrouille()) {
-            transactionIndependante.executer(() -> serviceAudit.tracer(TypeOperation.CONNEXION_ECHEC, "utilisateur",
-                    utilisateur.getId(), null, null,
+            transactionIndependante.executer(() -> serviceAudit.tracerPour(utilisateur, TypeOperation.CONNEXION_ECHEC,
+                    "utilisateur", utilisateur.getId(), null, null,
                     "Tentative sur compte verrouillé jusqu'à "
                             + DateTimeFormatter.ISO_INSTANT.format(utilisateur.getVerrouilleJusquA())));
             throw new ExceptionMetier("COMPTE_VERROUILLE",
@@ -72,8 +72,8 @@ public class ServiceAuthentificationImpl implements ServiceAuthentification {
             // silencieusement le compteur à chaque tentative, et le compte ne se verrouillerait jamais).
             transactionIndependante.executer(() -> {
                 enregistrerEchec(utilisateur);
-                serviceAudit.tracer(TypeOperation.CONNEXION_ECHEC, "utilisateur", utilisateur.getId(), null, null,
-                        "Mot de passe invalide ou compte désactivé.");
+                serviceAudit.tracerPour(utilisateur, TypeOperation.CONNEXION_ECHEC, "utilisateur", utilisateur.getId(),
+                        null, null, "Mot de passe invalide ou compte désactivé.");
             });
             throw identifiantsInvalides();
         }
@@ -84,7 +84,8 @@ public class ServiceAuthentificationImpl implements ServiceAuthentification {
         utilisateurRepository.save(utilisateur);
 
         PaireJetons paire = serviceJeton.emettre(utilisateur, adresseIp, userAgent);
-        serviceAudit.tracer(TypeOperation.CONNEXION_SUCCES, "utilisateur", utilisateur.getId(), null, null, null);
+        serviceAudit.tracerPour(utilisateur, TypeOperation.CONNEXION_SUCCES, "utilisateur", utilisateur.getId(), null,
+                null, null);
 
         return new ResultatAuthentification(paire.jetonAcces(), paire.jetonRafraichissement(),
                 paire.expirationAccesSecondes(), utilisateur.isDoitChangerMotDePasse());
@@ -97,7 +98,8 @@ public class ServiceAuthentificationImpl implements ServiceAuthentification {
             int nbVerrouillages = tentatives / SEUIL_VERROUILLAGE;
             long dureeMinutes = (long) DUREE_BASE_MINUTES * (1L << Math.min(nbVerrouillages - 1, 6));
             utilisateur.setVerrouilleJusquA(Instant.now().plus(dureeMinutes, ChronoUnit.MINUTES));
-            serviceAudit.tracer(TypeOperation.COMPTE_VERROUILLE, "utilisateur", utilisateur.getId(), null, null,
+            serviceAudit.tracerPour(utilisateur, TypeOperation.COMPTE_VERROUILLE, "utilisateur", utilisateur.getId(),
+                    null, null,
                     "Verrouillage après " + tentatives + " échecs, durée " + dureeMinutes + " minutes.");
         }
         utilisateurRepository.save(utilisateur);

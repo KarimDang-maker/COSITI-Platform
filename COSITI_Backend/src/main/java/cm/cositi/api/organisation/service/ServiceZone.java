@@ -1,6 +1,9 @@
 package cm.cositi.api.organisation.service;
 
+import cm.cositi.api.audit.ServiceAudit;
+import cm.cositi.api.audit.TypeOperation;
 import cm.cositi.api.commun.exception.ExceptionConflit;
+import cm.cositi.api.commun.exception.ExceptionValidation;
 import cm.cositi.api.commun.exception.ExceptionRessourceIntrouvable;
 import cm.cositi.api.organisation.dto.CreationZoneDto;
 import cm.cositi.api.organisation.dto.ZoneDto;
@@ -18,8 +21,10 @@ import java.util.stream.Collectors;
 public class ServiceZone {
 
     private final ZoneRepository zoneRepository;
+    private final ServiceAudit serviceAudit;
 
-    public ServiceZone(ZoneRepository zoneRepository) {
+    public ServiceZone(ZoneRepository zoneRepository, ServiceAudit serviceAudit) {
+        this.serviceAudit = serviceAudit;
         this.zoneRepository = zoneRepository;
     }
 
@@ -33,7 +38,12 @@ public class ServiceZone {
         return ZoneDto.depuis(charger(id));
     }
 
-    @PreAuthorize("hasAuthority('ORGANISATION:GERER')")
+    /**
+     * Zones gérées par le Gestionnaire et la DGA : permission {@code ORGANISATION:GERER_ZONES} créée à cette fin par V14
+     * (document de correction §10) mais jamais branchée — seule {@code ORGANISATION:GERER} (DGA) était exigée, si bien
+     * que le Gestionnaire voyait l'action sans pouvoir l'exécuter. {@code ORGANISATION:GERER} reste acceptée.
+     */
+    @PreAuthorize("hasAuthority('ORGANISATION:GERER_ZONES') or hasAuthority('ORGANISATION:GERER')")
     @Transactional
     public ZoneDto creer(CreationZoneDto dto) {
         if (zoneRepository.findByCode(dto.code()).isPresent()) {
@@ -41,16 +51,29 @@ public class ServiceZone {
         }
         Zone zone = new Zone(dto.code(), dto.libelle(), dto.ville(), dto.region());
         zone.setZoneParenteId(dto.zoneParenteId());
-        return ZoneDto.depuis(zoneRepository.save(zone));
+        ZoneDto cree = ZoneDto.depuis(zoneRepository.save(zone));
+        serviceAudit.tracer(TypeOperation.ZONE_CREATION, "zone", cree.id(), null, cree, null);
+        return cree;
     }
 
-    @PreAuthorize("hasAuthority('ORGANISATION:GERER')")
+    @PreAuthorize("hasAuthority('ORGANISATION:GERER_ZONES') or hasAuthority('ORGANISATION:GERER')")
     @Transactional
     public ZoneDto modifier(UUID id, CreationZoneDto dto) {
         Zone zone = charger(id);
+        if (!zone.getCode().equals(dto.code())) {
+            // Le code identifie la zone (exports, affichage) : il n'était déjà jamais modifié, le refus est désormais
+            // explicite au lieu d'un changement ignoré en silence.
+            throw new ExceptionValidation("ZONE_CODE_NON_MODIFIABLE", "Le code d'une zone ne se modifie pas.", "code");
+        }
+        ZoneDto avant = ZoneDto.depuis(zone);
         zone.setLibelle(dto.libelle());
+        // Ville et région étaient envoyées par le formulaire mais ignorées : elles sont maintenant enregistrées.
+        zone.setVille(dto.ville());
+        zone.setRegion(dto.region());
         zone.setZoneParenteId(dto.zoneParenteId());
-        return ZoneDto.depuis(zoneRepository.save(zone));
+        ZoneDto apres = ZoneDto.depuis(zoneRepository.save(zone));
+        serviceAudit.tracer(TypeOperation.ZONE_MODIFICATION, "zone", id, avant, apres, null);
+        return apres;
     }
 
     private Zone charger(UUID id) {

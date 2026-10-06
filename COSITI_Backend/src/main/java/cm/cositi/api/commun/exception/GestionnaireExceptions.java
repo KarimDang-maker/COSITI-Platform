@@ -201,9 +201,39 @@ public class GestionnaireExceptions {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ReponseErreur> gererInattendue(Exception ex, HttpServletRequest requete) {
         String traceId = traceId(requete);
+        if (estDeconnexionClient(ex)) {
+            // Le navigateur a fermé la connexion (onglet fermé, navigation, flux temps réel interrompu) : rien à
+            // répondre ni d'erreur serveur à signaler. Constaté en recette E2E : ces coupures noyaient le journal
+            // d'erreurs (88 lignes « Erreur inattendue ») et masqueraient une vraie panne en production.
+            LOG.debug("Connexion fermée par le client traceId={} : {}", traceId, ex.getMessage());
+            return null;
+        }
         LOG.error("Erreur inattendue traceId={}", traceId, ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ReponseErreur(500, "ERREUR_INTERNE", "Une erreur inattendue est survenue.", null, traceId));
+    }
+
+    /**
+     * Coupure côté client : réponse devenue inutilisable, ou écriture interrompue par la fermeture de la connexion.
+     * Reconnue par le type (Spring, Tomcat) ou, pour une {@code IOException} brute, par le message du système.
+     */
+    static boolean estDeconnexionClient(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause()) {
+            String type = t.getClass().getName();
+            if (t instanceof org.springframework.web.context.request.async.AsyncRequestNotUsableException
+                    || type.equals("org.apache.catalina.connector.ClientAbortException")) {
+                return true;
+            }
+            if (t instanceof java.io.IOException && t.getMessage() != null) {
+                String message = t.getMessage().toLowerCase(java.util.Locale.ROOT);
+                if (message.contains("broken pipe") || message.contains("connection reset")
+                        || message.contains("connexion établie a été abandonnée")
+                        || message.contains("an established connection was aborted")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** Identifiant de corrélation posé par {@code FiltreCorrelation} : le même que dans les journaux et l'audit. */

@@ -35,5 +35,16 @@ public interface AdherentRepository extends JpaRepository<Adherent, UUID>, JpaSp
     List<CandidatSimilariteProjection> rechercherParSimilariteNom(@Param("nom") String nom, @Param("zoneId") UUID zoneId,
                                                                    @Param("seuil") double seuil);
 
+    @Query(value = """
+            SELECT a.id AS id, similarity(a.nom, :nom) AS score
+            FROM adherent a
+            WHERE a.archive = false
+              AND similarity(a.nom, :nom) >= :seuil
+            ORDER BY score DESC
+            LIMIT 10
+            """, nativeQuery = true)
+    List<CandidatSimilariteProjection> rechercherParSimilariteNomToutesZones(@Param("nom") String nom,
+                                                                             @Param("seuil") double seuil);
+
     boolean existsByNumeroCniAndArchiveFalse(String numeroCni);
 }

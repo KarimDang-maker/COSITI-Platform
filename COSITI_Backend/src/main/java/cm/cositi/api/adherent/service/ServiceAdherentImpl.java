@@ -131,8 +131,6 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         adherent.setAssociationId(dto.associationId());
         adherent.setQuartier(dto.quartier());
         adherent.setVille(dto.ville());
-        adherent.setLatitude(dto.latitude());
-        adherent.setLongitude(dto.longitude());
         if (dto.consentementDonnees()) {
             adherent.setConsentementDonneesLe(java.time.Instant.now());
         }
@@ -157,8 +155,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         perimetre.verifierAccesAdherent(demandeur, id);
         Adherent adherent = charger(id);
         // La fiche affiche le nom de la zone : sans lui, l'écran montrait un tiret.
-        String zoneLibelle = zoneRepository.findById(adherent.getZoneId())
-                .map(z -> z.getLibelle()).orElse(null);
+        String zoneLibelle = libelleZone(adherent.getZoneId());
         return AdherentDetailDto.depuis(adherent, zoneLibelle);
     }
 
@@ -168,8 +165,7 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         Adherent adherent = adherentRepository.findByMatricule(matricule)
                 .orElseThrow(() -> new ExceptionRessourceIntrouvable("ADHERENT_INTROUVABLE", "Adhérent introuvable."));
         perimetre.verifierAccesAdherent(demandeur, adherent.getId());
-        String zoneLibelle = zoneRepository.findById(adherent.getZoneId())
-                .map(z -> z.getLibelle()).orElse(null);
+        String zoneLibelle = libelleZone(adherent.getZoneId());
         return AdherentDetailDto.depuis(adherent, zoneLibelle);
     }
 
@@ -201,11 +197,12 @@ public class ServiceAdherentImpl implements ServiceAdherent {
             adherent.setActiviteId(dto.activiteId());
         }
         adherent.setAssociationId(dto.associationId());
-        adherent.setLocalisation(dto.localisation());
+        if (dto.localisation() != null && !dto.localisation().isBlank()) {
+            adherent.setLocalisation(dto.localisation());
+        }
         adherent.setQuartier(dto.quartier());
         adherent.setVille(dto.ville());
-        adherent.setLatitude(dto.latitude());
-        adherent.setLongitude(dto.longitude());
+        // V23 : latitude / longitude ne sont plus saisies ; les valeurs stockées sont conservées.
 
         adherent = adherentRepository.save(adherent);
         serviceAudit.tracer(TypeOperation.ADHERENT_MODIFICATION, "adherent", adherent.getId(), avant,
@@ -373,8 +370,6 @@ public class ServiceAdherentImpl implements ServiceAdherent {
             exigerChampVide("associationId", adherent.getAssociationId(), dto.associationId());
             exigerChampVide("quartier", adherent.getQuartier(), dto.quartier());
             exigerChampVide("ville", adherent.getVille(), dto.ville());
-            exigerChampVide("latitude", adherent.getLatitude(), dto.latitude());
-            exigerChampVide("longitude", adherent.getLongitude(), dto.longitude());
         }
         AdherentDetailDto avant = AdherentDetailDto.depuis(adherent);
 
@@ -407,12 +402,6 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         }
         if (dto.ville() != null && !dto.ville().isBlank()) {
             adherent.setVille(dto.ville());
-        }
-        if (dto.latitude() != null) {
-            adherent.setLatitude(dto.latitude());
-        }
-        if (dto.longitude() != null) {
-            adherent.setLongitude(dto.longitude());
         }
         if (dto.consentementDonnees() && adherent.getConsentementDonneesLe() == null) {
             adherent.setConsentementDonneesLe(java.time.Instant.now());
@@ -501,8 +490,8 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         perimetre.verifierAccesAdherent(demandeur, id);
         Adherent adherent = charger(id);
         return new CoordonneesAdherentDto(id, adherent.getTelephonePrincipal(), adherent.getTelephoneSecondaire(),
-                adherent.getWhatsapp(), adherent.getEmail(), adherent.getNumeroCni(), adherent.getLocalisation(), adherent.getQuartier(), adherent.getVille(),
-                adherent.getLatitude(), adherent.getLongitude());
+                adherent.getWhatsapp(), adherent.getEmail(), adherent.getNumeroCni(), adherent.getLocalisation(),
+                adherent.getQuartier(), adherent.getVille());
     }
 
     @Override
@@ -522,8 +511,6 @@ public class ServiceAdherentImpl implements ServiceAdherent {
         adherent.setLocalisation(dto.localisation());
         adherent.setQuartier(dto.quartier());
         adherent.setVille(dto.ville());
-        adherent.setLatitude(dto.latitude());
-        adherent.setLongitude(dto.longitude());
 
         adherent = adherentRepository.save(adherent);
         serviceAudit.tracer(TypeOperation.ADHERENT_MODIFICATION_CONTACT, "adherent", adherent.getId(), avant,
@@ -550,6 +537,11 @@ public class ServiceAdherentImpl implements ServiceAdherent {
                     "Ce dossier est validé : toute modification passe par une demande de modification "
                             + "(POST /api/v1/adherents/{id}/demandes-modification).");
         }
+    }
+
+    /** Zone facultative depuis V23 : un adhérent sans zone n'a pas de libellé, jamais une erreur. */
+    private String libelleZone(UUID zoneId) {
+        return zoneId == null ? null : zoneRepository.findById(zoneId).map(z -> z.getLibelle()).orElse(null);
     }
 
     private static String texteOuNull(String valeur) {

@@ -202,11 +202,14 @@ public class ServicePortefeuilleImpl implements ServicePortefeuille {
     @Override
     @PreAuthorize("hasAuthority('ORGANISATION:LIRE')")
     public List<AdherentResumeDto> sansAgentReferent(UUID zoneId) {
-        List<UUID> ids = jdbcTemplate.query("""
+        // V23 : un adhérent peut n'avoir aucune zone ; sans filtre de zone, il doit rester trouvable pour être affecté.
+        String sql = """
                 SELECT a.id FROM adherent a
                 LEFT JOIN affectation_portefeuille ap ON ap.adherent_id = a.id AND ap.date_fin IS NULL
-                WHERE a.zone_id = ? AND a.archive = false AND ap.id IS NULL
-                """, (rs, rowNum) -> (UUID) rs.getObject("id"), zoneId);
+                WHERE a.archive = false AND ap.id IS NULL""";
+        List<UUID> ids = zoneId == null
+                ? jdbcTemplate.query(sql, (rs, rowNum) -> (UUID) rs.getObject("id"))
+                : jdbcTemplate.query(sql + " AND a.zone_id = ?", (rs, rowNum) -> (UUID) rs.getObject("id"), zoneId);
         if (ids.isEmpty()) {
             return List.of();
         }

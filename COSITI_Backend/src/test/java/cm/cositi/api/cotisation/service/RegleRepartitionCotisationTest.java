@@ -42,6 +42,7 @@ class RegleRepartitionCotisationTest {
         lenient().when(parametres.decimal("MONTANT_MINIMUM_SECURITE_SOCIALE")).thenReturn(new BigDecimal("700"));
         lenient().when(parametres.decimal("MONTANT_MINIMUM_EPARGNE")).thenReturn(new BigDecimal("300"));
         lenient().when(parametres.booleen("EPARGNE_FACULTATIVE_PAR_COTISATION")).thenReturn(true);
+        lenient().when(parametres.estValide(any())).thenReturn(true);
     }
 
     private static BigDecimal d(String v) {
@@ -120,11 +121,12 @@ class RegleRepartitionCotisationTest {
     }
 
     @Test
-    void lesSeuilsExposesSignalentLAbsenceDePlafond() {
+    void lesSeuilsExposesSansRappelDeRegleProvisoire() {
         var seuils = regle.seuils();
 
         assertThat(seuils.minimumSecuriteSociale()).isEqualByComparingTo("700");
         assertThat(seuils.minimumEpargne()).isEqualByComparingTo("300");
-        assertThat(seuils.avertissements()).anyMatch(a -> a.contains("Aucun plafond"));
+        // V23 §1 : règles réputées validées, plus aucun rappel « non validé / à confirmer ».
+        assertThat(seuils.avertissements()).isEmpty();
     }
 }

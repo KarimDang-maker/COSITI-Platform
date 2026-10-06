@@ -55,6 +55,14 @@ public class Zone extends EntiteArchivable {
         return ville;
     }
 
+    public void setVille(String ville) {
+        this.ville = ville;
+    }
+
+    public void setRegion(String region) {
+        this.region = region;
+    }
+
     public String getRegion() {
         return region;
     }

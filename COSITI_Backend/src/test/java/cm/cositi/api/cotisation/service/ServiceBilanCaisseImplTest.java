@@ -168,7 +168,7 @@ class ServiceBilanCaisseImplTest {
     }
 
     @Test
-    void validerPasseLeBilanEnValideEtNotifieLAuteur() {
+    void validerPasseLeBilanEnValideSansNotifierLeGestionnaire() {
         BilanCaisseJournalier bilanExistant = bilanSaisi();
         when(repository.findByDateBilan(JOUR)).thenReturn(Optional.of(bilanExistant));
 
@@ -176,8 +176,9 @@ class ServiceBilanCaisseImplTest {
 
         assertThat(resultat.statut()).isEqualTo(StatutBilanCaisse.VALIDE.name());
         assertThat(resultat.validePar()).isEqualTo(daf.getId());
-        verify(serviceNotification).notifier(eq(gestionnaire.getId()), eq("BILAN_CAISSE_VALIDE"), anyString(),
-                anyString(), eq("bilan_caisse"), any());
+        // V23 §4 : la décision de bilan relève du DAF ; le Gestionnaire n'en est plus notifié.
+        verify(serviceNotification, org.mockito.Mockito.never()).notifier(eq(gestionnaire.getId()),
+                eq("BILAN_CAISSE_VALIDE"), anyString(), anyString(), eq("bilan_caisse"), any());
     }
 
     @Test

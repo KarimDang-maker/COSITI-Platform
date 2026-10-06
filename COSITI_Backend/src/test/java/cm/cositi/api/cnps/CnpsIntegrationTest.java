@@ -25,7 +25,9 @@ import java.util.UUID;
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -101,7 +103,8 @@ class CnpsIntegrationTest extends ConfigurationTestsIntegration {
                 .body("pieces", hasSize(5))
                 .body("piecesManquantes", hasSize(5))
                 // La composition du dossier n'est pas validée par la COSITI : l'avertissement doit remonter.
-                .body("avertissements", hasItem(org.hamcrest.Matchers.containsString("PIECES_CNPS_OBLIGATOIRES")));
+                // V23 : règles ASSIETTE_CNPS / PIECES_CNPS_OBLIGATOIRES réputées validées, plus de rappel « non validé ».
+                .body("avertissements", not(hasItem(containsString("non validée"))));
     }
 
     @Test
@@ -308,7 +311,8 @@ class CnpsIntegrationTest extends ConfigurationTestsIntegration {
                 .then().statusCode(201)
                 .body("montantDeclare", equalTo(14000.0f))
                 .body("statut", equalTo("A_PRODUIRE"))
-                .body("avertissements", hasItem(org.hamcrest.Matchers.containsString("ASSIETTE_CNPS")));
+                // V23 : règles ASSIETTE_CNPS / PIECES_CNPS_OBLIGATOIRES réputées validées, plus de rappel « non validé ».
+                .body("avertissements", not(hasItem(containsString("non validée"))));
     }
 
     @Test

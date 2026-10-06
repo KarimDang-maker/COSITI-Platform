@@ -173,9 +173,8 @@ public class ServiceBilanCaisseImpl implements ServiceBilanCaisse {
 
         RapprochementCaisseDto dto = RapprochementCaisseDto.depuis(bilan, calculer(date).montantNumerique());
         serviceAudit.tracer(TypeOperation.BILAN_CAISSE_VALIDATION, "bilan_caisse", bilan.getId(), avant, dto, commentaire);
-        serviceNotification.notifier(bilan.getSaisiPar(), "BILAN_CAISSE_VALIDE",
-                "Bilan de caisse du " + date + " validé",
-                "Le DAF a validé le bilan de caisse du " + date + ".", "bilan_caisse", bilan.getId());
+        // V23 §4 : la validation d'un bilan (décision financière du DAF) n'est plus notifiée au Gestionnaire.
+        // L'anomalie, elle, reste notifiée à l'auteur de la saisie : il doit recompter et ressaisir la caisse.
         publier(bilan, "VALIDATION");
         return dto;
     }

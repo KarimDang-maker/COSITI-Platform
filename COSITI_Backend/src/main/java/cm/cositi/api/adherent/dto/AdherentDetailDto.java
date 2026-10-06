@@ -29,8 +29,6 @@ public record AdherentDetailDto(
         String localisation,
         String quartier,
         String ville,
-        BigDecimal latitude,
-        BigDecimal longitude,
         LocalDate dateAdhesion,
         StatutAdherent statut,
         boolean inscriptionPayee,
@@ -56,7 +54,7 @@ public record AdherentDetailDto(
                 a.getSexe(), a.getTelephonePrincipal(), a.getTelephoneSecondaire(), a.getWhatsapp(), a.getEmail(),
                 a.getNumeroCni(), a.getNumeroCnps(),
                 a.getActiviteId(), a.getZoneId(), zoneLibelle, a.getAssociationId(), a.getLocalisation(), a.getQuartier(),
-                a.getVille(), a.getLatitude(), a.getLongitude(), a.getDateAdhesion(), a.getStatut(),
+                a.getVille(), a.getDateAdhesion(), a.getStatut(),
                 a.isInscriptionPayee(), a.isArchive(), a.getVersion(), a.getStatutValidation(),
                 a.getStatutControleDga(), a.getActiveLe());
     }

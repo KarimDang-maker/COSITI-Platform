@@ -118,7 +118,9 @@ public class ServiceStockageDocumentImpl implements ServiceStockageDocument {
                     "Un document doit être rattaché soit à un adhérent, soit à un paiement — exactement l'un des deux.");
         }
         verifierPerimetre(rattachement.adherentId(), rattachement.paiementId(), auteur);
-        if (options.valideDu() != null && options.valideJusquau() != null
+        // V23 : la CNI ne porte plus de date de validité ; les dates éventuellement envoyées sont ignorées.
+        boolean sansValidite = type == TypeDocument.CNI;
+        if (!sansValidite && options.valideDu() != null && options.valideJusquau() != null
                 && options.valideJusquau().isBefore(options.valideDu())) {
             throw new ExceptionValidation("DOCUMENT_VALIDITE_INCOHERENTE",
                     "La date de fin de validité doit suivre la date de début.", "valideJusquau");
@@ -155,7 +157,13 @@ public class ServiceStockageDocumentImpl implements ServiceStockageDocument {
         try {
             contenu = fichier.getBytes();
         } catch (IOException e) {
-            throw new UncheckedIOException("Lecture du fichier téléversé impossible.", e);
+            // Fichier temporaire illisible : corrompu, ou mis en quarantaine par l'antivirus du serveur avant sa lecture
+            // (constaté en recette sur un poste Windows avec le fichier de test EICAR). C'est le fichier qui est refusé,
+            // pas le serveur qui est en panne : 400, jamais 500.
+            JOURNAL.warn("Fichier téléversé illisible : {}", e.getMessage());
+            throw new ExceptionValidation("DOCUMENT_ILLISIBLE",
+                    "Le fichier transmis n'a pas pu être lu : il est peut-être corrompu ou a été bloqué par l'antivirus.",
+                    "fichier");
         }
 
         String typeMimeReel = SignatureBinaire.typeMimeReel(contenu)
@@ -187,7 +195,8 @@ public class ServiceStockageDocumentImpl implements ServiceStockageDocument {
                 contenu.length, empreinte, rattachement.adherentId(), rattachement.paiementId(),
                 auteur.getIdentifiant());
         document.setAnalyseAntivirus(resultatAnalyse);
-        document.definirValidite(options.valideDu(), options.valideJusquau());
+        document.definirValidite(sansValidite ? null : options.valideDu(),
+                sansValidite ? null : options.valideJusquau());
         if (precedent != null) {
             document.definirRemplacement(precedent, options.motifRemplacement().trim());
         }

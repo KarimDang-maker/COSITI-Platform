@@ -69,8 +69,6 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
         CHAMPS_DOSSIER.put("localisation", TypeDonneeChamp.TEXTE);
         CHAMPS_DOSSIER.put("quartier", TypeDonneeChamp.TEXTE);
         CHAMPS_DOSSIER.put("ville", TypeDonneeChamp.TEXTE);
-        CHAMPS_DOSSIER.put("latitude", TypeDonneeChamp.DECIMAL);
-        CHAMPS_DOSSIER.put("longitude", TypeDonneeChamp.DECIMAL);
         CHAMPS_MODIFICATION = new LinkedHashMap<>(CHAMPS_DOSSIER);
         CHAMPS_MODIFICATION.put("statut", TypeDonneeChamp.ENUM);
         CHAMPS_DOSSIER.put("zoneId", TypeDonneeChamp.UUID);
@@ -189,8 +187,6 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
                 && !associationRepository.existsById(ValeursWorkflow.enUuid(propositions.get("associationId")))) {
             throw invalide("associationId", "Association introuvable.");
         }
-        controlerCoordonnee(propositions, "latitude", new BigDecimal("90"));
-        controlerCoordonnee(propositions, "longitude", new BigDecimal("180"));
         if (propositions.containsKey("statut")) {
             String propose = propositions.get("statut");
             if (propose == null) {
@@ -304,7 +300,7 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
                 java.util.Map.of("controle", controle.reference(), "tour", controle.tour(), "champs", touches),
                 "Modification justifiée par une pièce (" + demande.getReference() + ")");
         evenements.publishEvent(new cm.cositi.api.adhesion.service.AdhesionEvent("CONTROLE_DGA_A_TRAITER", a.getId(),
-                "controle_dga", controle.id(), null, List.of("DGA"), "Dossier à recontrôler",
+                "controle_dga", controle.id(), null, List.of("DGA", "DG"), "Dossier à recontrôler",
                 "Adhérent " + a.getMatricule() + " — information(s) justifiée(s) modifiée(s) : " + String.join(", ", touches)
                         + " (" + controle.reference() + ")."));
         return List.of("Information(s) justifiée(s) par une pièce modifiée(s) (" + String.join(", ", touches)
@@ -356,8 +352,6 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
         v.put("localisation", ValeursWorkflow.texte(a.getLocalisation()));
         v.put("quartier", ValeursWorkflow.texte(a.getQuartier()));
         v.put("ville", ValeursWorkflow.texte(a.getVille()));
-        v.put("latitude", ValeursWorkflow.texte(a.getLatitude()));
-        v.put("longitude", ValeursWorkflow.texte(a.getLongitude()));
         v.put("statut", ValeursWorkflow.texte(a.getStatut()));
         v.put("zoneId", ValeursWorkflow.texte(a.getZoneId()));
         return v;
@@ -389,8 +383,6 @@ public class AdaptateurWorkflowAdherent implements AdaptateurWorkflow {
             case "localisation" -> a.setLocalisation(valeur);
             case "quartier" -> a.setQuartier(valeur);
             case "ville" -> a.setVille(valeur);
-            case "latitude" -> a.setLatitude(ValeursWorkflow.enDecimal(valeur));
-            case "longitude" -> a.setLongitude(ValeursWorkflow.enDecimal(valeur));
             case "statut" -> a.setStatut(StatutAdherent.valueOf(valeur));
             default -> throw new IllegalStateException("Champ adhérent non applicable : " + champ);
         }

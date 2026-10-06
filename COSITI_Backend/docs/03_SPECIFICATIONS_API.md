@@ -155,6 +155,76 @@ Erreurs métier spécifiques :
 | `HISTORIQUE_PERIODE_INVALIDE` / `HISTORIQUE_FILTRE_AMBIGU` / `HISTORIQUE_MODULE_INCONNU` | 400 | Filtres incohérents |
 | `FORMAT_DATE_INVALIDE` | 400 | Date ou période illisible (`periode=1`) — renvoyait 500 auparavant |
 
+### 4 ter. V23 et recette des 3 modules (05/10/2026)
+
+**Accès (V23, décision COSITI du 05/10/2026)** — migration `V23__regles_validees_acces_roles.sql` :
+
+- Toutes les règles `V` / `A` passent à `C` (paramètres et exigences documentaires). Plus aucun rappel « règle non
+  validée » dans les réponses.
+- `ADHERENT:VALIDER` est retirée au Gestionnaire et accordée au DG. Le DG reçoit aussi `CONTROLE_DGA:*`,
+  `FRAIS_ADHESION:SIGNALER` et les notifications adressées à la DGA.
+- Le PCA n'a plus aucune permission `*:VALIDER` (il garde `REGLE:VALIDER`).
+- `FINANCES:CONSULTER` (DAF seul) est exigée sur :
+  - `GET /paiements`, `/paiements/statistiques/quotidiennes`, `/paiements/bilan-journalier` ;
+  - `GET /frais-adhesion`, `/frais-adhesion/synthese`, `/frais-adhesion/rapprochement` ;
+  - `GET /bilans-caisse`, `/bilans-caisse/{date}` ;
+  - `GET /remises-caisse`.
+
+**Dossier et création** :
+
+- `zoneId`, `localisation` facultatifs à la création ; `latitude` / `longitude` retirées des DTO (colonnes
+  conservées).
+- `VerifierDoublonDto.zoneId` facultatif : sans zone, la similarité de nom couvre tous les adhérents.
+- CNI : aucune date de validité (`valideDu` / `valideJusquau` ignorées, jamais expirée).
+- `GET /portefeuilles/sans-agent` : `zoneId` facultatif. Sans zone, la route liste tous les adhérents sans agent, y
+  compris ceux créés sans zone.
+
+**Zones** :
+
+- `POST` / `PUT /zones` : `ORGANISATION:GERER_ZONES` (Gestionnaire, DGA) ou `ORGANISATION:GERER`.
+- Ville et région sont enregistrées à la modification ; le code ne se modifie pas.
+- Création et modification sont auditées (`ZONE_CREATION`, `ZONE_MODIFICATION`).
+
+**Cotisations** :
+
+- Une cotisation est refusée en 409 `COTISATION_FRAIS_ADHESION_NON_VALIDE` (saisie et soumission d'un brouillon) :
+  - si le frais d'adhésion existe sans être `VALIDE` ;
+  - si l'adhérent est `PREINSCRIT` sans frais.
+  Un dossier antérieur au frais (aucun frais, déjà actif) n'est pas bloqué. `GET /paiements/contexte-adherent`
+  renvoie alors `cotisable = false` avec le motif.
+- Un agent de terrain qui saisit sans `agentEncaisseurId` en devient l'encaisseur.
+- `POST /paiements/{id}/affectations` (ré-affectation manuelle) :
+  - applique la même règle qu'à la saisie, minimum Épargne compris ;
+  - met à jour la répartition affichée sur la cotisation.
+- `GET /paiements/{id}/recu` ajoute, en champs additifs :
+  - `adherentMatricule`, `adherentNom` ;
+  - `montantSecuriteSociale`, `montantEpargne` ;
+  - `referenceTransaction`, `typePaiement` ;
+  - `enregistrePar`, `enregistreLe`, `editeLe`.
+
+**Remises de caisse** :
+
+| Méthode | Chemin | Permission |
+|---|---|---|
+| GET | `/remises-caisse?statut=&agentId=&page=&taille=` | `FINANCES:CONSULTER` |
+| GET | `/remises-caisse/{id}` | `PAIEMENT:LIRE` |
+| GET | `/remises-caisse/a-remettre?agentId=` | `PAIEMENT:CREER` — cotisations de l'agent ni remises, ni annulées, ni rejetées, ni en brouillon |
+| POST | `/remises-caisse` | `PAIEMENT:CREER` — notifie la DAF |
+| POST | `/remises-caisse/{id}/receptionner` | `PAIEMENT:VALIDER` — une seule réception |
+
+`RemiseCaisseDto` ajoute `dateRemise`, `recuLe`, `creeLe` et `nombrePaiements`.
+
+| Code | Statut | Déclencheur |
+|---|---|---|
+| `COTISATION_FRAIS_ADHESION_NON_VALIDE` | 409 | Frais d'adhésion non validé par la DAF |
+| `REMISE_PAIEMENT_AUTRE_AGENT` | 400 | Cotisation encaissée par un autre agent |
+| `REMISE_PAIEMENT_DEJA_REMIS` | 409 | Cotisation déjà incluse dans une remise |
+| `REMISE_PAIEMENT_NON_ENCAISSE` | 409 | Cotisation annulée, rejetée ou en brouillon |
+| `REMISE_CAISSE_DEJA_RECEPTIONNEE` | 409 | Seconde réception |
+| `REMISE_MONTANT_INVALIDE` | 400 | Montant reçu négatif ou absent |
+| `ZONE_CODE_NON_MODIFIABLE` | 400 | Code de zone changé à la modification |
+| `DOCUMENT_ILLISIBLE` | 400 | Fichier transmis illisible (corrompu, bloqué par l'antivirus) — renvoyait 500 |
+
 ## 5. Droits et régularité
 
 | Méthode | Chemin | Description |

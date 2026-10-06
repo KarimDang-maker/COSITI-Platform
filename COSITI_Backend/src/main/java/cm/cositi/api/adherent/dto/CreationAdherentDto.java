@@ -28,13 +28,13 @@ public record CreationAdherentDto(
         String numeroCni,
         String numeroCnps,
         @NotNull(message = "L'activité est obligatoire.") UUID activiteId,
-        @NotNull(message = "La zone est obligatoire.") UUID zoneId,
+        /** Facultatif depuis V23 (formulaire allégé) ; conservé pour un appelant qui l'enverrait encore. */
+        UUID zoneId,
         UUID associationId,
-        @NotBlank(message = "La localisation est obligatoire.") String localisation,
+        /** Facultatif depuis V23 : quartier et ville restent saisis. */
+        String localisation,
         String quartier,
         String ville,
-        BigDecimal latitude,
-        BigDecimal longitude,
         @NotNull(message = "La date d'adhésion est obligatoire.") LocalDate dateAdhesion,
         boolean confirmationDoublonIgnore,
         boolean consentementDonnees

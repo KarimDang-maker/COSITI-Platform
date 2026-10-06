@@ -13,8 +13,6 @@ public record CoordonneesAdherentDto(
         String numeroCni,
         String localisation,
         String quartier,
-        String ville,
-        BigDecimal latitude,
-        BigDecimal longitude
+        String ville
 ) {
 }

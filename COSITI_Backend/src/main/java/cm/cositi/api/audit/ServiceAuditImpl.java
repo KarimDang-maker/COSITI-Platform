@@ -32,6 +32,14 @@ public class ServiceAuditImpl implements ServiceAudit {
 
     @Override
     @Transactional
+    public void tracerPour(Utilisateur acteur, TypeOperation type, String entite, UUID entiteId, Object avant,
+                           Object apres, String motif) {
+        enregistrer(acteur == null ? null : acteur.getId(), acteur == null ? null : acteur.getIdentifiant(), type,
+                entite, entiteId, masqueur.versJsonMasque(avant), masqueur.versJsonMasque(apres), motif, "SUCCES");
+    }
+
+    @Override
+    @Transactional
     public void tracerRefus(String entite, UUID entiteId, String permissionManquante) {
         enregistrer(TypeOperation.ACCES_REFUSE, entite, entiteId, null, null,
                 "Permission manquante : " + permissionManquante, "REFUS");
@@ -47,15 +55,25 @@ public class ServiceAuditImpl implements ServiceAudit {
 
     private void enregistrer(TypeOperation type, String entite, UUID entiteId, String avant, String apres,
                               String motif, String resultat) {
-        UUID utilisateurId = null;
-        String identifiant = "SYSTEME";
-        Authentication authentification = SecurityContextHolder.getContext().getAuthentication();
-        if (authentification != null && authentification.isAuthenticated()
-                && authentification.getPrincipal() instanceof Utilisateur utilisateur) {
-            utilisateurId = utilisateur.getId();
-            identifiant = utilisateur.getIdentifiant();
-        } else if (authentification != null && authentification.getName() != null) {
-            identifiant = authentification.getName();
+        enregistrer(null, null, type, entite, entiteId, avant, apres, motif, resultat);
+    }
+
+    private void enregistrer(UUID acteurId, String acteurIdentifiant, TypeOperation type, String entite,
+                              UUID entiteId, String avant, String apres, String motif, String resultat) {
+        UUID utilisateurId = acteurId;
+        String identifiant = acteurIdentifiant != null ? acteurIdentifiant : "SYSTEME";
+        if (acteurIdentifiant == null) {
+            Authentication authentification = SecurityContextHolder.getContext().getAuthentication();
+            if (authentification != null && authentification.isAuthenticated()
+                    && authentification.getPrincipal() instanceof Utilisateur utilisateur) {
+                utilisateurId = utilisateur.getId();
+                identifiant = utilisateur.getIdentifiant();
+            } else if (authentification
+                    instanceof org.springframework.security.authentication.AnonymousAuthenticationToken) {
+                identifiant = "ANONYME"; // et non le « anonymousUser » interne de Spring Security
+            } else if (authentification != null && authentification.getName() != null) {
+                identifiant = authentification.getName();
+            }
         }
 
         String adresseIp = null;

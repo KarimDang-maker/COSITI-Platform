@@ -33,6 +33,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -92,7 +93,9 @@ public class ControleurPaiement {
     }
 
     @Operation(summary = "Lister / rechercher les cotisations (#1 à #7, #15)",
-            description = "Paginé, trié, limité au périmètre du demandeur. `statut=A_CONTROLER` donne la file à valider.")
+            description = "Paginé, trié, limité au périmètre du demandeur. `statut=A_CONTROLER` donne la file à valider. "
+                    + "Réservé au DAF (FINANCES:CONSULTER).")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping
     public ReponsePaginee<PaiementDto> journal(
             @RequestParam(required = false) UUID adherentId,
@@ -160,6 +163,7 @@ public class ControleurPaiement {
     }
 
     @Operation(summary = "Statistiques quotidiennes (#27)", description = "Nombre et montants par statut et par mode.")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping("/statistiques/quotidiennes")
     public StatistiquesQuotidiennesDto statistiquesQuotidiennes(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
@@ -169,6 +173,7 @@ public class ControleurPaiement {
 
     @Operation(summary = "Bilan journalier numérique (#29)",
             description = "Total enregistré de la journée et montant numérique à comparer à la caisse physique.")
+    @PreAuthorize("hasAuthority('FINANCES:CONSULTER')") // V23 §6 : rubrique Finances réservée au DAF
     @GetMapping("/bilan-journalier")
     public BilanJournalierDto bilanJournalier(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
