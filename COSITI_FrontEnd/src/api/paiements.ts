@@ -114,6 +114,30 @@ export function obtenirPaiement(id: string) {
   return client.get<Paiement>(`/paiements/${id}`);
 }
 
+/** Reçu imprimable d'une cotisation (`GET /paiements/{id}/recu`, `PAIEMENT:LIRE` + périmètre). */
+export interface RecuPaiement {
+  readonly paiementId: string;
+  readonly numeroRecu: string;
+  readonly adherentId: string;
+  readonly montant: number;
+  readonly datePaiement: string;
+  readonly modePaiement: string;
+  readonly statut: StatutPaiement;
+  readonly adherentMatricule: string | null;
+  readonly adherentNom: string | null;
+  readonly montantSecuriteSociale: number | null;
+  readonly montantEpargne: number | null;
+  readonly referenceTransaction: string | null;
+  readonly typePaiement: string | null;
+  readonly enregistrePar: string | null;
+  readonly enregistreLe: string | null;
+  readonly editeLe: string | null;
+}
+
+export function obtenirRecu(id: string) {
+  return client.get<RecuPaiement>(`/paiements/${id}/recu`);
+}
+
 export interface CorpsEnregistrementPaiement {
   adherentId: string;
   datePaiement: string;

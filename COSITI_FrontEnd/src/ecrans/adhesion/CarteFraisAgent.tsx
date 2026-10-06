@@ -1,4 +1,5 @@
 import { Link } from "react-router";
+import { PERMISSION_FINANCES } from "@/lib/acces";
 import { CarteSection } from "@/components/cositi/carte-section";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
 import { Alerte } from "@/components/cositi/alerte";
@@ -15,6 +16,8 @@ import { formaterEcart, formaterMontant, formaterNombre } from "@/lib/format";
  */
 export function CarteFraisAgent({ agentId }: { agentId: string }) {
   const peutLire = usePermission("FRAIS_ADHESION:LIRE");
+  // V23 : la liste des frais est un écran financier, réservé au DAF.
+  const peutOuvrirListe = usePermission(PERMISSION_FINANCES);
   const synthese = useSyntheseFraisAgent(agentId, peutLire);
   if (!peutLire) return null;
 
@@ -23,9 +26,11 @@ export function CarteFraisAgent({ agentId }: { agentId: string }) {
       titre="Frais d'adhésion collectés"
       description="Frais d'adhésion enregistrés au nom de cet agent, toutes périodes confondues."
       actions={
+        peutOuvrirListe && (
         <Link className="text-sm font-semibold text-primaire underline-offset-4 hover:underline" to={`/frais-adhesion?agent=${agentId}`}>
           Voir le détail
         </Link>
+        )
       }
     >
       {synthese.isLoading ? (

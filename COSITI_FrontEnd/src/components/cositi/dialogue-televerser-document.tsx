@@ -116,8 +116,8 @@ export function DialogueTeleverserDocument({
         fichier,
         type,
         options: {
-          valideDu: valideDu || undefined,
-          valideJusquau: valideJusquau || undefined,
+          valideDu: type !== "CNI" ? valideDu || undefined : undefined,
+          valideJusquau: type !== "CNI" ? valideJusquau || undefined : undefined,
           remplaceDocumentId: remplace?.documentId,
           motifRemplacement: remplace ? motif.trim() : undefined,
         },
@@ -163,9 +163,6 @@ export function DialogueTeleverserDocument({
             <p className="flex flex-wrap items-center gap-2 rounded-lg bg-fond p-3 text-sm">
               <BadgeStatut domaine="niveauExigence" code={exigenceChoisie.niveau} />
               {exigenceChoisie.bloquante ? "Bloque l'activation tant qu'elle manque." : "Ne bloque pas l'activation."}
-              {exigenceChoisie.statutValidation !== "C" && (
-                <span className="text-texte-doux-fort">Règle en attente de confirmation par la COSITI.</span>
-              )}
             </p>
           )}
 
@@ -174,6 +171,8 @@ export function DialogueTeleverserDocument({
             <Input id="fichier-document" type="file" ref={champFichier} accept={FORMATS_ACCEPTES} />
           </div>
 
+          {/* V23 : aucune date de validité pour la CNI. */}
+          {type !== "CNI" && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <ChampFormulaire id="document-valide-du" libelle="Valable du" facultatif>
               {(attributs) => <ChampDate {...attributs} value={valideDu} onChange={(e) => setValideDu(e.target.value)} />}
@@ -187,6 +186,7 @@ export function DialogueTeleverserDocument({
               {(attributs) => <ChampDate {...attributs} value={valideJusquau} onChange={(e) => setValideJusquau(e.target.value)} />}
             </ChampFormulaire>
           </div>
+          )}
 
           {remplace && (
             <ChampFormulaire

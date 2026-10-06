@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { PencilLine, Power, UserCog } from "lucide-react";
+import { PencilLine, Power, UserCog, Wallet } from "lucide-react";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { EnTetePage } from "@/components/cositi/entete-page";
 import { CarteSection } from "@/components/cositi/carte-section";
@@ -18,6 +18,7 @@ import { LigneChamp } from "@/ecrans/adherents/fiche/LigneChamp";
 import { DialogueDesignerChef } from "@/ecrans/organisation/DialogueDesignerChef";
 import { DialogueModifierAgent } from "@/ecrans/agents/fiche/DialogueModifierAgent";
 import { DialogueStatutAgent } from "@/ecrans/agents/fiche/DialogueStatutAgent";
+import { DialogueRemiseCaisse } from "@/ecrans/agents/fiche/DialogueRemiseCaisse";
 import { OngletSynthese } from "@/ecrans/agents/fiche/OngletSynthese";
 import { OngletPortefeuille } from "@/ecrans/agents/fiche/OngletPortefeuille";
 import { OngletCnpsAgent } from "@/ecrans/agents/fiche/OngletCnpsAgent";
@@ -71,6 +72,9 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
   const peutLireCnps = usePermission("CNPS:LIRE");
   const peutLirePaiements = usePermission("PAIEMENT:LIRE");
   const peutLireAdherents = usePermission("ADHERENT:LIRE");
+  // Remise de caisse : déclarée par qui saisit les cotisations (Gestionnaire, PAIEMENT:CREER), réceptionnée par la DAF.
+  const peutDeclarerRemise = usePermission("PAIEMENT:CREER");
+  const [remiseOuverte, setRemiseOuverte] = useState(false);
 
   const { data: zones } = useZones();
   const { data: chefDeZone } = useChefCourant(agent.zoneId ?? undefined);
@@ -154,6 +158,12 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
                 <Button variant="outline" onClick={() => setDemandeStatutOuverte(true)}>
                   <Power className="size-4" aria-hidden="true" />
                   {agent.actif ? "Demander la désactivation" : "Demander la réactivation"}
+                </Button>
+              )}
+              {peutDeclarerRemise && (
+                <Button variant="outline" onClick={() => setRemiseOuverte(true)}>
+                  <Wallet className="size-4" aria-hidden="true" />
+                  Déclarer une remise de caisse
                 </Button>
               )}
               {peutDesignerChef && agent.actif && !estChef && (
@@ -270,6 +280,9 @@ function ContenuFicheAgent({ agent }: { agent: Agent }) {
           candidat={chefOuvert ? agent : null}
           chefActuel={chefDeZone}
         />
+      )}
+      {peutDeclarerRemise && remiseOuverte && (
+        <DialogueRemiseCaisse agentId={agent.id} nomAgent={agent.nomComplet} ouvert={remiseOuverte} onOuvertChange={setRemiseOuverte} />
       )}
     </CoquilleApplication>
   );

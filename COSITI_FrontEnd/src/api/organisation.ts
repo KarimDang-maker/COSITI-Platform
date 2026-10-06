@@ -79,6 +79,23 @@ export function listerZones() {
   return client.get<Zone[]>("/zones");
 }
 
+/** Création / modification d'une zone (`ORGANISATION:GERER_ZONES`). Le code est unique. */
+export interface CorpsZone {
+  code: string;
+  libelle: string;
+  ville: string;
+  region: string;
+  zoneParenteId?: string | null;
+}
+
+export function creerZone(corps: CorpsZone) {
+  return client.post<Zone>("/zones", corps);
+}
+
+export function modifierZone(id: string, corps: CorpsZone) {
+  return client.put<Zone>(`/zones/${id}`, corps);
+}
+
 /**
  * Champs triables de `GET /agents` (liste blanche `CHAMPS_TRI` de `ControleurAgent`). Tout autre nom
  * renvoie `400 AGENT_TRI_INVALIDE`.
@@ -268,8 +285,12 @@ export function obtenirHistoriqueChef(agentId: string) {
   return client.get<HistoriqueDesignationChef[]>(`/agents/${agentId}/historique-chef`);
 }
 
-export function listerSansAgentReferent(zoneId: string) {
-  return client.get<AdherentResume[]>(`/portefeuilles/sans-agent?zoneId=${zoneId}`);
+/**
+ * Adhérents sans agent référent. Sans `zoneId` : tous, y compris ceux créés sans zone (V23) — sinon un adhérent
+ * créé depuis le formulaire allégé ne pourrait jamais être affecté à un agent.
+ */
+export function listerSansAgentReferent(zoneId?: string | null) {
+  return client.get<AdherentResume[]>(`/portefeuilles/sans-agent${zoneId ? `?zoneId=${zoneId}` : ""}`);
 }
 
 /** Réservé `ORGANISATION:AFFECTER_PORTEFEUILLE`. Motif facultatif pour une première affectation. */

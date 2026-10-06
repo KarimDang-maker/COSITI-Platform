@@ -38,11 +38,11 @@ async function choisir(
 }
 
 async function remplirRattachement(utilisateur: ReturnType<typeof userEvent.setup>) {
-  await choisir(utilisateur, "Zone", "Douala - Bonabéri");
   // L'activité est un identifiant du référentiel, pas un code saisi : l'API refuse
   // tout ce qui n'est pas un UUID de la table `activite` (constaté en recette E2E).
   await choisir(utilisateur, "Activité", "Transporteur (Moto-taxi, Chauffeur)");
-  await utilisateur.type(screen.getByLabelText("Localisation"), "Marché central");
+  await utilisateur.type(screen.getByLabelText("Quartier"), "Bonabéri");
+  await utilisateur.type(screen.getByLabelText("Ville"), "Douala");
   fireEvent.change(screen.getByLabelText("Date d'adhésion"), { target: { value: "2026-01-15" } });
   await utilisateur.click(screen.getByRole("button", { name: "Suivant" }));
 }
@@ -67,6 +67,9 @@ describe("NouvelAdherent", () => {
     await screen.findByLabelText("Nom");
     await remplirIdentite(utilisateur, "690000001");
     expect(screen.queryByLabelText(/Pack/)).not.toBeInTheDocument();
+    // V23 : ni zone de rattachement ni localisation ; quartier et ville restent saisissables.
+    expect(screen.queryByLabelText(/^Zone/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Localisation/)).not.toBeInTheDocument();
     await remplirRattachement(utilisateur);
     expect(screen.getByText("Le pack de cotisation sera choisi lors de la première cotisation de l'adhérent.")).toBeInTheDocument();
   });
@@ -100,6 +103,8 @@ describe("NouvelAdherent", () => {
     await waitFor(() => expect(screen.getByText("Fiche affichée")).toBeInTheDocument());
     expect(corpsRecu).toMatchObject({ whatsapp: "699001122", email: "mballa@exemple.cm" });
     expect(corpsRecu).not.toHaveProperty("packId");
+    expect(corpsRecu).not.toHaveProperty("zoneId");
+    expect(corpsRecu).not.toHaveProperty("localisation");
   });
 
   it("signale un doublon potentiel de façon non bloquante puis crée l'adhérent après confirmation", async () => {

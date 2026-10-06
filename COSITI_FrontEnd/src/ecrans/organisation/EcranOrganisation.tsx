@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { Plus, UserCog, Users } from "lucide-react";
+import { Pencil, Plus, UserCog, Users } from "lucide-react";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { Alerte } from "@/components/cositi/alerte";
 import { EtatVide } from "@/components/cositi/etat-vide";
@@ -22,13 +22,15 @@ import {
   usePortefeuilleAgent,
   useSansAgentReferent,
   useZones,
+  TOUTES_LES_ZONES,
 } from "@/hooks/useOrganisation";
-import type { Agent, AdherentResume } from "@/api/organisation";
+import type { Agent, AdherentResume, Zone } from "@/api/organisation";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterTelephone } from "@/lib/format";
 import { DialogueAjouterAgent } from "@/ecrans/organisation/DialogueAjouterAgent";
 import { DialogueDesignerChef } from "@/ecrans/organisation/DialogueDesignerChef";
 import { DialogueMouvementPortefeuille } from "@/ecrans/organisation/DialogueMouvementPortefeuille";
+import { DialogueZone } from "@/ecrans/organisation/DialogueZone";
 
 function periodeCourante(): string {
   const maintenant = new Date();
@@ -85,6 +87,9 @@ export function EcranOrganisation() {
   const peutGerer = usePermission("ORGANISATION:GERER");
   const peutDesignerChef = usePermission("ORGANISATION:DESIGNER_CHEF");
   const peutAffecter = usePermission("ORGANISATION:AFFECTER_PORTEFEUILLE");
+  const peutGererZones = usePermission("ORGANISATION:GERER_ZONES");
+  // `undefined` : dialogue fermé ; `null` : création ; une zone : modification.
+  const [zoneEditee, setZoneEditee] = useState<Zone | null | undefined>(undefined);
 
   const { data: zones, isLoading: zonesEnCours } = useZones();
   const { data: agents, isLoading: agentsEnCours, isError, error } = useAgents();
@@ -95,11 +100,17 @@ export function EcranOrganisation() {
   const [mouvement, setMouvement] = useState<{ mode: "affecter" | "transferer"; adherent: AdherentResume; agentActuelNom?: string } | null>(null);
   const [agentPortefeuilleOuvert, setAgentPortefeuilleOuvert] = useState<Agent | null>(null);
 
-  const { data: chefDeLaZoneSelectionnee } = useChefCourant(zoneSelectionnee || undefined);
+  const toutesZones = zoneSelectionnee === TOUTES_LES_ZONES;
+  const { data: chefDeLaZoneSelectionnee } = useChefCourant(zoneSelectionnee && !toutesZones ? zoneSelectionnee : undefined);
   const { data: sansAgent } = useSansAgentReferent(zoneSelectionnee || undefined);
   const { data: chefDeLaZoneCandidat } = useChefCourant(candidatChef?.zoneId ?? undefined);
 
   const optionsZones = useMemo(() => (zones ?? []).map((z) => ({ valeur: z.id, libelle: z.libelle })), [zones]);
+  // V23 : un adhérent créé sans zone doit rester trouvable pour être affecté à un agent.
+  const optionsPortefeuille = useMemo(
+    () => [{ valeur: TOUTES_LES_ZONES, libelle: "Toutes les zones (y compris sans zone)" }, ...optionsZones],
+    [optionsZones],
+  );
 
   function libelleZone(zoneId: string | null): string {
     return zones?.find((z) => z.id === zoneId)?.libelle ?? "—";
@@ -199,7 +210,18 @@ export function EcranOrganisation() {
           )}
         </CarteSection>
 
-        <CarteSection titre="Zones" contenuPleineLargeur>
+        <CarteSection
+          titre="Zones"
+          contenuPleineLargeur
+          actions={
+            peutGererZones && (
+              <Button size="sm" onClick={() => setZoneEditee(null)}>
+                <Plus className="size-4" aria-hidden="true" />
+                Nouvelle zone
+              </Button>
+            )
+          }
+        >
           {zonesEnCours && (
             <div className="px-6 pb-6">
               <Skeleton className="h-24 w-full" />
@@ -214,6 +236,7 @@ export function EcranOrganisation() {
                   <TableHead>Ville</TableHead>
                   <TableHead>Région</TableHead>
                   <TableHead>Statut</TableHead>
+                  {peutGererZones && <TableHead className="sr-only">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -224,6 +247,14 @@ export function EcranOrganisation() {
                     <TableCell>{zone.ville ?? "—"}</TableCell>
                     <TableCell>{zone.region ?? "—"}</TableCell>
                     <TableCell>{zone.active ? "Active" : "Inactive"}</TableCell>
+                    {peutGererZones && (
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" onClick={() => setZoneEditee(zone)} aria-label={`Modifier la zone ${zone.libelle}`}>
+                          <Pencil className="size-4" aria-hidden="true" />
+                          Modifier
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))}
               </TableBody>
@@ -238,7 +269,7 @@ export function EcranOrganisation() {
                 id={attributs.id}
                 ariaInvalid={attributs["aria-invalid"]}
                 ariaDescribedBy={attributs["aria-describedby"]}
-                options={optionsZones}
+                options={optionsPortefeuille}
                 valeur={zoneSelectionnee}
                 onChange={setZoneSelectionnee}
                 placeholder="Choisir une zone"
@@ -246,7 +277,7 @@ export function EcranOrganisation() {
             )}
           </ChampFormulaire>
 
-          {zoneSelectionnee && (
+          {zoneSelectionnee && !toutesZones && (
             <section className="space-y-3">
               <h3>Chef actuel</h3>
               {chefDeLaZoneSelectionnee === undefined && <Skeleton className="h-5 w-40" />}
@@ -264,7 +295,9 @@ export function EcranOrganisation() {
               <h3>Adhérents sans agent référent</h3>
               {!sansAgent && <Skeleton className="h-16 w-full" />}
               {sansAgent && sansAgent.length === 0 && (
-                <p className="text-texte-doux">Tous les adhérents de cette zone ont un agent référent.</p>
+                <p className="text-texte-doux">
+                  {toutesZones ? "Tous les adhérents ont un agent référent." : "Tous les adhérents de cette zone ont un agent référent."}
+                </p>
               )}
               {sansAgent && sansAgent.length > 0 && (
                 <ListeElements
@@ -286,6 +319,15 @@ export function EcranOrganisation() {
       </div>
 
       <DialogueAjouterAgent ouvert={dialogueAjouterOuvert} onOuvertChange={setDialogueAjouterOuvert} />
+
+      {zoneEditee !== undefined && (
+        <DialogueZone
+          key={zoneEditee?.id ?? "nouvelle"}
+          zone={zoneEditee}
+          ouvert
+          onOuvertChange={(ouvert) => !ouvert && setZoneEditee(undefined)}
+        />
+      )}
 
       <DialogueDesignerChef
         ouvert={!!candidatChef}

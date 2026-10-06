@@ -371,12 +371,7 @@ export const handlersAdherents = [
     // `zoneId` est obligatoire côté serveur (`VerifierDoublonDto`) : on le refuse ici aussi,
     // sinon le simulacre accepterait un appel que la vraie API rejette en 400 — ce qui est
     // précisément ce qui a masqué le défaut jusqu'au jalon J12.
-    if (!corps.zoneId) {
-      return HttpResponse.json(
-        { code: "VALIDATION", message: "La zone est obligatoire pour la recherche de similarité.", traceId: "trace-doublon", avertissements: [] },
-        { status: 400 },
-      );
-    }
+    // V23 : `zoneId` devient facultatif (la création ne saisit plus la zone) — spécification backend V23 §3.
     const telephone = corps.telephonePrincipal?.replace(/\D/g, "") ?? "";
     const candidat = ADHERENTS_TEST.find((a) => a.telephonePrincipal === telephone);
     return HttpResponse.json({
@@ -435,9 +430,10 @@ export const handlersAdherents = [
       numeroCni: corps.numeroCni ?? null,
       numeroCnps: corps.numeroCnps ?? null,
       activiteId: corps.activiteId,
-      zoneId: corps.zoneId,
+      // V23 : la zone et la localisation ne sont plus saisies à la création (attribuées par le serveur).
+      zoneId: "zone-1",
       associationId: corps.associationId ?? null,
-      localisation: corps.localisation,
+      localisation: corps.quartier ?? "",
       quartier: corps.quartier ?? null,
       ville: corps.ville ?? null,
       dateAdhesion: corps.dateAdhesion,

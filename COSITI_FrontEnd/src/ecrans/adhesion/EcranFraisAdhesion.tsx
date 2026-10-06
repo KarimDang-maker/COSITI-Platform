@@ -200,11 +200,6 @@ export function EcranFraisAdhesion() {
               : "Suivi des frais collectés à l'adhésion et rapprochement avec les dossiers transmis à la DGA."
           }
         />
-        {configuration.data && !configuration.data.regleValidee && (
-          <Alerte teinte="attention" titre="Montant à confirmer">
-            <p>Le montant du frais d'adhésion n'est pas encore confirmé par la coopérative (paramètre {configuration.data.parametre}).</p>
-          </Alerte>
-        )}
 
         <BarreFiltres
           actions={

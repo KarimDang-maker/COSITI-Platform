@@ -18,6 +18,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useDemandes, useDemandesEnAttente } from "@/hooks/useWorkflow";
 import { PERMISSION_DECISION, type DemandeValidation, type StatutDemandeValidation, type TypeEntiteWorkflow, type TypeOperationWorkflow } from "@/api/workflow";
 import { useAuth } from "@/auth/ContexteAuth";
+import { PERMISSION_FINANCES } from "@/lib/acces";
+import { ValidationsFinancieres } from "@/ecrans/workflow/ValidationsFinancieres";
 import type { EnveloppeListe } from "@/api/pagination";
 import { estErreurApi } from "@/api/erreurs";
 import { STATUTS, definitionStatut } from "@/lib/statuts";
@@ -31,7 +33,7 @@ const TYPES_ENTITE: readonly { valeur: TypeEntiteWorkflow; libelle: string }[] =
 const STATUTS_DEMANDE = Object.keys(STATUTS.statutDemande) as StatutDemandeValidation[];
 const OPERATIONS = Object.keys(STATUTS.operationWorkflow) as TypeOperationWorkflow[];
 
-type Vue = "a-traiter" | "mes-demandes" | "toutes";
+type Vue = "finances" | "a-traiter" | "mes-demandes" | "toutes";
 
 /**
  * Centre de validation (§29) : les demandes que l'utilisateur peut décider — jamais les siennes (filtrage
@@ -45,19 +47,24 @@ export function EcranCentreValidation() {
   // « À traiter » n'existe que pour qui peut décider (ADHERENT:VALIDER, AGENT:VALIDER, PAIEMENT:VALIDER) : un rôle
   // sans droit de décision ne voit pas de file vide ni de bouton inutile (prompt V22 §25-26).
   const peutDecider = [...new Set(Object.values(PERMISSION_DECISION))].some((p) => aLaPermission(p));
+  // V23 : le centre du DAF regroupe toutes les validations financières — c'est sa vue d'accueil.
+  const estDaf = aLaPermission(PERMISSION_FINANCES);
   const vueDemandee = parametres.get("vue") as Vue | null;
-  const vue: Vue = vueDemandee && (vueDemandee !== "a-traiter" || peutDecider) ? vueDemandee : peutDecider ? "a-traiter" : "mes-demandes";
+  const vueAutorisee = (v: Vue) => (v === "finances" ? estDaf : v === "a-traiter" ? peutDecider : true);
+  const vue: Vue =
+    vueDemandee && vueAutorisee(vueDemandee) ? vueDemandee : estDaf ? "finances" : peutDecider ? "a-traiter" : "mes-demandes";
   const typeEntite = (parametres.get("typeEntite") as TypeEntiteWorkflow | null) ?? undefined;
   const statut = (parametres.get("statut") as StatutDemandeValidation | null) ?? undefined;
   const typeOperation = (parametres.get("typeOperation") as TypeOperationWorkflow | null) ?? undefined;
   const page = Number(parametres.get("page") ?? "0");
 
   const aTraiter = useDemandesEnAttente(typeEntite, page, vue === "a-traiter");
+  const vueParDefaut: Vue = estDaf ? "finances" : peutDecider ? "a-traiter" : "mes-demandes";
   const filtres = useMemo(
     () => ({ typeEntite, statut, typeOperation, mesDemandes: vue === "mes-demandes", page, taille: 25 }),
     [typeEntite, statut, typeOperation, vue, page],
   );
-  const liste = useDemandes(filtres, vue !== "a-traiter");
+  const liste = useDemandes(filtres, vue === "mes-demandes" || vue === "toutes");
   const requete = vue === "a-traiter" ? aTraiter : liste;
 
   function mettreAJour(valeurs: Record<string, string | undefined>, conserverPage = false) {
@@ -114,13 +121,20 @@ export function EcranCentreValidation() {
           description="Créations, modifications et corrections en attente de contrôle : proposition, vérification, décision, traçabilité."
         />
 
-        <Tabs value={vue} onValueChange={(v) => mettreAJour({ vue: v === "a-traiter" ? undefined : v, statut: undefined, typeOperation: undefined })}>
+        <Tabs value={vue} onValueChange={(v) => mettreAJour({ vue: v === vueParDefaut ? undefined : v, statut: undefined, typeOperation: undefined })}>
           <TabsList>
-            {peutDecider && <TabsTrigger value="a-traiter">À traiter</TabsTrigger>}
+            {estDaf && <TabsTrigger value="finances">Validations financières</TabsTrigger>}
+            {peutDecider && <TabsTrigger value="a-traiter">{estDaf ? "Demandes de correction" : "À traiter"}</TabsTrigger>}
             <TabsTrigger value="mes-demandes">Mes demandes</TabsTrigger>
             <TabsTrigger value="toutes">Toutes les demandes</TabsTrigger>
           </TabsList>
 
+          {vue === "finances" && (
+            <TabsContent value="finances">
+              <ValidationsFinancieres />
+            </TabsContent>
+          )}
+          {vue !== "finances" && (
           <TabsContent value={vue} className="space-y-6" forceMount>
             <BarreFiltres>
               {filtreEntite}
@@ -172,6 +186,7 @@ export function EcranCentreValidation() {
               onReessayer={() => void requete.refetch()}
             />
           </TabsContent>
+          )}
         </Tabs>
       </div>
     </CoquilleApplication>

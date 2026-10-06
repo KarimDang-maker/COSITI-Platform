@@ -4,7 +4,7 @@ import { http, HttpResponse } from "msw";
 import { Route, Routes } from "react-router";
 import { rendreAvecProviders, screen, waitFor, within } from "@/test/rendu";
 import { serveur } from "@/test/msw/serveur";
-import { JETON_AGENT, JETON_DAF, JETON_GESTIONNAIRE } from "@/test/msw/donnees";
+import { JETON_AGENT, JETON_DAF, JETON_DGA, JETON_GESTIONNAIRE, JETON_PCA } from "@/test/msw/donnees";
 import { FicheAdherent } from "@/ecrans/adherents/FicheAdherent";
 import { NavigationLaterale } from "@/components/cositi/navigation-laterale";
 import { GardeRoute } from "@/app/GardeRoute";
@@ -182,15 +182,37 @@ describe("V22 — navigation du Gestionnaire", () => {
   it("n'affiche ni la file DAF ni la file de contrôle DGA au Gestionnaire", async () => {
     simulerSession(JETON_GESTIONNAIRE);
     rendreAvecProviders(<NavigationLaterale />, { routeInitiale: "/" });
-    expect(await screen.findByRole("link", { name: /Cotisations/ }, ATTENTE)).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Adhérents/ }, ATTENTE)).toBeInTheDocument();
+    // V23 : rubrique Finances exclusive au DAF, centre de validation retiré au Gestionnaire.
+    expect(screen.queryByText("Finances")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Cotisations/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Centre de validation/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /^DAF$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Contrôle DGA/ })).not.toBeInTheDocument();
   });
 
-  it("garde l'entrée DAF pour le DAF", async () => {
+  it("donne au DAF la rubrique Finances et le centre de validation, sans la rubrique Terrain (V23)", async () => {
     simulerSession(JETON_DAF);
     rendreAvecProviders(<NavigationLaterale />, { routeInitiale: "/" });
     expect(await screen.findByRole("link", { name: /^DAF$/ }, ATTENTE)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Cotisations/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Centre de validation/ })).toBeInTheDocument();
+    expect(screen.queryByText("Terrain")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Agents de terrain/ })).not.toBeInTheDocument();
+  });
+
+  it("ne donne pas de centre de validation au PCA (V23)", async () => {
+    simulerSession(JETON_PCA);
+    rendreAvecProviders(<NavigationLaterale />, { routeInitiale: "/" });
+    expect(await screen.findByRole("link", { name: /Adhérents/ }, ATTENTE)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Centre de validation/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Finances")).not.toBeInTheDocument();
+  });
+
+  it("donne au DG le même centre de validation que la DGA (V23)", async () => {
+    simulerSession(JETON_DGA);
+    rendreAvecProviders(<NavigationLaterale />, { routeInitiale: "/" });
+    expect(await screen.findByRole("link", { name: /Centre de validation/ }, ATTENTE)).toBeInTheDocument();
   });
 
   it("protège aussi les routes : accès direct refusé au Gestionnaire", async () => {
@@ -210,6 +232,21 @@ describe("V22 — navigation du Gestionnaire", () => {
     );
     await waitFor(() => expect(screen.queryByText("File DAF")).not.toBeInTheDocument(), ATTENTE);
     expect(await screen.findByText(/accès|autoris/i, {}, ATTENTE)).toBeInTheDocument();
+  });
+
+  it("ouvre le centre du DAF sur les validations financières, frais d'adhésion compris (V23)", async () => {
+    simulerSession(JETON_DAF);
+    rendreAvecProviders(
+      <Routes>
+        <Route path="/validations" element={<EcranCentreValidation />} />
+      </Routes>,
+      { routeInitiale: "/validations" },
+    );
+    expect(await screen.findByRole("tab", { name: "Validations financières" }, ATTENTE)).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "Cotisations à contrôler" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Bilans de caisse à valider" })).toBeInTheDocument();
+    expect(await screen.findByRole("list", { name: "Frais d'adhésion à valider" }, ATTENTE)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Demandes de correction" })).toBeInTheDocument();
   });
 
   it("ne propose « À traiter » qu'à qui peut décider", async () => {

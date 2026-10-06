@@ -85,8 +85,6 @@ export const schemaCoordonnees = z.object({
   localisation: z.string().trim().min(1, "La localisation est obligatoire."),
   quartier: z.string().trim().optional(),
   ville: z.string().trim().optional(),
-  latitude: schemaLatitude,
-  longitude: schemaLongitude,
 });
 
 export type ValeursCoordonnees = z.infer<typeof schemaCoordonnees>;

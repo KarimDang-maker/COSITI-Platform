@@ -8,6 +8,7 @@ import {
 } from "@/api/dossierAdherent";
 import {
   archiverAdherent,
+  changerPackAdherent,
   changerStatutAdherent,
   completerProfil,
   creerAdherent,
@@ -318,5 +319,18 @@ export function useHistoriqueDossier(
     queryFn: () => listerHistorique(id!, categorie, filtres),
     enabled: !!id && actif,
     placeholderData: (precedente) => precedente,
+  });
+}
+
+/** Changement de pack (`ADHERENT:MODIFIER`) ; les comptes et la synthèse sont relus (seuil CNPS du pack). */
+export function useChangerPackAdherent(id: string) {
+  const invalider = useInvalidationAdherent();
+  const clientRequetes = useQueryClient();
+  return useMutation({
+    mutationFn: (corps: { packId: string; effetLe: string }) => changerPackAdherent(id, corps),
+    onSuccess: () => {
+      invalider(id);
+      void clientRequetes.invalidateQueries({ queryKey: [CLE_ADHERENTS] });
+    },
   });
 }

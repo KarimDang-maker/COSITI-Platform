@@ -66,12 +66,6 @@ export function DialogueModifierParametre({ parametre, onFermer }: DialogueModif
         <div className="space-y-5">
           <div className="flex items-center gap-2">
             <BadgeStatut domaine="validationParametre" code={parametre.statutValidation} />
-            {parametre.statutValidation === "V" && (
-              <span className="text-sm text-texte-doux">
-                Cette règle n'est pas validée par la COSITI : les résultats qui en dépendent restent
-                provisoires.
-              </span>
-            )}
           </div>
 
           <ChampFormulaire id="valeur-parametre" libelle="Valeur" aide={<>Valeur actuelle : {parametre.valeur}</>}>

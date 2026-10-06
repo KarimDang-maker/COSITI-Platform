@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router";
 import { PlusCircle, RotateCcw } from "lucide-react";
 import { CarteSection } from "@/components/cositi/carte-section";
@@ -7,6 +8,9 @@ import { BarreProgression } from "@/components/cositi/barre-progression";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSyntheseCotisationsAdherent } from "@/hooks/useAdherents";
+import { usePermission } from "@/auth/ContexteAuth";
+import { DialogueChangerPack } from "@/ecrans/adherents/fiche/DialogueChangerPack";
+import { fraisAdhesionValide, useFraisAdhesionAdherent } from "@/hooks/useAdhesion";
 import type { CompteCotisation } from "@/api/dossierAdherent";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterDate, formaterMontant, formaterNombre, formaterPourcentage } from "@/lib/format";
@@ -43,17 +47,26 @@ function BlocCompte({ titre, compte }: { titre: string; compte: CompteCotisation
 export function CarteComptes({
   adherentId,
   matricule,
+  statutAdherent,
   peutSaisir,
   onVoirDetails,
 }: {
   adherentId: string;
   matricule: string;
+  /** Statut métier de l'adhérent (un préinscrit sans frais validé ne peut pas cotiser). */
+  statutAdherent: string;
   /** `PAIEMENT:CREER` : raccourci vers la saisie d'une cotisation pour cet adhérent. */
   peutSaisir: boolean;
   /** Ouvre l'onglet Cotisations (détail financier). */
   onVoirDetails?: () => void;
 }) {
   const synthese = useSyntheseCotisationsAdherent(adherentId);
+  // Changer de pack : réservé à un adhérent qui en a déjà un (le premier se choisit à la première cotisation).
+  const peutChangerPack = usePermission("ADHERENT:MODIFIER");
+  const [changementPackOuvert, setChangementPackOuvert] = useState(false);
+  // V23 : la saisie d'une cotisation attend la validation du frais d'adhésion par le DAF.
+  const frais = useFraisAdhesionAdherent(adherentId, peutSaisir);
+  const saisieOuverte = fraisAdhesionValide(frais.data, statutAdherent);
 
   const actions = (
     <div className="flex flex-wrap gap-2">
@@ -62,7 +75,13 @@ export function CarteComptes({
           Détail des cotisations
         </Button>
       )}
-      {peutSaisir && (
+      {peutSaisir && !saisieOuverte && (
+        <Button size="sm" disabled title="Le frais d'adhésion doit d'abord être validé par le DAF.">
+          <PlusCircle className="size-4" aria-hidden="true" />
+          Enregistrer une cotisation
+        </Button>
+      )}
+      {peutSaisir && saisieOuverte && (
         <Button asChild size="sm">
           <Link to={`/cotisations/nouveau?matricule=${encodeURIComponent(matricule)}`}>
             <PlusCircle className="size-4" aria-hidden="true" />
@@ -124,7 +143,14 @@ export function CarteComptes({
         </div>
         <div>
           <dt className="text-texte-doux-fort">Pack</dt>
-          <dd className="font-semibold">{s.packLibelle ?? "À choisir à la prochaine cotisation"}</dd>
+          <dd className="font-semibold">
+            {s.packLibelle ?? "À choisir à la prochaine cotisation"}
+            {peutChangerPack && s.packId && (
+              <Button size="sm" variant="link" className="ml-1 h-auto p-0" onClick={() => setChangementPackOuvert(true)}>
+                Changer
+              </Button>
+            )}
+          </dd>
         </div>
         {s.montantAutresComposantes > 0 && (
           <div>
@@ -153,7 +179,21 @@ export function CarteComptes({
           />
         </div>
       )}
+      {peutSaisir && !frais.isLoading && !saisieOuverte && (
+        <p className="text-sm text-attention-fort">
+          Cotisations bloquées : le frais d'adhésion de 1 000 FCFA doit être validé par le DAF avant toute cotisation.
+        </p>
+      )}
       {s.avertissements.length > 0 && <AvertissementRegle avertissements={s.avertissements} />}
+      {s.packId && (
+        <DialogueChangerPack
+          adherentId={adherentId}
+          packActuelId={s.packId}
+          packActuelLibelle={s.packLibelle}
+          ouvert={changementPackOuvert}
+          onOuvertChange={setChangementPackOuvert}
+        />
+      )}
     </CarteSection>
   );
 }

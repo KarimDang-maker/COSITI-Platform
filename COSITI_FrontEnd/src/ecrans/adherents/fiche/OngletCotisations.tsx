@@ -1,4 +1,6 @@
 import { Link } from "react-router";
+import { usePermission } from "@/auth/ContexteAuth";
+import { PERMISSION_FINANCES } from "@/lib/acces";
 import { CarteSection } from "@/components/cositi/carte-section";
 import { AvertissementRegle } from "@/components/cositi/avertissement-regle";
 import { BadgeStatut } from "@/components/cositi/badge-statut";
@@ -26,6 +28,8 @@ interface OngletCotisationsProps {
  * serveur ; la progression vers le seuil n'est affichée que s'il l'a calculée.
  */
 export function OngletCotisations({ adherentId, peutLireResume, peutLireDroits, peutLirePaiements }: OngletCotisationsProps) {
+  // V23 : le journal des cotisations est un écran financier, réservé au DAF.
+  const peutOuvrirJournal = usePermission(PERMISSION_FINANCES);
   const resume = useResumeCotisations(adherentId, peutLireResume);
   const { data: situation } = useSituationDroits(peutLireDroits ? adherentId : undefined);
   const { data: periodes } = usePeriodesDroits(peutLireDroits ? adherentId : undefined);
@@ -122,7 +126,7 @@ export function OngletCotisations({ adherentId, peutLireResume, peutLireDroits, 
         </CarteSection>
       )}
 
-      {peutLirePaiements && (
+      {peutLirePaiements && peutOuvrirJournal && (
         <p className="text-sm">
           <Link to={`/cotisations?adherentId=${adherentId}`} className="font-medium text-primaire underline underline-offset-2">
             Voir les cotisations de cet adhérent

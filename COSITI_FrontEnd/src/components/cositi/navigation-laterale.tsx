@@ -28,6 +28,7 @@ import { LogoCositi } from "@/components/cositi/logo-cositi";
 import { AvatarUtilisateur } from "@/components/cositi/avatar-utilisateur";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { libelleRole } from "@/lib/roles";
+import { PERMISSION_FINANCES, PERMISSION_SANS_TERRAIN, PERMISSIONS_CENTRE_VALIDATION } from "@/lib/acces";
 
 interface EntreeNavigation {
   chemin: string;
@@ -46,6 +47,10 @@ interface EntreeNavigation {
 interface SectionNavigation {
   titre: string;
   entrees: readonly EntreeNavigation[];
+  /** Section entière réservée aux détenteurs de cette permission (ex. Finances : le DAF). */
+  permission?: CodePermission;
+  /** Section masquée pour les détenteurs de cette permission (ex. Terrain : masqué pour le DAF). */
+  masqueeAvec?: CodePermission;
 }
 
 /** Chemin remplacé à l'affichage par celui du tableau de bord de l'utilisateur. */
@@ -66,8 +71,8 @@ const SECTIONS: readonly SectionNavigation[] = [
       { chemin: TABLEAU_DE_BORD, libelle: "Tableau de bord", icone: LayoutDashboard },
       // `V12__rapports_daf_exports_j10.sql` : PCA, DAF, DG et DGA uniquement.
       { chemin: "/rapports", libelle: "Rapports", icone: FileText, permission: "RAPPORT_DAF:LIRE" },
-      // Workflow V19 : toute la chaîne métier propose ou décide ; ADHERENT:LIRE est porté par tous les rôles métier.
-      { chemin: "/validations", libelle: "Centre de validation", icone: ListChecks, permission: "ADHERENT:LIRE" },
+      // V23 : DG / DGA (centre identique) et DAF (validations financières) — ni Gestionnaire, ni PCA (`lib/acces.ts`).
+      { chemin: "/validations", libelle: "Centre de validation", icone: ListChecks, unePermissionParmi: PERMISSIONS_CENTRE_VALIDATION },
     ],
   },
   {
@@ -95,6 +100,8 @@ const SECTIONS: readonly SectionNavigation[] = [
   },
   {
     titre: "Terrain",
+    // V23 : rubrique Terrain masquée pour le DAF.
+    masqueeAvec: PERMISSION_SANS_TERRAIN,
     entrees: [
       // Module « Gestion des agents de terrain » : liste, fiche, portefeuilles, répartition.
       { chemin: "/agents", libelle: "Agents de terrain", icone: UserRoundCog, permission: "ORGANISATION:LIRE" },
@@ -109,6 +116,8 @@ const SECTIONS: readonly SectionNavigation[] = [
   },
   {
     titre: "Finances",
+    // V23 : rubrique exclusive au DAF ; le Gestionnaire saisit les cotisations depuis la fiche adhérent.
+    permission: PERMISSION_FINANCES,
     entrees: [
       { chemin: "/cotisations", libelle: "Cotisations", icone: Wallet, permission: "PAIEMENT:LIRE" },
       // V20 : PCA, DG, DGA, DAF, Gestionnaire.
@@ -126,10 +135,10 @@ const SECTIONS: readonly SectionNavigation[] = [
       { chemin: "/audit", libelle: "Audit", icone: History, permission: "AUDIT:CONSULTER" },
       // `V13__administration_securite_j11.sql` : Super Administrateur uniquement.
       { chemin: "/administration", libelle: "Administration", icone: Settings, permission: "ADMINISTRATION:LIRE" },
-      // V21 : décision du PCA (`REGLE:VALIDER`), consultation par l'administration.
+      // V21 / V23 : matrice documentaire (pièces à fournir), modifiable par le PCA (`REGLE:VALIDER`).
       {
         chemin: "/regles",
-        libelle: "Règles à valider",
+        libelle: "Matrice documentaire",
         icone: Scale,
         unePermissionParmi: ["ADMINISTRATION:LIRE", "REGLE:VALIDER"],
       },
@@ -160,7 +169,10 @@ export function NavigationLaterale({ repliee = false, onNaviguer, className }: N
   // permissions. Absent pour l'Agent de terrain et le Chef, qui n'en ont pas.
   const cheminDashboard = cheminTableauBord(utilisateur?.permissions ?? []);
 
-  const sections = SECTIONS.map((section) => ({
+  const sections = SECTIONS.filter(
+    (section) =>
+      (!section.permission || aLaPermission(section.permission)) && !(section.masqueeAvec && aLaPermission(section.masqueeAvec)),
+  ).map((section) => ({
     ...section,
     entrees: section.entrees
       .filter((entree) => !entree.permission || aLaPermission(entree.permission))

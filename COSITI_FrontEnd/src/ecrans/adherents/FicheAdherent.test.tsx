@@ -62,7 +62,8 @@ describe("FicheAdherent", () => {
     expect(within(carteDossier).getByText("Géolocalisation")).toBeInTheDocument();
     expect(within(carteDossier).getByText("Acte de naissance")).toBeInTheDocument();
     // Règle `[V]` jamais silencieuse.
-    expect(screen.getByText(/CHAMPS_COMPLETION_ADHERENT/)).toBeInTheDocument();
+    // V23 : règles en attente réputées validées — leur rappel n'est plus affiché.
+    expect(screen.queryByText(/CHAMPS_COMPLETION_ADHERENT/)).not.toBeInTheDocument();
   });
 
   it("affiche un message clair pour un adhérent introuvable ou hors périmètre", async () => {
@@ -181,7 +182,8 @@ describe("FicheAdherent", () => {
     const dialogue = await screen.findByRole("dialog");
 
     expect(await within(dialogue).findByLabelText("Numéro CNI")).toBeInTheDocument();
-    expect(within(dialogue).getByLabelText("Latitude")).toBeInTheDocument();
+    // V23 : la géolocalisation est retirée du dossier, même si le serveur la signale encore manquante.
+    expect(within(dialogue).queryByLabelText("Latitude")).not.toBeInTheDocument();
     // Champ non manquant : absent du parcours.
     expect(within(dialogue).queryByLabelText("Ville")).not.toBeInTheDocument();
     // V21 : l'association se choisit dans le référentiel `GET /associations` (elle n'est plus « à renseigner depuis la fiche »).
@@ -233,7 +235,7 @@ describe("FicheAdherent", () => {
 
     const carteSituation = (await screen.findByText("Situation de droits")).closest("[data-slot='card']") as HTMLElement;
     expect(within(carteSituation).getByText("En retard")).toBeInTheDocument();
-    expect(screen.getByText(/Reliquat de 400 F non imputé/)).toBeInTheDocument();
+    expect(screen.queryByText(/Reliquat de 400 F non imputé/)).not.toBeInTheDocument();
     expect(await screen.findByText("Périodes de droits")).toBeInTheDocument();
   });
 

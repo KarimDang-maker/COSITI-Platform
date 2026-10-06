@@ -34,19 +34,16 @@ async function remplirNouvelAdherent(page: Page, nom: string, telephone: string)
   await page.getByLabel(/Téléphone principal/).fill(telephone);
   await page.getByRole("button", { name: "Suivant" }).click();
 
-  // Étape 2 — rattachement. La zone est un sélecteur avec recherche
-  // (`SelectRecherche`) : on ouvre la liste et on prend la zone de démonstration.
+  // Étape 2 — activité et adresse. V22 : plus de pack à la création (choisi à la première cotisation) ;
+  // V23 : ni zone ni localisation, seuls le quartier et la ville sont saisis.
   await expect(page.getByRole("heading", { name: "Nouvel adhérent" })).toBeVisible();
-  await page.getByLabel("Zone").click();
-  await page.getByRole("option").first().click();
   // L'activité est un identifiant du référentiel, pas un code libre : l'API refuse
   // tout ce qui n'est pas un UUID de la table `activite`.
   await page.getByLabel("Activité").click();
   await page.getByRole("option").first().click();
-  await page.getByLabel("Localisation").fill("Marché central");
+  await page.getByLabel("Quartier").fill("Akwa");
+  await page.getByLabel("Ville").fill("Douala");
   await page.getByLabel(/Date d'adhésion/).fill("2026-09-01");
-  await page.getByLabel("Pack de cotisation").click();
-  await page.getByRole("option").first().click();
   await page.getByRole("button", { name: "Suivant" }).click();
 
   // Étape 3 — vérification, puis création.

@@ -25,7 +25,7 @@ interface RaccourciCreation {
  */
 const RACCOURCIS: readonly RaccourciCreation[] = [
   { libelle: "Nouvel adhérent", chemin: "/adherents/nouveau", icone: UserPlus, permission: "ADHERENT:CREER" },
-  { libelle: "Nouveau paiement", chemin: "/cotisations/nouveau", icone: WalletCards, permission: "PAIEMENT:CREER" },
+  { libelle: "Nouvelle cotisation", chemin: "/cotisations/nouveau", icone: WalletCards, permission: "PAIEMENT:CREER" },
   {
     libelle: "Nouveau compte rendu",
     chemin: "/comptes-rendus/nouveau",

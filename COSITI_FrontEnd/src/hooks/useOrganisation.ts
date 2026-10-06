@@ -3,6 +3,7 @@ import {
   affecterPortefeuille,
   changerStatutAgent,
   creerAgent,
+  creerZone,
   designerChef,
   listerAgents,
   listerAgentsPagines,
@@ -12,6 +13,7 @@ import {
   listerSansAgentReferent,
   listerZones,
   modifierAgent,
+  modifierZone,
   obtenirAgent,
   obtenirChargeAgent,
   obtenirChefCourant,
@@ -25,6 +27,7 @@ import {
   transfererPortefeuille,
   type CorpsCreationAgent,
   type CorpsModificationAgent,
+  type CorpsZone,
   type FiltresAgents,
 } from "@/api/organisation";
 import { estErreurApi } from "@/api/erreurs";
@@ -132,10 +135,13 @@ export function useDistributionPortefeuilles(actif = true) {
   });
 }
 
+/** Valeur de sélection « toutes les zones » : adhérents sans agent, y compris ceux créés sans zone (V23). */
+export const TOUTES_LES_ZONES = "__TOUTES__";
+
 export function useSansAgentReferent(zoneId: string | undefined) {
   return useQuery({
     queryKey: [CLE, "sans-agent", zoneId],
-    queryFn: () => listerSansAgentReferent(zoneId!),
+    queryFn: () => listerSansAgentReferent(zoneId === TOUTES_LES_ZONES ? null : zoneId),
     enabled: !!zoneId,
   });
 }
@@ -236,5 +242,14 @@ export function useChangerStatutAgent(agentId: string) {
   return useMutation({
     mutationFn: ({ actif, motif }: { actif: boolean; motif: string }) => changerStatutAgent(agentId, actif, motif),
     onSuccess: () => invalider(clientRequetes),
+  });
+}
+
+/** Création / modification d'une zone (`ORGANISATION:GERER_ZONES`). */
+export function useEnregistrerZone() {
+  const clientRequetes = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, corps }: { id?: string; corps: CorpsZone }) => (id ? modifierZone(id, corps) : creerZone(corps)),
+    onSuccess: () => void clientRequetes.invalidateQueries({ queryKey: [CLE, "zones"] }),
   });
 }

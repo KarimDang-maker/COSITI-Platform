@@ -9,6 +9,7 @@ import {
   listerFraisAdhesion,
   obtenirChecklistDocumentaire,
   obtenirConfigurationFrais,
+  obtenirFraisAdhesionAdherent,
   obtenirControleDga,
   obtenirJournalControleDga,
   obtenirRapprochementFrais,
@@ -58,6 +59,31 @@ export function useExigencesDocumentaires(enVigueur = true, actif = true) {
 }
 
 /* ----- Lectures ----- */
+
+/**
+ * Frais d'adhésion d'un adhérent (`GET /adherents/{id}/frais-adhesion`). V23 : son encaissement validé par le DAF
+ * conditionne la saisie des cotisations — l'écran l'annonce, le serveur l'impose (spécification backend V23 §5).
+ */
+export function useFraisAdhesionAdherent(adherentId: string | undefined, actif = true) {
+  return useQuery({
+    queryKey: [CLE, "adherent", adherentId, "frais"],
+    queryFn: () => obtenirFraisAdhesionAdherent(adherentId!),
+    enabled: !!adherentId && actif,
+  });
+}
+
+/**
+ * Vrai quand les cotisations de l'adhérent sont ouvertes au regard du frais d'adhésion (V23) : frais enregistré **et**
+ * encaissement validé par le DAF. Un adhérent ancien, antérieur au frais d'adhésion (aucun frais enregistré, statut
+ * autre que « Préinscrit »), n'est pas bloqué : le serveur tranche ces cas (spécification backend V23 §5).
+ */
+export function fraisAdhesionValide(
+  frais: { readonly frais: { readonly statut: string } | null } | undefined,
+  statutAdherent: string | undefined,
+): boolean {
+  if (frais?.frais) return frais.frais.statut === "VALIDE";
+  return statutAdherent !== "PREINSCRIT";
+}
 
 export function useSyntheseWorkflowAdherent(adherentId: string | undefined) {
   return useQuery({

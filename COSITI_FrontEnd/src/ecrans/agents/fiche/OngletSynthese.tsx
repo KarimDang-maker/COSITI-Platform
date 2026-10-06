@@ -72,9 +72,6 @@ export function OngletSynthese({ agentId, peutLirePaiements, peutLireAdherents }
                 valeur={`${formaterNombre(resume.data.dossiersComplets)} sur ${formaterNombre(resume.data.totalAdherents)}`}
               />
             )}
-            <p className="text-xs text-texte-doux">
-              Complétion évaluée par la même règle que la fiche adhérent (liste de champs provisoire, non validée par la COSITI).
-            </p>
           </>
         )}
       </CarteSection>

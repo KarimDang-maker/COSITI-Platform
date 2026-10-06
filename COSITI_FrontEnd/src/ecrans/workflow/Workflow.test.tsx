@@ -297,8 +297,10 @@ describe("Workflow — intégration dans les modules", () => {
 
   it("met la correction de cotisation dans la file du DAF, avec le montant comparé", async () => {
     simulerSession(JETON_DAF);
-    rendreAvecProviders(arbre(), { routeInitiale: "/validations?typeEntite=PAIEMENT" });
+    // V23 : le centre du DAF s'ouvre sur les validations financières ; les corrections ont leur onglet.
+    rendreAvecProviders(arbre(), { routeInitiale: "/validations?vue=a-traiter&typeEntite=PAIEMENT" });
 
+    expect(await screen.findByRole("tab", { name: "Demandes de correction" }, ATTENTE)).toHaveAttribute("aria-selected", "true");
     expect(await screen.findByText("Correction de cotisation", {}, ATTENTE)).toBeInTheDocument();
   });
 });

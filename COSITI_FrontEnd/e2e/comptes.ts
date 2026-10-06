@@ -42,7 +42,8 @@ export type CompteDemo = keyof typeof COMPTES;
 export async function seConnecter(page: Page, compte: CompteDemo): Promise<void> {
   await page.goto("/connexion");
   await page.getByLabel("Identifiant").fill(COMPTES[compte]);
-  await page.getByLabel("Mot de passe").fill(MOT_DE_PASSE_DEMO!);
+  // `exact` : le bouton « Afficher le mot de passe » porte aussi ce libellé (correspondance partielle par défaut).
+  await page.getByLabel("Mot de passe", { exact: true }).fill(MOT_DE_PASSE_DEMO!);
   await page.getByRole("button", { name: "Se connecter" }).click();
 
   // On attend que la connexion ait **abouti**, pas qu'elle ait commencé.

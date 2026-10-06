@@ -256,3 +256,25 @@
     }
   }
 }
+
+/* Impression d'un reçu de cotisation (DialogueRecu) : seul le contenu marqué « zone-impression » sort sur papier. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .zone-impression,
+  .zone-impression * {
+    visibility: visible;
+  }
+  .zone-impression {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    box-shadow: none;
+    transform: none;
+  }
+  .masquer-impression,
+  .zone-impression button[data-slot="dialog-close"] {
+    display: none;
+  }
+}

@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { PERMISSION_FINANCES } from "@/lib/acces";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { usePermission } from "@/auth/ContexteAuth";
 import { usePacks } from "@/hooks/useAdherents";
+import { fraisAdhesionValide, useFraisAdhesionAdherent } from "@/hooks/useAdhesion";
 import { useAgents } from "@/hooks/useOrganisation";
 import { useContexteCotisation, useEnregistrerPaiement, useVerifierDoublonPaiement } from "@/hooks/usePaiements";
 import {
@@ -175,6 +177,9 @@ function RechercheMatricule({
 
   const introuvable = contexte.isError && estErreurApi(contexte.error) && contexte.error.statut === 404;
   const donnees = contexte.data;
+  // V23 : aucune cotisation tant que le DAF n'a pas validé l'encaissement du frais d'adhésion (1 000 FCFA).
+  const frais = useFraisAdhesionAdherent(donnees?.adherentId);
+  const fraisValide = fraisAdhesionValide(frais.data, donnees?.statut);
 
   return (
     <CarteSection titre="1. Adhérent" description="Recherchez l'adhérent par son matricule avant toute saisie financière.">
@@ -213,7 +218,18 @@ function RechercheMatricule({
           <div className="space-y-3">
             <ResumeAdherent contexte={donnees} />
             {donnees.avertissements.length > 0 && <AvertissementRegle avertissements={donnees.avertissements} />}
-            {donnees.cotisable ? (
+            {donnees.cotisable && frais.isLoading ? (
+              <Skeleton className="h-10 w-64" />
+            ) : donnees.cotisable && !fraisValide ? (
+              <Alerte teinte="attention" titre="Frais d'adhésion non validé par le DAF">
+                <p>
+                  {frais.data?.frais
+                    ? "Le frais d'adhésion de cet adhérent est enregistré mais son encaissement n'est pas encore validé par le DAF."
+                    : "Aucun frais d'adhésion n'est enregistré pour cet adhérent."}{" "}
+                  Les cotisations pourront être saisies une fois l'encaissement validé par le DAF.
+                </p>
+              </Alerte>
+            ) : donnees.cotisable ? (
               <Button onClick={() => onTrouve(donnees)}>Saisir la cotisation de cet adhérent</Button>
             ) : (
               <Alerte teinte="danger" titre="Cet adhérent ne peut pas cotiser pour le moment">
@@ -607,13 +623,19 @@ function FormulaireCotisation({ contexte, onChangerAdherent }: { contexte: Conte
 export function NouveauPaiement() {
   const [parametres] = useSearchParams();
   const [contexte, setContexte] = useState<ContexteCotisation | null>(null);
+  // V23 : le journal des cotisations (rubrique Finances) est réservé au DAF.
+  const peutOuvrirJournal = usePermission(PERMISSION_FINANCES);
 
   return (
     <CoquilleApplication titre="Nouvelle cotisation">
       <div className="mx-auto max-w-2xl space-y-6">
         <EnTetePage
           titre="Nouvelle cotisation"
-          filAriane={[{ libelle: "Cotisations", chemin: "/cotisations" }, { libelle: "Nouvelle cotisation" }]}
+          filAriane={
+            peutOuvrirJournal
+              ? [{ libelle: "Cotisations", chemin: "/cotisations" }, { libelle: "Nouvelle cotisation" }]
+              : [{ libelle: "Adhérents", chemin: "/adherents" }, { libelle: "Nouvelle cotisation" }]
+          }
         />
         {contexte ? (
           <FormulaireCotisation key={contexte.adherentId} contexte={contexte} onChangerAdherent={() => setContexte(null)} />

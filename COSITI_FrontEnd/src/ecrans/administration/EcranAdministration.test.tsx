@@ -83,18 +83,16 @@ describe("EcranAdministration", () => {
     expect(screen.queryByRole("button", { name: /créer un rôle/i })).not.toBeInTheDocument();
   });
 
-  it("signale les règles non validées et exige un motif pour les modifier", async () => {
+  it("liste les règles sans statut « à valider » (V23 : toutes réputées validées) et exige un motif pour les modifier", async () => {
     simulerSession(JETON_SUPER_ADMIN);
     const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/administration?onglet=parametres" });
 
     await screen.findByText("DELAI_RETARD_JOURS");
-    // « À valider » figure aussi dans la légende explicative : on cible les badges du tableau.
     const lignes = screen.getAllByRole("row");
     const ligneDelai = lignes.find((l) => l.textContent?.includes("DELAI_RETARD_JOURS"))!;
-    expect(ligneDelai).toHaveTextContent("À valider");
-    const ligneMontant = lignes.find((l) => l.textContent?.includes("MONTANT_INSCRIPTION"))!;
-    expect(ligneMontant).toHaveTextContent("Confirmé");
+    expect(ligneDelai).not.toHaveTextContent("À valider");
+    expect(screen.queryByText("Ce que signifient les statuts")).not.toBeInTheDocument();
 
     await utilisateur.click((await screen.findAllByRole("button", { name: "Modifier" }))[0]!);
 

@@ -223,7 +223,9 @@ describe("Module cotisations — fiche", () => {
 
     expect(await screen.findByText("Cotisations de l'adhérent", {}, ATTENTE)).toBeInTheDocument();
     expect(await screen.findByText("9 000 FCFA")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /1\s400/ })).toHaveAttribute("href", "/cotisations?adherentId=adh-2&statut=A_CONTROLER");
+    // V23 : le journal des cotisations est réservé au DAF — le Gestionnaire voit le montant, sans lien.
+    expect(screen.getByText(/1\s400/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /1\s400/ })).not.toBeInTheDocument();
     expect(screen.getByText("86 %")).toBeInTheDocument();
     expect(screen.getByText("Seuil non atteint")).toBeInTheDocument();
   });
@@ -329,8 +331,31 @@ describe("Module cotisations — saisie", () => {
     expect(await screen.findByText(/statut : À contrôler/, {}, ATTENTE)).toBeInTheDocument();
   });
 
+  it("bloque la saisie tant que le DAF n'a pas validé le frais d'adhésion de 1 000 FCFA (V23)", async () => {
+    simulerSession(JETON_AGENT);
+    // Frais enregistré par le Gestionnaire, encaissement pas encore validé par le DAF.
+    serveur.use(
+      http.get("/api/v1/adherents/adh-2/frais-adhesion", () =>
+        HttpResponse.json({ adherentId: "adh-2", montantRequis: 1000, devise: "XAF", enregistre: true, frais: { id: "fa-x", statut: "ENREGISTRE" } }),
+      ),
+    );
+    const utilisateur = userEvent.setup();
+    rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
+
+    await utilisateur.type(await screen.findByLabelText(/^Matricule COSITI/, {}, ATTENTE), "COSITI-00002");
+    await utilisateur.click(screen.getByRole("button", { name: "Rechercher" }));
+    expect(await screen.findByText("Frais d'adhésion non validé par le DAF", {}, ATTENTE)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Saisir la cotisation de cet adhérent" })).not.toBeInTheDocument();
+  });
+
   it("exige le pack à la première cotisation d'un adhérent sans adhésion (V22)", async () => {
     simulerSession(JETON_AGENT);
+    // Frais validé par le DAF : la saisie est ouverte (V23).
+    serveur.use(
+      http.get("/api/v1/adherents/adh-2/frais-adhesion", () =>
+        HttpResponse.json({ adherentId: "adh-2", montantRequis: 1000, devise: "XAF", enregistre: true, frais: { id: "fa-x", statut: "VALIDE" } }),
+      ),
+    );
     const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/cotisations/nouveau" });
 
@@ -451,7 +476,8 @@ describe("Module cotisations — bilan de caisse", () => {
     rendreAvecProviders(arbre(), { routeInitiale: "/bilans-caisse?date=2026-09-29" });
 
     expect(await screen.findByText("À retrouver en caisse", {}, ATTENTE)).toBeInTheDocument();
-    expect(screen.getByText(/BILAN_CAISSE_MODES_NUMERIQUE/)).toBeInTheDocument();
+    // V23 : le rappel « règle non validée » n'est plus affiché.
+    expect(screen.queryByText(/BILAN_CAISSE_MODES_NUMERIQUE/)).not.toBeInTheDocument();
     expect(screen.getByText("Aucun montant physique saisi pour cette date")).toBeInTheDocument();
 
     await utilisateur.click(screen.getByRole("button", { name: "Saisir la caisse physique" }));

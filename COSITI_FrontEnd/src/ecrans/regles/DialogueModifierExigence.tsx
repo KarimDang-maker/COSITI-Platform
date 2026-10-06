@@ -57,7 +57,7 @@ export function DialogueModifierExigence({ exigence, onFermer }: { exigence: Exi
           version: exigence.version,
         },
       });
-      toast.success("Exigence modifiée. Elle reste à confirmer par la COSITI.");
+      toast.success("Exigence modifiée.");
       onFermer();
     } catch (e) {
       setErreur(

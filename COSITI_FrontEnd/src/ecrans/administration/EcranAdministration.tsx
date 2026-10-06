@@ -122,11 +122,6 @@ export function EcranAdministration() {
         cell: ({ row }) => <span className="chiffre">{row.original.valeur}</span>,
       },
       {
-        id: "statut",
-        header: "Statut",
-        cell: ({ row }) => <BadgeStatut domaine="validationParametre" code={row.original.statutValidation} />,
-      },
-      {
         id: "modification",
         header: "Dernière modification",
         cell: ({ row }) => (
@@ -236,13 +231,6 @@ export function EcranAdministration() {
           </TabsContent>
 
           <TabsContent value="parametres" className="space-y-6">
-            <Alerte teinte="info" titre="Ce que signifient les statuts">
-              <p>
-                <strong>Confirmé</strong> : la règle est validée par la COSITI. <strong>À analyser</strong> :
-                proposition technique. <strong>À valider</strong> : la valeur est provisoire, et tous les
-                résultats qui en dépendent sont signalés comme tels dans l'application.
-              </p>
-            </Alerte>
 
             {parametres.data && (
               <TableauDonnees

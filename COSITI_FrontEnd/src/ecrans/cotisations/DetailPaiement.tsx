@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { PERMISSION_FINANCES } from "@/lib/acces";
 import { Link, useParams } from "react-router";
 import { toast } from "sonner";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
@@ -38,11 +39,12 @@ import {
 } from "@/lib/format";
 import { LigneChamp } from "@/ecrans/adherents/fiche/LigneChamp";
 import { DialogueCorrigerPaiement } from "@/ecrans/cotisations/DialogueCorrigerPaiement";
+import { DialogueRecu } from "@/ecrans/cotisations/DialogueRecu";
 import { BandeauWorkflow, HistoriqueValidation } from "@/ecrans/workflow/BandeauWorkflow";
 import { DialogueDemandeModification } from "@/ecrans/workflow/DialogueDemandeModification";
 import { useStatutValidation } from "@/hooks/useWorkflow";
 
-type DialogueOuvert = "soumission" | "validation" | "rejet" | "correction" | "demandeCorrection" | "annulation" | "incoherence" | null;
+type DialogueOuvert = "soumission" | "validation" | "rejet" | "correction" | "demandeCorrection" | "annulation" | "incoherence" | "recu" | null;
 
 /**
  * Fiche d'une cotisation (#8) et ses actions (#14 soumettre, #16 valider, #17 rejeter, #19 corriger,
@@ -83,6 +85,7 @@ export function DetailPaiement() {
 }
 
 function ContenuPaiement({ paiement }: { paiement: Paiement }) {
+  const peutOuvrirJournal = usePermission(PERMISSION_FINANCES);
   const { utilisateur } = useAuth();
   const peutCreer = usePermission("PAIEMENT:CREER");
   const peutValider = usePermission("PAIEMENT:VALIDER");
@@ -198,9 +201,18 @@ function ContenuPaiement({ paiement }: { paiement: Paiement }) {
           titre={<>Paiement {paiement.numeroRecu}</>}
           description={nomAdherent}
           statut={<BadgeStatut domaine="paiement" code={statut} />}
-          filAriane={[{ libelle: "Cotisations", chemin: "/cotisations" }, { libelle: "Détail du paiement" }]}
+          // V23 : hors DAF, le journal financier n'est pas accessible — retour vers la fiche de l'adhérent.
+          filAriane={
+            peutOuvrirJournal
+              ? [{ libelle: "Cotisations", chemin: "/cotisations" }, { libelle: "Détail du paiement" }]
+              : [{ libelle: "Fiche adhérent", chemin: `/adherents/${paiement.adherentId}` }, { libelle: "Détail du paiement" }]
+          }
           actions={
             <>
+              {/* Reçu imprimable : toute personne qui peut lire la cotisation (PAIEMENT:LIRE + périmètre). */}
+              <Button variant="outline" onClick={() => setDialogue("recu")}>
+                Reçu
+              </Button>
               {actionPossible.soumettre && <Button onClick={() => setDialogue("soumission")}>Soumettre au contrôle</Button>}
               {actionPossible.valider && correctionEnCours && (
                 <Tooltip>
@@ -369,6 +381,8 @@ function ContenuPaiement({ paiement }: { paiement: Paiement }) {
         <HistoriqueValidation typeEntite="PAIEMENT" entiteId={paiement.id} />
       </div>
 
+      <DialogueRecu paiementId={paiement.id} ouvert={dialogue === "recu"} onOuvertChange={(o) => !o && setDialogue(null)} />
+
       <DialogueConfirmation
         ouvert={dialogue === "soumission"}
         onOuvertChange={fermer}
@@ -507,6 +521,7 @@ function ContenuPaiement({ paiement }: { paiement: Paiement }) {
  * libellé fourni par l'API, pas dans la longueur de la barre.
  */
 function ResumeAdherent({ adherentId }: { adherentId: string }) {
+  const peutOuvrirJournal = usePermission(PERMISSION_FINANCES);
   const { data, isLoading, isError } = useResumeCotisations(adherentId);
   return (
     <CarteSection titre="Cotisations de l'adhérent" contenuClassName="space-y-4">
@@ -519,12 +534,16 @@ function ResumeAdherent({ adherentId }: { adherentId: string }) {
             <LigneChamp
               libelle="En attente de contrôle"
               valeur={
-                <Link
-                  to={`/cotisations?adherentId=${adherentId}&statut=A_CONTROLER`}
-                  className="chiffre font-medium text-primaire underline underline-offset-2"
-                >
-                  {formaterMontant(data.montantEnAttente)}
-                </Link>
+                peutOuvrirJournal ? (
+                  <Link
+                    to={`/cotisations?adherentId=${adherentId}&statut=A_CONTROLER`}
+                    className="chiffre font-medium text-primaire underline underline-offset-2"
+                  >
+                    {formaterMontant(data.montantEnAttente)}
+                  </Link>
+                ) : (
+                  <span className="chiffre">{formaterMontant(data.montantEnAttente)}</span>
+                )
               }
             />
             <LigneChamp libelle="Reste avant le seuil CNPS" valeur={<span className="chiffre">{formaterMontant(data.resteAvantSeuil)}</span>} />

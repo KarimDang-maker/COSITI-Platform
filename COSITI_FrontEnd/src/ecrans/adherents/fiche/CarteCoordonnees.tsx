@@ -13,13 +13,7 @@ import type { CoordonneesAdherent } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterTelephone } from "@/lib/format";
 import { LigneChamp } from "@/ecrans/adherents/fiche/LigneChamp";
-import {
-  nombreVersTexte,
-  schemaCoordonnees,
-  texteVersNombre,
-  videVersNull,
-  type ValeursCoordonnees,
-} from "@/ecrans/adherents/schemas";
+import { schemaCoordonnees, videVersNull, type ValeursCoordonnees } from "@/ecrans/adherents/schemas";
 
 interface CarteCoordonneesProps {
   adherentId: string;
@@ -82,10 +76,6 @@ export function CarteCoordonnees({ adherentId, peutModifier }: CarteCoordonneesP
         <LigneChamp libelle="Localisation" valeur={data.localisation ?? "—"} />
         <LigneChamp libelle="Quartier" valeur={data.quartier ?? "—"} />
         <LigneChamp libelle="Ville" valeur={data.ville ?? "—"} />
-        <LigneChamp
-          libelle="Géolocalisation"
-          valeur={data.latitude !== null && data.longitude !== null ? `${data.latitude}, ${data.longitude}` : "—"}
-        />
       </dl>
     </CarteSection>
   );
@@ -118,8 +108,6 @@ function FormulaireCoordonnees({
       localisation: initiales.localisation ?? "",
       quartier: initiales.quartier ?? "",
       ville: initiales.ville ?? "",
-      latitude: nombreVersTexte(initiales.latitude),
-      longitude: nombreVersTexte(initiales.longitude),
     },
   });
 
@@ -135,8 +123,9 @@ function FormulaireCoordonnees({
         localisation: valeurs.localisation.trim(),
         quartier: videVersNull(valeurs.quartier),
         ville: videVersNull(valeurs.ville),
-        latitude: texteVersNombre(valeurs.latitude),
-        longitude: texteVersNombre(valeurs.longitude),
+        // V23 : latitude / longitude retirées du dossier ; la valeur stockée est renvoyée inchangée.
+        latitude: initiales.latitude,
+        longitude: initiales.longitude,
       });
       toast.success("Coordonnées enregistrées.");
       onTerminer();
@@ -190,12 +179,6 @@ function FormulaireCoordonnees({
           </ChampFormulaire>
           <ChampFormulaire id="co-ville" libelle="Ville" facultatif>
             {(attributs) => <Input {...attributs} {...register("ville")} />}
-          </ChampFormulaire>
-          <ChampFormulaire id="co-latitude" libelle="Latitude" facultatif erreur={errors.latitude?.message}>
-            {(attributs) => <Input inputMode="decimal" {...attributs} {...register("latitude")} />}
-          </ChampFormulaire>
-          <ChampFormulaire id="co-longitude" libelle="Longitude" facultatif erreur={errors.longitude?.message}>
-            {(attributs) => <Input inputMode="decimal" {...attributs} {...register("longitude")} />}
           </ChampFormulaire>
         </div>
         {erreurServeur && (

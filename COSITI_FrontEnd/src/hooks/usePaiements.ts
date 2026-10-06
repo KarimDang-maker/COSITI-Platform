@@ -19,6 +19,7 @@ import {
   type CorpsEnregistrementPaiement,
   type CorpsVerificationDoublonPaiement,
   type FiltresPaiements,
+  obtenirRecu,
 } from "@/api/paiements";
 import {
   listerBilansCaisse,
@@ -242,5 +243,14 @@ export function useSignalerAnomalieBilan() {
   return useMutation({
     mutationFn: ({ date, motif }: { date: string; motif: string }) => signalerAnomalieBilan(date, motif),
     onSuccess: () => invaliderBilans(clientRequetes),
+  });
+}
+
+/** Reçu imprimable d'une cotisation ; chargé à l'ouverture du dialogue seulement. */
+export function useRecuPaiement(id: string | undefined, actif = true) {
+  return useQuery({
+    queryKey: [CLE, "recu", id],
+    queryFn: () => obtenirRecu(id!),
+    enabled: actif && !!id,
   });
 }

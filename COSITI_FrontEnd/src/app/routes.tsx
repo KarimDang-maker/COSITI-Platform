@@ -1,4 +1,5 @@
 import { lazy, Suspense } from "react";
+import { PERMISSION_FINANCES, PERMISSIONS_CENTRE_VALIDATION } from "@/lib/acces";
 import { Navigate, Route, Routes } from "react-router";
 import { GardeRoute } from "@/app/GardeRoute";
 import { EcranConnexion } from "@/ecrans/connexion/EcranConnexion";
@@ -189,7 +190,7 @@ export function RoutesApplication() {
       <Route
         path="/cotisations"
         element={
-          <GardeRoute permission="PAIEMENT:LIRE">
+          <GardeRoute permission={PERMISSION_FINANCES}>
             <JournalCotisations />
           </GardeRoute>
         }
@@ -207,7 +208,7 @@ export function RoutesApplication() {
       <Route
         path="/validations"
         element={
-          <GardeRoute permission="ADHERENT:LIRE">
+          <GardeRoute unePermissionParmi={PERMISSIONS_CENTRE_VALIDATION}>
             <EcranCentreValidation />
           </GardeRoute>
         }
@@ -251,7 +252,7 @@ export function RoutesApplication() {
       <Route
         path="/bilans-caisse/ouvrir/:id"
         element={
-          <GardeRoute permission="BILAN_CAISSE:LIRE">
+          <GardeRoute permission={PERMISSION_FINANCES}>
             <OuvertureBilanCaisse />
           </GardeRoute>
         }
@@ -268,7 +269,7 @@ export function RoutesApplication() {
       <Route
         path="/frais-adhesion"
         element={
-          <GardeRoute permission="FRAIS_ADHESION:LIRE">
+          <GardeRoute permission={PERMISSION_FINANCES}>
             <EcranFraisAdhesion />
           </GardeRoute>
         }
@@ -278,7 +279,7 @@ export function RoutesApplication() {
       <Route
         path="/bilans-caisse"
         element={
-          <GardeRoute permission="BILAN_CAISSE:LIRE">
+          <GardeRoute permission={PERMISSION_FINANCES}>
             <EcranBilanCaisse />
           </GardeRoute>
         }
@@ -295,7 +296,7 @@ export function RoutesApplication() {
       <Route
         path="/daf"
         element={
-          <GardeRoute unePermissionParmi={["PAIEMENT:VALIDER", "RAPPORT_DAF:LIRE"]}>
+          <GardeRoute permission={PERMISSION_FINANCES}>
             <EcranDaf />
           </GardeRoute>
         }

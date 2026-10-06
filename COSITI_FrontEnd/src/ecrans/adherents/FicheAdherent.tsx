@@ -129,8 +129,6 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
     localisation: adherent.localisation,
     quartier: adherent.quartier,
     ville: adherent.ville,
-    latitude: adherent.latitude === null || adherent.latitude === undefined ? null : String(adherent.latitude),
-    longitude: adherent.longitude === null || adherent.longitude === undefined ? null : String(adherent.longitude),
     statut: adherent.statut,
   };
 
@@ -292,6 +290,7 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
               <CarteComptes
                 adherentId={adherent.id}
                 matricule={adherent.matricule}
+                statutAdherent={adherent.statut}
                 peutSaisir={peutSaisirCotisation && !adherent.archive}
                 onVoirDetails={ongletsVisibles.includes("cotisations") ? () => changerOnglet("cotisations") : undefined}
               />

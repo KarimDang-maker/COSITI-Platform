@@ -26,7 +26,6 @@ function LignePiece({ piece, onAction }: { piece: PieceChecklist; onAction?: (ac
   const type = (piece.typeDocument ?? "AUTRE") as TypeDocument;
   const aFournir = A_FOURNIR.includes(piece.statut);
   const aRemplacer = A_REMPLACER.includes(piece.statut) || (!!piece.documentId && piece.statut === "FOURNI");
-  const provisoire = piece.statutValidationRegle !== "C";
 
   return (
     <li
@@ -54,12 +53,6 @@ function LignePiece({ piece, onAction }: { piece: PieceChecklist; onAction?: (ac
           </p>
           {piece.conditionApplication && (
             <p className="text-sm text-texte-doux-fort">Condition : {piece.conditionApplication}</p>
-          )}
-          {provisoire && (
-            <p className="flex flex-wrap items-center gap-2 text-xs text-texte-doux-fort">
-              <BadgeStatut domaine="validationParametre" code={piece.statutValidationRegle} />
-              Règle en attente de confirmation par la COSITI : signalée, elle ne bloque pas encore.
-            </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2">

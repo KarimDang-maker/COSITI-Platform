@@ -44,8 +44,6 @@ const CHAMPS_ADHERENT: readonly DefinitionChamp[] = [
   { champ: "localisation", libelle: "Localisation", saisie: "texte" },
   { champ: "quartier", libelle: "Quartier", saisie: "texte" },
   { champ: "ville", libelle: "Ville", saisie: "texte" },
-  { champ: "latitude", libelle: "Latitude", saisie: "nombre" },
-  { champ: "longitude", libelle: "Longitude", saisie: "nombre" },
   { champ: "statut", libelle: "Statut de l'adhérent", saisie: "choix", options: optionsStatut("adherent") },
 ];
 

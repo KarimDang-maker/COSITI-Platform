@@ -5,6 +5,7 @@ import { ClipboardCheck } from "lucide-react";
 import type { ColumnDef, SortingState } from "@tanstack/react-table";
 import { CoquilleApplication } from "@/components/cositi/coquille-application";
 import { EnTetePage } from "@/components/cositi/entete-page";
+import { RemisesCaisse } from "@/ecrans/daf/RemisesCaisse";
 import { BarreFiltres } from "@/components/cositi/barre-filtres";
 import { TableauDonnees } from "@/components/cositi/tableau-donnees";
 import { Pagination } from "@/components/cositi/pagination";
@@ -330,6 +331,8 @@ export function EcranDaf() {
             }
           />
         )}
+
+        <RemisesCaisse />
       </div>
     </CoquilleApplication>
   );

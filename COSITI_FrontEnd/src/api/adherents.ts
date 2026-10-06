@@ -165,7 +165,8 @@ export interface CorpsVerificationDoublon {
   nomComplet: string;
   telephonePrincipal?: string;
   numeroCni?: string;
-  zoneId: string;
+  /** V23 : facultatif — le formulaire de création ne saisit plus la zone. */
+  zoneId?: string;
 }
 
 /** #10 */
@@ -185,9 +186,8 @@ export interface CorpsCreationAdherent {
   numeroCni?: string;
   numeroCnps?: string;
   activiteId: string;
-  zoneId: string;
   associationId?: string;
-  localisation: string;
+  // V23 : plus de zone de rattachement ni de localisation à la création (spécification backend V23).
   quartier?: string;
   ville?: string;
   dateAdhesion: string;
@@ -235,6 +235,23 @@ export function modifierAdherent(id: string, corps: CorpsModificationAdherent) {
 /** #33 — `204`. Motif obligatoire ; `409` si le statut est inchangé ou si l'adhérent est radié. */
 export function changerStatutAdherent(id: string, statut: StatutAdherent, motif: string) {
   return client.post<void>(`/adherents/${id}/statut`, { statut, motif });
+}
+
+/**
+ * Changement de pack d'un adhérent qui en a déjà un (`POST /adherents/{id}/pack`, `ADHERENT:MODIFIER`). L'adhésion en
+ * cours est clôturée la veille de `effetLe` ; l'impact sur les droits déjà acquis n'est pas recalculé (le serveur le
+ * trace). Le premier pack, lui, se choisit à la première cotisation (V22).
+ */
+export interface AdhesionPack {
+  readonly id: string;
+  readonly adherentId: string;
+  readonly packId: string;
+  readonly dateDebut: string;
+  readonly dateFin: string | null;
+}
+
+export function changerPackAdherent(id: string, corps: { packId: string; effetLe: string }) {
+  return client.post<AdhesionPack>(`/adherents/${id}/pack`, corps);
 }
 
 /** Archivage logique (`ADHERENT:ARCHIVER`) — `204`, motif obligatoire, jamais une suppression. */

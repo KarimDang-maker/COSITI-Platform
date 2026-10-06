@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useZones } from "@/hooks/useOrganisation";
 import { useActivites, useCreerAdherent, useVerifierDoublon } from "@/hooks/useAdherents";
 import type { CandidatDoublon } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
@@ -47,10 +46,8 @@ const schema = z.object({
   // V22 : coordonnées complémentaires, facultatives.
   whatsapp: schemaTelephoneFacultatif,
   email: schemaEmailFacultatif,
-  zoneId: z.string().min(1, "La zone est obligatoire."),
   activiteId: z.string().min(1, "L'activité est obligatoire."),
   associationId: z.string().trim().optional(),
-  localisation: z.string().trim().min(1, "La localisation est obligatoire."),
   quartier: z.string().trim().optional(),
   ville: z.string().trim().optional(),
   dateAdhesion: z.string().min(1, "La date d'adhésion est obligatoire."),
@@ -61,7 +58,8 @@ type ValeursFormulaire = z.infer<typeof schema>;
 
 const CHAMPS_ETAPE = [
   ["nom", "prenoms", "dateNaissance", "sexe", "numeroCni", "numeroCnps", "telephonePrincipal", "telephoneSecondaire", "whatsapp", "email"],
-  ["zoneId", "activiteId", "associationId", "localisation", "quartier", "ville", "dateAdhesion"],
+  // V23 : ni zone de rattachement ni localisation à la création — seuls le quartier et la ville sont saisis.
+  ["activiteId", "associationId", "quartier", "ville", "dateAdhesion"],
   [],
 ] as const satisfies readonly (readonly (keyof ValeursFormulaire)[])[];
 
@@ -76,7 +74,6 @@ const TITRES_ETAPE = ["Identité et contact", "Rattachement", "Vérification et 
 export function NouvelAdherent() {
   const navigate = useNavigate();
   const [etape, setEtape] = useState(0);
-  const { data: zones } = useZones();
   const { data: activites } = useActivites();
   const verifierDoublon = useVerifierDoublon();
   const creerAdherent = useCreerAdherent();
@@ -89,7 +86,7 @@ export function NouvelAdherent() {
     getValues,
     control,
     formState: { errors },
-  } = useForm<ValeursFormulaire>({ resolver: zodResolver(schema), defaultValues: { zoneId: "", activiteId: "" } });
+  } = useForm<ValeursFormulaire>({ resolver: zodResolver(schema), defaultValues: { activiteId: "" } });
 
   async function etapeSuivante() {
     const champs = CHAMPS_ETAPE[etape] ?? [];
@@ -101,7 +98,6 @@ export function NouvelAdherent() {
         nomComplet: formaterNomComplet(valeurs.nom, valeurs.prenoms),
         telephonePrincipal: valeurs.telephonePrincipal,
         numeroCni: sansVide(valeurs.numeroCni),
-        zoneId: valeurs.zoneId,
       });
     }
     setEtape((e) => Math.min(e + 1, TITRES_ETAPE.length - 1));
@@ -251,25 +247,6 @@ export function NouvelAdherent() {
 
             {etape === 1 && (
               <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                <ChampFormulaire id="zoneId" libelle="Zone" erreur={errors.zoneId?.message}>
-                  {(attributs) => (
-                    <Controller
-                      control={control}
-                      name="zoneId"
-                      render={({ field }) => (
-                        <SelectRecherche
-                          id={attributs.id}
-                          options={(zones ?? []).map((z) => ({ valeur: z.id, libelle: z.libelle }))}
-                          valeur={field.value}
-                          onChange={field.onChange}
-                          ariaInvalid={attributs["aria-invalid"]}
-                          ariaDescribedBy={attributs["aria-describedby"]}
-                          placeholder="Sélectionner une zone"
-                        />
-                      )}
-                    />
-                  )}
-                </ChampFormulaire>
                 <ChampFormulaire id="activiteId" libelle="Activité" erreur={errors.activiteId?.message}>
                   {(attributs) => (
                     <Controller
@@ -288,14 +265,6 @@ export function NouvelAdherent() {
                       )}
                     />
                   )}
-                </ChampFormulaire>
-                <ChampFormulaire
-                  id="localisation"
-                  libelle="Localisation"
-                  erreur={errors.localisation?.message}
-                  className="sm:col-span-2"
-                >
-                  {(attributs) => <Input {...attributs} {...register("localisation")} />}
                 </ChampFormulaire>
                 <ChampFormulaire id="quartier" libelle="Quartier">
                   {(attributs) => <Input {...attributs} {...register("quartier")} />}
@@ -338,8 +307,8 @@ export function NouvelAdherent() {
                     <dd className="ref">{masquerTelephone(getValues("telephonePrincipal"))}</dd>
                   </div>
                   <div>
-                    <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Localisation</dt>
-                    <dd>{getValues("localisation")}</dd>
+                    <dt className="text-xs font-semibold text-texte-doux-fort uppercase">Quartier / ville</dt>
+                    <dd>{[getValues("quartier"), getValues("ville")].filter(Boolean).join(", ") || "—"}</dd>
                   </div>
                 </dl>
                 <p className="text-sm text-texte-doux-fort">

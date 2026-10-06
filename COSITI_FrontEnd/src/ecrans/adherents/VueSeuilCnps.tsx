@@ -100,14 +100,6 @@ export function VueSeuilCnps({ mode, agentId }: VueSeuilCnpsProps) {
 
   return (
     <div className="space-y-3">
-      {mode === "proches" && (
-        <Alerte teinte="attention" titre="Seuil de proximité provisoire">
-          <p>
-            La proximité est définie par un ratio du seuil du pack (paramètre CNPS_SEUIL_PROXIMITE_RATIO), non encore
-            validé par la COSITI.
-          </p>
-        </Alerte>
-      )}
       <p className="text-sm text-texte-doux-fort" aria-live="polite">
         {lignes.length} adhérent{lignes.length > 1 ? "s" : ""}
       </p>

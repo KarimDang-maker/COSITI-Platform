@@ -57,55 +57,41 @@ beforeEach(() => {
 });
 afterEach(() => serveur.events.removeAllListeners());
 
-describe("V21 — règles à valider", () => {
-  it("permet au PCA de confirmer une règle provisoire avec la référence de la décision", async () => {
+describe("V23 — matrice documentaire (règles en attente réputées validées)", () => {
+  it("affiche la matrice documentaire sans inventaire de règles provisoires ni confirmation", async () => {
     simulerSession(JETON_PCA);
-    const requetes = espionner();
-    const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/regles" });
-
-    expect(await screen.findByText("Composantes imputées aux droits", {}, ATTENTE)).toBeInTheDocument();
-    expect(screen.getByText("Paramètres à valider")).toBeInTheDocument();
-    const ligne = screen.getByText("Composantes imputées aux droits").closest("tr")!;
-    await utilisateur.click(within(ligne).getByRole("button", { name: "Confirmer" }));
-    const dialogue = await screen.findByRole("alertdialog");
-    await utilisateur.type(within(dialogue).getByRole("textbox"), "PV du conseil du 01/10/2026");
-    await utilisateur.click(within(dialogue).getByRole("button", { name: "Confirmer" }));
-
-    await waitFor(
-      () => expect(requetes.find((r) => r.chemin === "/api/v1/regles/parametres/DROITS_COMPOSANTES_IMPUTABLES/valider")?.corps).toEqual({ motif: "PV du conseil du 01/10/2026" }),
-      ATTENTE,
-    );
-    await waitFor(() => expect(screen.queryByText("Composantes imputées aux droits")).not.toBeInTheDocument(), ATTENTE);
-  });
-
-  it("affiche la matrice documentaire et confirme une exigence", async () => {
-    simulerSession(JETON_PCA);
-    const requetes = espionner();
-    const utilisateur = userEvent.setup();
-    rendreAvecProviders(arbre(), { routeInitiale: "/regles?onglet=matrice" });
 
     expect(await screen.findByText("Justificatif de résidence", {}, ATTENTE)).toBeInTheDocument();
     expect(screen.getByText("Si l'adresse déclarée diffère de celle de la CNI", { exact: false })).toBeInTheDocument();
-    await utilisateur.click(screen.getByRole("button", { name: "Confirmer Acte de naissance" }));
-    const dialogue = await screen.findByRole("alertdialog");
-    expect(within(dialogue).getByText(/deviendra bloquante/)).toBeInTheDocument();
-    await utilisateur.type(within(dialogue).getByRole("textbox"), "Note COSITI 2026-12");
-    await utilisateur.click(within(dialogue).getByRole("button", { name: "Confirmer" }));
-    await waitFor(() => expect(requetes.some((r) => r.chemin === "/api/v1/regles/exigences/ex-acte/valider")).toBe(true), ATTENTE);
+    expect(screen.queryByText("Règles provisoires")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Confirmer/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^Modifier/ }).length).toBeGreaterThan(0);
   });
 
-  it("laisse la DGA consulter sans pouvoir confirmer", async () => {
-    simulerSession(JETON_DGA);
-    serveur.use(http.get("/api/v1/regles/en-attente", () => HttpResponse.json({ code: "ACCES_REFUSE", message: "Accès refusé." }, { status: 403 })));
+  it("laisse modifier une exigence documentaire avec un motif", async () => {
+    simulerSession(JETON_PCA);
+    const requetes = espionner();
+    const utilisateur = userEvent.setup();
     rendreAvecProviders(arbre(), { routeInitiale: "/regles" });
-    expect(await screen.findByText("Inventaire indisponible", {}, ATTENTE)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Confirmer" })).not.toBeInTheDocument();
+
+    await utilisateur.click(await screen.findByRole("button", { name: "Modifier Acte de naissance" }, ATTENTE));
+    const dialogue = await screen.findByRole("dialog");
+    await utilisateur.type(within(dialogue).getByLabelText(/Motif de la modification/), "Note COSITI 2026-12");
+    await utilisateur.click(within(dialogue).getByRole("button", { name: "Enregistrer" }));
+    await waitFor(() => expect(requetes.some((r) => r.methode === "PUT" && r.chemin === "/api/v1/regles/exigences/ex-acte")).toBe(true), ATTENTE);
+  });
+
+  it("ne propose aucune modification sans la permission", async () => {
+    simulerSession(JETON_DGA);
+    rendreAvecProviders(arbre(), { routeInitiale: "/regles" });
+    expect(await screen.findByText("Justificatif de résidence", {}, ATTENTE)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Modifier/ })).not.toBeInTheDocument();
   });
 });
 
 describe("V21 — checklist documentaire et pièces", () => {
-  it("affiche la checklist tirée de la matrice : obligatoire non confirmée signalée sans bloquer", async () => {
+  it("affiche la checklist tirée de la matrice, sans rappel de règle en attente", async () => {
     simulerSession(JETON_GESTIONNAIRE);
     rendreAvecProviders(arbre(), { routeInitiale: "/adherents/adh-1?onglet=documents" });
 
@@ -113,7 +99,8 @@ describe("V21 — checklist documentaire et pièces", () => {
     expect(within(liste).getByText("Acte de naissance")).toBeInTheDocument();
     expect(within(liste).getAllByText("Requise — non fournie").length).toBeGreaterThan(0);
     expect(screen.getByText("Aucune pièce ne bloque l'activation")).toBeInTheDocument();
-    expect(within(liste).getAllByText(/Règle en attente de confirmation par la COSITI/).length).toBeGreaterThan(0);
+    // V23 : plus aucune mention « règle en attente de confirmation ».
+    expect(within(liste).queryByText(/Règle en attente de confirmation/)).not.toBeInTheDocument();
   });
 
   it("remplace une pièce avec un motif obligatoire, l'ancienne version étant conservée", async () => {

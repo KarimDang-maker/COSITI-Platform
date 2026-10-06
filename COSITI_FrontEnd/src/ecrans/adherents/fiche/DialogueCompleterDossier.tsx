@@ -24,7 +24,7 @@ import { Alerte } from "@/components/cositi/alerte";
 import { useAssociations, useChampsManquants, useCompleterProfil } from "@/hooks/useAdherents";
 import type { CorpsCompletionProfil, Sexe } from "@/api/adherents";
 import { estErreurApi } from "@/api/erreurs";
-import { schemaLatitude, schemaLongitude, schemaTelephoneFacultatif, sansVide, texteVersNombre } from "@/ecrans/adherents/schemas";
+import { schemaTelephoneFacultatif, sansVide } from "@/ecrans/adherents/schemas";
 
 /**
  * Clés du paramètre `[V]` `CHAMPS_COMPLETION_ADHERENT` que ce formulaire sait saisir. Une clé renvoyée par
@@ -39,11 +39,13 @@ const CLES_SAISISSABLES = new Set([
   "NUMERO_CNPS",
   "QUARTIER",
   "VILLE",
-  "GEOLOCALISATION",
   "CONSENTEMENT",
   // V21 : référentiel `GET /associations` exposé.
   "ASSOCIATION",
 ]);
+
+/** Clés retirées du dossier (V23). */
+const CLES_RETIREES = new Set(["GEOLOCALISATION"]);
 
 const schema = z.object({
   dateNaissance: z.string().optional(),
@@ -54,8 +56,6 @@ const schema = z.object({
   quartier: z.string().trim().optional(),
   ville: z.string().trim().optional(),
   associationId: z.string().optional(),
-  latitude: schemaLatitude,
-  longitude: schemaLongitude,
   consentementDonnees: z.boolean(),
 });
 
@@ -72,7 +72,9 @@ interface DialogueCompleterDossierProps {
  * après l'envoi, la complétion est recalculée par le serveur et relue — jamais estimée ici.
  */
 export function DialogueCompleterDossier({ adherentId, ouvert, onOuvertChange }: DialogueCompleterDossierProps) {
-  const { data: manquants, isLoading, isError } = useChampsManquants(adherentId, ouvert);
+  const { data: manquantsServeur, isLoading, isError } = useChampsManquants(adherentId, ouvert);
+  // V23 : la géolocalisation est retirée du dossier — la clé n'est plus proposée, même si le serveur la renvoie encore.
+  const manquants = manquantsServeur?.filter((c) => !CLES_RETIREES.has(c.cle));
   const completer = useCompleterProfil(adherentId);
   const { data: associations } = useAssociations(ouvert);
   const [erreurServeur, setErreurServeur] = useState<string | null>(null);
@@ -106,8 +108,6 @@ export function DialogueCompleterDossier({ adherentId, ouvert, onOuvertChange }:
       quartier: sansVide(valeurs.quartier),
       ville: sansVide(valeurs.ville),
       associationId: sansVide(valeurs.associationId),
-      latitude: texteVersNombre(valeurs.latitude) ?? undefined,
-      longitude: texteVersNombre(valeurs.longitude) ?? undefined,
       consentementDonnees: valeurs.consentementDonnees,
     };
     const renseigne = Object.entries(corps).some(([cle, valeur]) =>
@@ -237,16 +237,6 @@ export function DialogueCompleterDossier({ adherentId, ouvert, onOuvertChange }:
                     />
                   )}
                 </ChampFormulaire>
-              )}
-              {cles.has("GEOLOCALISATION") && (
-                <>
-                  <ChampFormulaire id="c-latitude" libelle="Latitude" erreur={errors.latitude?.message}>
-                    {(attributs) => <Input inputMode="decimal" {...attributs} {...register("latitude")} />}
-                  </ChampFormulaire>
-                  <ChampFormulaire id="c-longitude" libelle="Longitude" erreur={errors.longitude?.message}>
-                    {(attributs) => <Input inputMode="decimal" {...attributs} {...register("longitude")} />}
-                  </ChampFormulaire>
-                </>
               )}
             </div>
 

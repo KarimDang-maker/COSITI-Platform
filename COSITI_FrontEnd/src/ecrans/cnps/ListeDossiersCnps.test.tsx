@@ -21,7 +21,7 @@ function arbre() {
 }
 
 describe("ListeDossiersCnps", () => {
-  it("affiche les dossiers et remonte l'avertissement de règle non validée", async () => {
+  it("affiche les dossiers et n'affiche plus le rappel de règle non validée (V23)", async () => {
     simulerSession(JETON_GESTIONNAIRE);
     rendreAvecProviders(arbre(), { routeInitiale: "/cnps" });
 
@@ -29,8 +29,8 @@ describe("ListeDossiersCnps", () => {
     expect(screen.getByText("Brouillon")).toBeInTheDocument();
     expect(screen.getByText("Transmis")).toBeInTheDocument();
 
-    // Le bandeau [V] n'est jamais masqué : la composition du dossier n'est pas validée par la COSITI.
-    expect(screen.getByText(/PIECES_CNPS_OBLIGATOIRES/)).toBeInTheDocument();
+    // V23 : règles en attente réputées validées — le rappel « non validée » n'est plus affiché.
+    expect(screen.queryByText(/PIECES_CNPS_OBLIGATOIRES/)).not.toBeInTheDocument();
   });
 
   it("filtre les dossiers par statut", async () => {

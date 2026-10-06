@@ -31,3 +31,8 @@ dist-ssr
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+
+COSITI_branding_pack
+docs 
+

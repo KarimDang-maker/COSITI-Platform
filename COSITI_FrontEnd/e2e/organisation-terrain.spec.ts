@@ -97,11 +97,12 @@ test.describe("Administration", () => {
     await expect(page.getByRole("button", { name: /supprimer|purger|modifier/i })).toHaveCount(0);
   });
 
-  test("les règles non validées sont signalées comme telles au Super Administrateur", async ({ page }) => {
+  test("V23 — plus aucune règle « à valider » n'est présentée au Super Administrateur", async ({ page }) => {
     await seConnecter(page, "superAdmin");
     await page.goto("/administration?onglet=parametres");
 
-    // La dette fonctionnelle est visible là où elle peut être traitée.
-    await expect(page.getByText("À valider").first()).toBeVisible({ timeout: 20_000 });
+    // Décision COSITI du 05/10/2026 : toutes les règles en attente sont réputées validées (migration V23).
+    await expect(page.getByRole("tab", { name: /Paramètres/ })).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText("À valider")).toHaveCount(0);
   });
 });
