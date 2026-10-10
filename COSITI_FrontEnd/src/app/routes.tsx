@@ -25,6 +25,8 @@ import { EcranDaf } from "@/ecrans/daf/EcranDaf";
 import { EcranDroits } from "@/ecrans/droits/EcranDroits";
 import { ListeDossiersCnps } from "@/ecrans/cnps/ListeDossiersCnps";
 import { FicheDossierCnps } from "@/ecrans/cnps/FicheDossierCnps";
+import { EcranParcoursCnps } from "@/ecrans/cnps/EcranParcoursCnps";
+import { EcranParametresCnps } from "@/ecrans/cnps/EcranParametresCnps";
 import { ListeComptesRendus } from "@/ecrans/comptesrendus/ListeComptesRendus";
 import { NouveauCompteRendu } from "@/ecrans/comptesrendus/NouveauCompteRendu";
 import { FicheCompteRendu } from "@/ecrans/comptesrendus/FicheCompteRendu";
@@ -52,6 +54,11 @@ const CatalogueDesignSystem = import.meta.env.DEV
       })),
     )
   : null;
+
+/** Écran « Avantages » chargé à la demande : il embarque le formulaire de catalogue, rarement ouvert. */
+const EcranAvantages = lazy(() =>
+  import("@/ecrans/avantages/EcranAvantages").then((module) => ({ default: module.EcranAvantages })),
+);
 
 /**
  * Déclaration des routes de l'application. Une route protégée est toujours
@@ -319,11 +326,42 @@ export function RoutesApplication() {
           </GardeRoute>
         }
       />
+      {/* Parcours CNPS : préimmatriculation par vagues, dépôt au CPS, immatriculation. Lecture CNPS:LIRE, actions
+          CNPS:GERER, paramètres CNPS:PARAMETRER (DAF) — décidés par le serveur. Routes statiques avant `/cnps/:id`. */}
+      <Route
+        path="/cnps/parcours"
+        element={
+          <GardeRoute permission="CNPS:LIRE">
+            <EcranParcoursCnps />
+          </GardeRoute>
+        }
+      />
+      <Route
+        path="/cnps/parametres"
+        element={
+          <GardeRoute permission="CNPS:PARAMETRER">
+            <EcranParametresCnps />
+          </GardeRoute>
+        }
+      />
       <Route
         path="/cnps/:id"
         element={
           <GardeRoute permission="CNPS:LIRE">
             <FicheDossierCnps />
+          </GardeRoute>
+        }
+      />
+
+      {/* Avantages et couvertures : catalogue, bénéficiaires, recalcul (AVANTAGE:RECALCULER) et gestion du catalogue
+          (AVANTAGE:GERER) — les actions sont décidées par le serveur. */}
+      <Route
+        path="/avantages"
+        element={
+          <GardeRoute permission="AVANTAGE:LIRE">
+            <Suspense fallback={null}>
+              <EcranAvantages />
+            </Suspense>
           </GardeRoute>
         }
       />

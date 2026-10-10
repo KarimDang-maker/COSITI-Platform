@@ -25,6 +25,7 @@ import { DialogueModifierIdentite } from "@/ecrans/adherents/fiche/DialogueModif
 import { DialogueChangerStatut } from "@/ecrans/adherents/fiche/DialogueChangerStatut";
 import { OngletCotisations } from "@/ecrans/adherents/fiche/OngletCotisations";
 import { OngletCnps } from "@/ecrans/adherents/fiche/OngletCnps";
+import { OngletAvantages } from "@/ecrans/adherents/fiche/OngletAvantages";
 import { OngletDocuments } from "@/ecrans/adherents/fiche/OngletDocuments";
 import { OngletHistorique } from "@/ecrans/adherents/fiche/OngletHistorique";
 import { CarteComptes } from "@/ecrans/adherents/fiche/CarteComptes";
@@ -32,7 +33,7 @@ import { BandeauWorkflow, HistoriqueValidation } from "@/ecrans/workflow/Bandeau
 import { DialogueDemandeModification } from "@/ecrans/workflow/DialogueDemandeModification";
 import { OngletAdhesion } from "@/ecrans/adhesion/OngletAdhesion";
 
-type Onglet = "profil" | "adhesion" | "professionnel" | "cotisations" | "cnps" | "documents" | "historique" | "validation";
+type Onglet = "profil" | "adhesion" | "professionnel" | "cotisations" | "cnps" | "avantages" | "documents" | "historique" | "validation";
 
 /**
  * Fiche adhérent (#12). L'en-tête garde visibles le nom, le matricule, le statut et les actions
@@ -86,6 +87,7 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
   const peutLirePaiements = usePermission("PAIEMENT:LIRE");
   const peutLireCnps = usePermission("CNPS:LIRE");
   const peutGererCnps = usePermission("CNPS:GERER");
+  const peutLireAvantages = usePermission("AVANTAGE:LIRE");
   const peutLireDocuments = usePermission("DOCUMENT:LIRE");
   const peutTeleverser = usePermission("DOCUMENT:TELEVERSER");
   const peutVerifierDocuments = usePermission("DOCUMENT:VERIFIER");
@@ -142,6 +144,7 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
     "professionnel",
     ...(peutLireDroits || peutLirePaiements ? (["cotisations"] as const) : []),
     ...(peutLireResume || peutLireCnps ? (["cnps"] as const) : []),
+    ...(peutLireAvantages ? (["avantages"] as const) : []),
     ...(peutLireDocuments ? (["documents"] as const) : []),
     "historique",
     ...(statutValidation ? (["validation"] as const) : []),
@@ -260,6 +263,7 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
             <TabsTrigger value="professionnel">Professionnel</TabsTrigger>
             {ongletsVisibles.includes("cotisations") && <TabsTrigger value="cotisations">Cotisations</TabsTrigger>}
             {ongletsVisibles.includes("cnps") && <TabsTrigger value="cnps">CNPS</TabsTrigger>}
+            {ongletsVisibles.includes("avantages") && <TabsTrigger value="avantages">Avantages</TabsTrigger>}
             {ongletsVisibles.includes("documents") && <TabsTrigger value="documents">Documents</TabsTrigger>}
             <TabsTrigger value="historique">Historique</TabsTrigger>
             {ongletsVisibles.includes("validation") && <TabsTrigger value="validation">Validation</TabsTrigger>}
@@ -340,6 +344,10 @@ function ContenuFiche({ adherent }: { adherent: Adherent }) {
                 />
               )}
             </TabsContent>
+          )}
+
+          {ongletsVisibles.includes("avantages") && (
+            <TabsContent value="avantages">{onglet === "avantages" && <OngletAvantages adherentId={adherent.id} />}</TabsContent>
           )}
 
           {ongletsVisibles.includes("documents") && (

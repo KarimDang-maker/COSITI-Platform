@@ -5,6 +5,8 @@ import { handlersOrganisation } from "@/test/msw/handlers.organisation";
 import { handlersPaiements } from "@/test/msw/handlers.paiements";
 import { handlersDroits } from "@/test/msw/handlers.droits";
 import { handlersCnps } from "@/test/msw/handlers.cnps";
+import { handlersParcoursCnps } from "@/test/msw/handlers.parcoursCnps";
+import { handlersAvantages } from "@/test/msw/handlers.avantages";
 import { handlersComptesRendus } from "@/test/msw/handlers.comptesRendus";
 import { handlersTableauxDeBord } from "@/test/msw/handlers.tableauxDeBord";
 import { handlersRapports } from "@/test/msw/handlers.rapports";
@@ -30,6 +32,8 @@ export const serveur = setupServer(
   ...handlersPaiements,
   ...handlersDroits,
   ...handlersCnps,
+  ...handlersParcoursCnps,
+  ...handlersAvantages,
   ...handlersComptesRendus,
   ...handlersTableauxDeBord,
   ...handlersRapports,

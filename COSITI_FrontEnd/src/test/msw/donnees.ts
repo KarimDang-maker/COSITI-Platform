@@ -84,6 +84,9 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       // le rôle opérationnel du domaine CNPS (Roles des acteurs.md §7).
       "CNPS:LIRE",
       "CNPS:GERER",
+      // V26 : le Gestionnaire consulte les avantages et relance l'évaluation.
+      "AVANTAGE:LIRE",
+      "AVANTAGE:RECALCULER",
       "CNPS:CHANGER_STATUT",
       "CNPS:DECLARER",
       "DOCUMENT:LIRE",
@@ -166,6 +169,12 @@ export const UTILISATEURS: Readonly<Record<string, Utilisateur>> = {
       "DROITS:LIRE",
       "DROITS:RECALCULER",
       "CNPS:LIRE",
+      // Parcours CNPS : le DAF règle quotas, jour de coupure et délai de dépôt (jamais les actions du parcours).
+      "CNPS:PARAMETRER",
+      // V26 : le DAF gère aussi le catalogue des avantages.
+      "AVANTAGE:LIRE",
+      "AVANTAGE:RECALCULER",
+      "AVANTAGE:GERER",
       "DOCUMENT:LIRE",
       "TABLEAU_BORD:DAF",
       // V12__rapports_daf_exports_j10.sql

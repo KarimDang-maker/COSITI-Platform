@@ -1,4 +1,4 @@
-import { Link, NavLink } from "react-router";
+import { Link, NavLink, useLocation } from "react-router";
 import {
   Scale,
   Users,
@@ -19,6 +19,9 @@ import {
   type LucideIcon,
   Coins,
   FileSearch,
+  Milestone,
+  SlidersHorizontal,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/auth/ContexteAuth";
@@ -42,6 +45,8 @@ interface EntreeNavigation {
   permission?: CodePermission;
   /** Au moins une de ces permissions. */
   unePermissionParmi?: readonly CodePermission[];
+  /** Sous-chemins qui ont leur propre entrée : l'entrée parente n'est pas marquée active dessus. */
+  exclureChemins?: readonly string[];
 }
 
 interface SectionNavigation {
@@ -94,7 +99,13 @@ const SECTIONS: readonly SectionNavigation[] = [
       { chemin: "/droits", libelle: "Droits", icone: ScrollText, permission: "DROITS:LIRE" },
       // `V9__permissions_j7_cnps_documents.sql` : lecture ouverte à PCA, DG, DGA,
       // DAF et Gestionnaire des comptes ; l'Agent et le Chef n'ont pas ce domaine.
-      { chemin: "/cnps", libelle: "CNPS", icone: FileHeart, permission: "CNPS:LIRE" },
+      { chemin: "/cnps", libelle: "CNPS", icone: FileHeart, permission: "CNPS:LIRE", exclureChemins: ["/cnps/parcours", "/cnps/parametres"] },
+      // Parcours CNPS : préimmatriculation par vagues, dépôt au CPS, immatriculation (lecture CNPS:LIRE).
+      { chemin: "/cnps/parcours", libelle: "Parcours CNPS", icone: Milestone, permission: "CNPS:LIRE" },
+      // Paramètres du parcours (quotas, jour de coupure, délai) : DAF et Super administrateur (CNPS:PARAMETRER).
+      { chemin: "/cnps/parametres", libelle: "Paramètres CNPS", icone: SlidersHorizontal, permission: "CNPS:PARAMETRER" },
+      // `V26__avantages_couvertures.sql` : lecture PCA, DG, DGA, DAF, Gestionnaire ; recalcul et gestion par permission.
+      { chemin: "/avantages", libelle: "Avantages", icone: Gift, permission: "AVANTAGE:LIRE" },
       { chemin: "/relances", libelle: "Relances", icone: PhoneCall, permission: "RELANCE:LIRE" },
     ],
   },
@@ -253,21 +264,26 @@ interface LienNavigationProps {
 
 function LienNavigation({ entree, repliee, onNaviguer }: LienNavigationProps) {
   const Icone = entree.icone;
+  const { pathname } = useLocation();
+  const exclue = entree.exclureChemins?.some((c) => pathname === c || pathname.startsWith(`${c}/`)) ?? false;
   const lien = (
     <NavLink
       to={entree.chemin}
       onClick={onNaviguer}
-      className={({ isActive }) =>
-        cn(
+      className={({ isActive: actifBrut }) => {
+        const isActive = actifBrut && !exclue;
+        return cn(
           "group relative flex min-h-11 items-center gap-3 rounded-md text-sm font-medium text-nav-contenu-doux transition-colors duration-(--duree-rapide) hover:bg-nav-survol-fond hover:text-nav-contenu focus-visible:ring-2 focus-visible:ring-nav-actif-trait focus-visible:outline-none",
           repliee ? "size-12 justify-center" : "px-3",
           isActive &&
             "bg-nav-actif-fond font-semibold text-nav-contenu before:absolute before:inset-y-2 before:w-1 before:rounded-r-sm before:bg-nav-actif-trait",
           isActive && (repliee ? "before:-left-3" : "before:-left-5"),
-        )
-      }
+        );
+      }}
     >
-      {({ isActive }) => (
+      {({ isActive: actifBrut }) => {
+        const isActive = actifBrut && !exclue;
+        return (
         <>
           <Icone
             className={cn("size-5 shrink-0", isActive && "text-nav-actif-trait")}
@@ -275,7 +291,8 @@ function LienNavigation({ entree, repliee, onNaviguer }: LienNavigationProps) {
           />
           <span className={repliee ? "sr-only" : "truncate"}>{entree.libelle}</span>
         </>
-      )}
+        );
+      }}
     </NavLink>
   );
 

@@ -25,6 +25,7 @@ import {
 import { useTelechargerDocument } from "@/hooks/useDocuments";
 import { useAjouterPieceCnps } from "@/hooks/useCnps";
 import { useAuth } from "@/auth/ContexteAuth";
+import { ChecklistArchivage } from "@/ecrans/cnps/ChecklistArchivage";
 import { LIBELLES_TYPE_PIECE, type StatutDossierCnps, type TypePieceCnps } from "@/api/cnps";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterDate, formaterMoisAnnee, formaterMontant } from "@/lib/format";
@@ -221,6 +222,13 @@ export function FicheDossierCnps() {
                 ))}
               </TableBody>
             </Table>
+        </CarteSection>
+
+        <CarteSection
+          titre="Archivage du dossier physique"
+          description="Suivi de chaque pièce du dossier papier, de sa remise à son archivage."
+        >
+          <ChecklistArchivage dossierId={dossier.id} adherentId={dossier.adherentId} peutGerer={peutGerer} />
         </CarteSection>
 
         <CarteSection titre="Déclarations mensuelles" contenuClassName="space-y-4">

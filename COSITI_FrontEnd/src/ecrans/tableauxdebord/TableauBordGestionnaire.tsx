@@ -4,6 +4,8 @@ import { CarteSection } from "@/components/cositi/carte-section";
 import { ListeElements, type ElementListe } from "@/components/cositi/liste-elements";
 import { useTableauBordGestionnaire } from "@/hooks/useTableauxDeBord";
 import { usePeriodeTableauBord } from "@/hooks/usePeriodeTableauBord";
+import { useResumeParcours } from "@/hooks/useParcoursCnps";
+import { usePermission } from "@/auth/ContexteAuth";
 import { formaterNombre } from "@/lib/format";
 
 /** `/tableaux-de-bord/gestionnaire` — Adhérents, CNPS et remontées terrain (UC-GC-01). */
@@ -11,8 +13,38 @@ export function TableauBordGestionnaire() {
   const periode = usePeriodeTableauBord();
   const { data, isLoading, isError, error } = useTableauBordGestionnaire(periode.filtres);
 
+  // Parcours CNPS en direct : compteurs du serveur, chaque ligne ouvre la liste filtrée de `/cnps/parcours`.
+  const peutLireCnps = usePermission("CNPS:LIRE");
+  const parcours = useResumeParcours(undefined, peutLireCnps);
+  const raccourcisParcours: ElementListe[] = parcours.data
+    ? [
+        {
+          cle: "parcours-a-preimmatriculer",
+          icone: UserCheck,
+          titre: "À préimmatriculer",
+          valeur: formaterNombre(parcours.data.aPreimmatriculer),
+          chemin: "/cnps/parcours?filtre=A_PREIMMATRICULER",
+        },
+        {
+          cle: "parcours-en-retard",
+          icone: Clock,
+          titre: "Préimmatriculations en retard",
+          valeur: formaterNombre(parcours.data.enRetard),
+          chemin: "/cnps/parcours?filtre=EN_RETARD",
+        },
+        {
+          cle: "parcours-delai-depot",
+          icone: FileHeart,
+          titre: "Dossiers à déposer au CPS",
+          valeur: formaterNombre(parcours.data.delaiDepotEnCours),
+          chemin: "/cnps/parcours?filtre=DELAI_DEPOT",
+        },
+      ]
+    : [];
+
   const raccourcis: ElementListe[] = data
     ? [
+        ...raccourcisParcours,
         {
           cle: "cnps-incomplets",
           icone: FileHeart,

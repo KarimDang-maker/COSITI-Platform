@@ -79,9 +79,9 @@ export function ecouterChangements(
  * rechargées immédiatement ; les autres sont marquées périmées et rechargées à leur prochain affichage.
  */
 export const CLES_PAR_DOMAINE: Record<DomaineTempsReel, readonly string[]> = {
-  adherent: ["adherents", "adhesion", "cnps", "droits", "documents", "tableaux-de-bord", "organisation"],
+  adherent: ["adherents", "adhesion", "cnps", "avantages", "droits", "documents", "tableaux-de-bord", "organisation"],
   agent: ["organisation", "tableaux-de-bord", "adherents"],
-  paiement: ["paiements", "bilans-caisse", "droits", "adherents", "tableaux-de-bord", "rapports-daf", "organisation"],
+  paiement: ["paiements", "bilans-caisse", "droits", "avantages", "adherents", "tableaux-de-bord", "rapports-daf", "organisation"],
   bilan_caisse: ["bilans-caisse", "tableaux-de-bord", "rapports-daf"],
   workflow: ["workflow", "notifications", "adherents", "organisation", "paiements"],
   adhesion: ["adhesion", "adherents", "notifications", "tableaux-de-bord", "organisation"],

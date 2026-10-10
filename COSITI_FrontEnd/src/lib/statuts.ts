@@ -185,6 +185,47 @@ const PIECE_CNPS = {
   REJETEE: { libelle: "Rejetée", teinte: "danger" },
 } satisfies TableStatuts;
 
+/** Étape d'un adhérent dans le parcours CNPS (`EtapeParcours`, `SituationParcoursDto.etape`). */
+const ETAPE_PARCOURS_CNPS = {
+  NON_ELIGIBLE: { libelle: "Non éligible", teinte: "neutre", aide: "Cumul de cotisations validées sous le quota de préimmatriculation." },
+  ELIGIBLE_PREIMMAT: { libelle: "À préimmatriculer", teinte: "attention", aide: "Quota atteint : la préimmatriculation peut être enregistrée." },
+  PREIMMATRICULE: { libelle: "Préimmatriculé", teinte: "info", aide: "Le dossier physique est à déposer au CPS dans le délai." },
+  DOSSIER_DEPOSE: { libelle: "Dossier déposé", teinte: "info", aide: "Dossier remis au CPS, en attente d'immatriculation." },
+  IMMATRICULE: { libelle: "Immatriculé", teinte: "succes" },
+} satisfies TableStatuts;
+
+/** Signaux d'alerte du parcours CNPS (retard de vague, report, dépôt hors délai). */
+const ALERTE_PARCOURS_CNPS = {
+  EN_RETARD: { libelle: "En retard", teinte: "danger", aide: "Éligible après la fenêtre 1 de la vague." },
+  REPORTE: { libelle: "Reporté", teinte: "attention", aide: "Toujours sous le quota au 1er du mois suivant : reporté à la vague suivante." },
+  HORS_DELAI_DEPOT: { libelle: "Délai de dépôt dépassé", teinte: "danger" },
+  DEPOT_HORS_DELAI: { libelle: "Déposé hors délai", teinte: "attention" },
+} satisfies TableStatuts;
+
+/** Statut d'une pièce de la checklist d'archivage du dossier CNPS (`StatutArchivage`). */
+const ARCHIVAGE_CNPS = {
+  NON_FOURNIE: { libelle: "Non fournie", teinte: "danger" },
+  FOURNIE: { libelle: "Fournie", teinte: "info", aide: "Rattachée, pas encore vérifiée." },
+  VERIFIEE: { libelle: "Vérifiée", teinte: "attention", aide: "Vérifiée, pas encore archivée physiquement." },
+  ARCHIVEE: { libelle: "Archivée", teinte: "succes" },
+} satisfies TableStatuts;
+
+/** Situation d'un adhérent vis-à-vis d'un avantage (`StatutAvantage`, module avantages V26). */
+const STATUT_AVANTAGE = {
+  ACQUIS: { libelle: "Acquis", teinte: "succes", aide: "Tous les critères sont remplis : l'adhérent bénéficie de l'avantage." },
+  EN_COURS: { libelle: "En cours d'acquisition", teinte: "info", aide: "Une partie des critères est remplie." },
+  NON_ELIGIBLE: { libelle: "Non éligible", teinte: "neutre", aide: "Aucun critère rempli." },
+  SUSPENDU: { libelle: "Suspendu", teinte: "attention", aide: "Avantage acquis auparavant, mais un critère n'est plus rempli." },
+} satisfies TableStatuts;
+
+/** Branche d'un avantage (`avantage.branche`). */
+const BRANCHE_AVANTAGE = {
+  PRESTATIONS_FAMILIALES: { libelle: "Prestations familiales", teinte: "info" },
+  PENSIONS: { libelle: "Pensions", teinte: "info" },
+  RISQUES_PROFESSIONNELS: { libelle: "Risques professionnels", teinte: "info" },
+  COSITI: { libelle: "Avantage COSITI", teinte: "marque" },
+} satisfies TableStatuts;
+
 /* ==========================================================================
    4. Documents
    ======================================================================== */
@@ -427,6 +468,11 @@ export const STATUTS = {
   remiseCaisse: REMISE_CAISSE,
   dossierCnps: DOSSIER_CNPS,
   pieceCnps: PIECE_CNPS,
+  etapeParcoursCnps: ETAPE_PARCOURS_CNPS,
+  alerteParcoursCnps: ALERTE_PARCOURS_CNPS,
+  archivageCnps: ARCHIVAGE_CNPS,
+  statutAvantage: STATUT_AVANTAGE,
+  brancheAvantage: BRANCHE_AVANTAGE,
   document: DOCUMENT,
   analyseAntivirus: ANALYSE_ANTIVIRUS,
   compteRendu: COMPTE_RENDU,

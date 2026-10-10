@@ -30,6 +30,8 @@ export interface Notification {
  */
 export function cheminNotification(notification: Notification): string | null {
   const id = notification.entiteId;
+  // Délai de dépôt CNPS (entité `adherent`) : on ouvre l'onglet CNPS de la fiche, où se trouve le parcours et l'action.
+  if (notification.type === "CNPS_DELAI_DEPOT" && id) return `/adherents/${id}?onglet=cnps`;
   switch (notification.entite) {
     case "demande_validation":
       return id ? `/validations/${id}` : "/validations";
@@ -79,6 +81,8 @@ export function libelleActionNotification(notification: Notification): string {
       return "Recompter la caisse";
     case "REMISE_CAISSE_ECART":
       return "Examiner la remise";
+    case "CNPS_DELAI_DEPOT":
+      return "Voir le parcours CNPS";
     case "COMPTE_RENDU_TERRAIN":
     case "COMPTE_RENDU_CONSOLIDE":
       return "Examiner le compte rendu";

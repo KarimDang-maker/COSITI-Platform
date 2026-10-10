@@ -14,6 +14,8 @@ import { useDossiersCnps, useOuvrirDossierCnps } from "@/hooks/useCnps";
 import { estErreurApi } from "@/api/erreurs";
 import { formaterDate, formaterMontant, formaterNombre } from "@/lib/format";
 import { LigneChamp } from "@/ecrans/adherents/fiche/LigneChamp";
+import { BlocParcoursCnps } from "@/ecrans/cnps/BlocParcoursCnps";
+import { ChecklistArchivage } from "@/ecrans/cnps/ChecklistArchivage";
 
 interface OngletCnpsProps {
   adherentId: string;
@@ -93,6 +95,8 @@ export function OngletCnps({ adherentId, nomAdherent, peutLireResume, peutLireCn
         </CarteSection>
       </div>
 
+      {peutLireCnps && <BlocParcoursCnps adherentId={adherentId} peutGerer={peutGererCnps} />}
+
       {peutLireCnps && (
         <CarteSection titre="Dossier CNPS">
           {dossiers.isLoading && <Skeleton className="h-16 w-full" />}
@@ -123,6 +127,15 @@ export function OngletCnps({ adherentId, nomAdherent, peutLireResume, peutLireCn
               </Link>
             </div>
           )}
+        </CarteSection>
+      )}
+
+      {peutLireCnps && dossierCnps && (
+        <CarteSection
+          titre="Archivage du dossier physique"
+          description="Suivi de chaque pièce du dossier papier, de sa remise à son archivage."
+        >
+          <ChecklistArchivage dossierId={dossierCnps.id} adherentId={adherentId} peutGerer={peutGererCnps} />
         </CarteSection>
       )}
 
